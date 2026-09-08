@@ -1,0 +1,906 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<title>Portaria Auditix</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+
+<style>
+/* ===========================================================================
+   Portaria Auditix, leitor de palma da entrada da escola.
+   Decisão visual: isto é um balcão de recepção, não um posto de vigilância.
+   Fundo claro, espaço generoso, resposta grande. A interface precisa parecer
+   o que o sistema promete ser.
+   =========================================================================== */
+:root{
+  --paper:#F3F6F4; --card:#FFFFFF; --sunk:#E9EEEB;
+  --ink:#13221E;   --ink-2:#4C5F59; --ink-3:#7D8F89;
+  --line:#DBE3DF;  --line-2:#EAF0ED;
+  --verde:#237A61; --verde-luz:#E3F2EC; --verde-linha:#A8D6C6;
+  --ambar:#A9670C; --ambar-luz:#FBF0DC; --ambar-linha:#E6C48A;
+  --rubi:#A3374A;  --rubi-luz:#FBE9EC;  --rubi-linha:#E3AAB4;
+  --azul:#2C5D8A;  --azul-luz:#E6EFF7;
+  --disp:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;
+  --corpo:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --r:10px;
+  --sombra:0 1px 2px rgba(19,34,30,.05), 0 8px 24px rgba(19,34,30,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+    --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+    --line:#26332F;  --line-2:#1E2A27;
+    --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+    --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+    --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+    --azul:#7FB2DE;  --azul-luz:#142634;
+    --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+  --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+  --line:#26332F;  --line-2:#1E2A27;
+  --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+  --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+  --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+  --azul:#7FB2DE;  --azul-luz:#142634;
+  --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+}
+
+*{ box-sizing:border-box; min-width:0; }
+html,body{ max-width:100%; overflow-x:hidden; }
+body{ margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--corpo); font-size:15px; line-height:1.6;
+  -webkit-font-smoothing:antialiased; }
+button{ font:inherit; color:inherit; }
+:focus-visible{ outline:2.5px solid var(--verde); outline-offset:2px; border-radius:3px; }
+h1,h2,h3{ font-family:var(--disp); font-weight:700; letter-spacing:-.012em;
+  text-wrap:balance; margin:0; }
+.wrap{ max-width:1360px; margin:0 auto; padding:0 24px; }
+.rot{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3); }
+
+/* ------------------------------------------------------------------ topo -- */
+.topo{ background:var(--card); border-bottom:1px solid var(--line); }
+.topo .wrap{ display:flex; align-items:center; flex-wrap:wrap; gap:14px 28px;
+  padding-top:15px; padding-bottom:15px; }
+.marca b{ font-family:var(--disp); font-weight:700; font-size:18px; letter-spacing:-.02em; }
+.marca b i{ font-style:normal; color:var(--verde); }
+.marca span{ display:block; font-size:11.5px; font-weight:600; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); }
+.abas{ display:flex; gap:3px; background:var(--sunk); padding:4px; border-radius:8px; }
+.aba{ padding:9px 18px; background:none; border:0; border-radius:6px; cursor:pointer;
+  font-weight:600; font-size:14px; color:var(--ink-2);
+  transition:background 180ms var(--ease), color 180ms var(--ease); }
+.aba[aria-selected="true"]{ background:var(--card); color:var(--ink); box-shadow:var(--sombra); }
+.aba:hover:not([aria-selected="true"]){ color:var(--ink); }
+.contadores{ display:flex; gap:26px; margin-left:auto; flex-wrap:wrap; }
+.ct b{ display:block; font-family:var(--mono); font-size:22px; font-weight:500;
+  line-height:1.15; font-variant-numeric:tabular-nums; }
+.ct.dentro b{ color:var(--verde); }
+
+/* ------------------------------------------------------------------ base -- */
+.vista{ display:none; }
+.vista.on{ display:block; }
+.grade{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);
+  gap:22px; padding:24px 0 40px; align-items:start; }
+.painel{ background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--sombra); overflow:hidden; }
+.painel-topo{ display:flex; align-items:center; justify-content:space-between;
+  gap:14px; padding:14px 18px; border-bottom:1px solid var(--line-2); }
+.painel-corpo{ padding:18px; }
+
+.btn{ padding:11px 18px; border-radius:8px; cursor:pointer; font-weight:600; font-size:14px;
+  background:var(--sunk); border:1px solid var(--line); color:var(--ink);
+  transition:border-color 160ms var(--ease), background 160ms var(--ease); }
+.btn:hover:not(:disabled){ border-color:var(--verde); }
+.btn:disabled{ opacity:.42; cursor:not-allowed; }
+.btn.forte{ background:var(--verde); border-color:var(--verde); color:#fff; }
+.btn.forte:hover:not(:disabled){ filter:brightness(1.08); }
+:root[data-theme="dark"] .btn.forte, :root:not([data-theme="light"]) .btn.forte{ color:#08130F; }
+@media (prefers-color-scheme: light){ :root:not([data-theme="dark"]) .btn.forte{ color:#fff; } }
+
+/* ---------------------------------------------------------------- câmera -- */
+.palco{ position:relative; background:#0C1512; aspect-ratio:4/3; overflow:hidden; }
+.palco video{ position:absolute; inset:0; width:100%; height:100%;
+  object-fit:cover; transform:scaleX(-1); }
+.palco canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.desligado{ position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:18px; padding:32px; text-align:center;
+  background:radial-gradient(120% 90% at 50% 40%, #1B302A, #0C1512 70%); }
+.desligado.off{ display:none; }
+.desligado p{ margin:0; color:#9BB5AC; font-size:14px; max-width:44ch; }
+.desligado p b{ color:#DCEAE4; }
+.grandao{ display:inline-flex; align-items:center; gap:12px; cursor:pointer;
+  background:var(--verde); border:0; color:#fff; padding:18px 32px; border-radius:999px;
+  font-family:var(--disp); font-weight:700; font-size:17px; letter-spacing:-.01em;
+  box-shadow:0 10px 34px rgba(35,122,97,.36);
+  transition:transform 170ms var(--ease), box-shadow 170ms var(--ease); }
+.grandao:hover{ transform:translateY(-2px); box-shadow:0 14px 42px rgba(35,122,97,.46); }
+.grandao svg{ width:23px; height:23px; }
+
+.dica{ position:absolute; left:0; right:0; bottom:0; padding:11px 16px;
+  background:linear-gradient(transparent,rgba(8,18,15,.88)); color:#DCEAE4;
+  font-size:13.5px; display:flex; align-items:center; gap:9px; }
+.dica .luz{ width:9px; height:9px; border-radius:50%; background:#7D8F89; flex:none; }
+.dica.boa .luz{ background:#5FBFA0; box-shadow:0 0 0 4px rgba(95,191,160,.22); }
+.dica.ruim .luz{ background:#DFA94E; box-shadow:0 0 0 4px rgba(223,169,78,.22); }
+
+.pe{ display:flex; align-items:center; flex-wrap:wrap; gap:11px; padding:15px 18px;
+  border-top:1px solid var(--line-2); }
+.modo{ display:flex; gap:3px; background:var(--sunk); padding:3px; border-radius:8px; }
+.modo button{ padding:9px 16px; border:0; background:none; border-radius:6px;
+  cursor:pointer; font-weight:600; font-size:13.5px; color:var(--ink-2); }
+.modo button[aria-pressed="true"]{ background:var(--card); color:var(--ink);
+  box-shadow:var(--sombra); }
+
+/* -------------------------------------------------------------- veredito -- */
+.vered{ padding:22px 20px; text-align:center; }
+.vered .selo{ display:inline-flex; align-items:center; gap:8px; padding:6px 14px;
+  border-radius:999px; font-size:12.5px; font-weight:600; letter-spacing:.04em;
+  text-transform:uppercase; border:1px solid; }
+.vered.ok .selo{ background:var(--verde-luz); color:var(--verde); border-color:var(--verde-linha); }
+.vered.duv .selo{ background:var(--ambar-luz); color:var(--ambar); border-color:var(--ambar-linha); }
+.vered.nao .selo{ background:var(--rubi-luz); color:var(--rubi); border-color:var(--rubi-linha); }
+.vered h2{ font-size:30px; margin:14px 0 4px; }
+.vered .sub{ color:var(--ink-2); font-size:14.5px; }
+.inicial{ width:74px; height:74px; margin:0 auto 4px; border-radius:50%;
+  display:grid; place-items:center; font-family:var(--disp); font-weight:700;
+  font-size:29px; background:var(--verde-luz); color:var(--verde);
+  border:1px solid var(--verde-linha); }
+.vered.duv .inicial{ background:var(--ambar-luz); color:var(--ambar); border-color:var(--ambar-linha); }
+.vered.nao .inicial{ background:var(--rubi-luz); color:var(--rubi); border-color:var(--rubi-linha); }
+
+.medidas{ display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line-2);
+  border-top:1px solid var(--line-2); }
+.medidas div{ background:var(--card); padding:13px 16px; }
+.medidas span{ display:block; font-family:var(--mono); font-size:17px; font-weight:500;
+  font-variant-numeric:tabular-nums; margin-top:2px; }
+
+/* ---------------------------------------------------------- template vivo -- */
+.gabarito{ font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(66px,1fr)); gap:5px;
+  background:var(--sunk); padding:13px; border-radius:8px;
+  font-variant-numeric:tabular-nums; }
+.gabarito b{ font-weight:500; color:var(--ink); }
+
+/* ----------------------------------------------------------------- listas -- */
+.linha{ display:flex; align-items:center; gap:13px; padding:12px 18px;
+  border-bottom:1px solid var(--line-2); }
+.linha:last-child{ border-bottom:0; }
+.pino{ width:9px; height:9px; border-radius:50%; flex:none; background:var(--verde); }
+.pino.fora{ background:var(--ink-3); }
+.pino.duv{ background:var(--ambar); }
+.pino.nao{ background:var(--rubi); }
+.linha .nm{ flex:1; font-weight:500; }
+.linha .nm em{ font-style:normal; color:var(--ink-3); font-size:13px; font-weight:400; }
+.linha .hr{ font-family:var(--mono); font-size:12.5px; color:var(--ink-3);
+  font-variant-numeric:tabular-nums; }
+.vazio{ padding:26px 18px; text-align:center; color:var(--ink-3); font-size:14px; }
+
+/* --------------------------------------------------------------- cadastro -- */
+.passos{ counter-reset:p; display:flex; flex-direction:column; gap:18px; }
+.passo{ border:1px solid var(--line); border-radius:var(--r); background:var(--card);
+  padding:18px; box-shadow:var(--sombra); }
+.passo.trancado{ opacity:.55; }
+.passo h3{ font-size:17px; display:flex; align-items:center; gap:11px; }
+.passo h3::before{ counter-increment:p; content:counter(p); width:26px; height:26px;
+  flex:none; border-radius:50%; background:var(--verde); color:#fff;
+  font-family:var(--mono); font-size:13px; font-weight:500; display:grid; place-items:center; }
+.passo.pronto h3::before{ content:"✓"; }
+.campo{ display:flex; flex-direction:column; gap:5px; margin-top:13px; }
+.campo label{ font-size:13px; font-weight:600; color:var(--ink-2); }
+.campo input, .campo select{ font:inherit; padding:11px 13px; border-radius:8px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink); }
+.dupla{ display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+.consent{ background:var(--azul-luz); border:1px solid var(--line); border-radius:8px;
+  padding:15px; margin-top:14px; font-size:13.5px; color:var(--ink-2); }
+.consent b{ color:var(--ink); }
+.check{ display:flex; align-items:flex-start; gap:11px; margin-top:13px;
+  font-size:13.5px; cursor:pointer; }
+.check input{ margin-top:3px; width:19px; height:19px; flex:none; accent-color:var(--verde); }
+.amostras{ display:flex; gap:9px; margin-top:14px; flex-wrap:wrap; }
+.am{ width:44px; height:44px; border-radius:8px; border:2px dashed var(--line);
+  display:grid; place-items:center; font-family:var(--mono); font-size:14px;
+  color:var(--ink-3); }
+.am.feita{ border-style:solid; border-color:var(--verde); background:var(--verde-luz);
+  color:var(--verde); }
+
+.aviso{ background:var(--ambar-luz); border:1px solid var(--ambar-linha);
+  border-radius:8px; padding:14px 16px; font-size:13.5px; color:var(--ink-2);
+  margin-top:16px; }
+.aviso b{ color:var(--ink); }
+.nota{ font-size:13px; color:var(--ink-3); margin:13px 0 0; }
+.nota b{ color:var(--ink-2); }
+
+@media (max-width:1000px){ .grade{ grid-template-columns:1fr; } .dupla{ grid-template-columns:1fr; } }
+@media (prefers-reduced-motion: reduce){ *,*::before,*::after{
+  animation-duration:1ms !important; transition-duration:1ms !important; } }
+</style>
+
+<header class="topo">
+  <div class="wrap">
+    <div class="marca"><b>Audit<i>ix</i></b><span>Portaria</span></div>
+    <div class="abas">
+      <button class="aba" id="ab-porta"    aria-selected="true">Porta</button>
+      <button class="aba" id="ab-cadastro" aria-selected="false">Cadastro</button>
+      <button class="aba" id="ab-presenca" aria-selected="false">Presença</button>
+    </div>
+    <div class="contadores">
+      <div class="ct dentro"><span class="rot">Dentro agora</span><b id="c-dentro">0</b></div>
+      <div class="ct"><span class="rot">Cadastrados</span><b id="c-cad">0</b></div>
+      <div class="ct"><span class="rot">Imagens salvas</span><b id="c-img">0</b></div>
+    </div>
+  </div>
+</header>
+
+<!-- ================================ PORTA ================================ -->
+<section class="vista on" id="v-porta">
+  <div class="wrap grade">
+    <div class="painel">
+      <div class="palco">
+        <video id="cam" playsinline muted></video>
+        <canvas id="tela"></canvas>
+        <div class="dica" id="dica"><span class="luz"></span><span id="dicatxt">Câmera desligada</span></div>
+        <div class="desligado" id="desligado">
+          <button class="grandao" id="ligar">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 11V6a2 2 0 0 0-4 0v5M14 10V4a2 2 0 0 0-4 0v6M10 10.5V6a2 2 0 0 0-4 0v8"/>
+              <path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/>
+            </svg>
+            Abrir a portaria
+          </button>
+          <p id="desltxt">Apresente a palma da mão aberta a cerca de <b>40 cm</b> da câmera.
+             O sistema mede as proporções da sua mão. <b>Nenhuma imagem é guardada.</b></p>
+        </div>
+      </div>
+      <div class="pe">
+        <div class="modo">
+          <button id="m-entrada" aria-pressed="true">Entrada</button>
+          <button id="m-saida"   aria-pressed="false">Saída</button>
+        </div>
+        <button class="btn" id="desligar" disabled>Fechar</button>
+        <button class="btn" id="trocar">Usar rosto</button>
+        <button class="btn" id="exemplo">Ver com dados de exemplo</button>
+      </div>
+    </div>
+
+    <div style="display:flex; flex-direction:column; gap:22px;">
+      <div class="painel">
+        <div class="painel-topo"><span class="rot">Leitura</span>
+          <span class="rot" id="modo-rot">Palma · entrada</span></div>
+        <div id="veredito"></div>
+        <div class="medidas">
+          <div><span class="rot">Distância / limiar</span><span id="d1">—</span></div>
+          <div><span class="rot">Folga para o 2º</span><span id="d2">—</span></div>
+        </div>
+      </div>
+
+      <div class="painel">
+        <div class="painel-topo"><span class="rot">O que fica guardado</span>
+          <span class="rot" id="n-medidas">24 medidas</span></div>
+        <div class="painel-corpo">
+          <div class="gabarito" id="gabarito"></div>
+          <p class="nota">Isto é o cadastro inteiro de uma pessoa: proporções entre os ossos da
+            mão, sem unidade. <b>Não existe foto guardada em lugar nenhum</b>, e não dá para
+            reconstruir a imagem da mão a partir destes números.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap" style="padding-bottom:40px;">
+    <div class="painel">
+      <div class="painel-topo"><span class="rot">Eventos de hoje</span>
+        <span class="rot" id="n-eventos">0</span></div>
+      <div id="eventos"></div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== CADASTRO =============================== -->
+<section class="vista" id="v-cadastro">
+  <div class="wrap grade">
+    <div class="painel">
+      <div class="palco">
+        <video id="cam2" playsinline muted></video>
+        <canvas id="tela2"></canvas>
+        <div class="dica" id="dica2"><span class="luz"></span><span id="dicatxt2">Câmera desligada</span></div>
+        <div class="desligado" id="desligado2">
+          <p id="desltxt2">Preencha os passos ao lado. A câmera abre no passo 3,
+            depois da autorização do responsável.</p>
+        </div>
+      </div>
+      <div class="pe">
+        <button class="btn forte" id="capturar" disabled>Capturar amostra</button>
+        <button class="btn" id="parar2" disabled>Fechar câmera</button>
+        <div class="amostras" id="amostras"></div>
+      </div>
+    </div>
+
+    <div class="passos">
+      <div class="passo" id="p1">
+        <h3>Quem é o aluno</h3>
+        <div class="dupla">
+          <div class="campo"><label for="f-nome">Nome completo</label>
+            <input id="f-nome" type="text" placeholder="Enzo Renato Cunha" autocomplete="off"></div>
+          <div class="campo"><label for="f-turma">Turma</label>
+            <input id="f-turma" type="text" placeholder="2ECR" autocomplete="off"></div>
+        </div>
+        <div class="campo"><label for="f-modo">Biometria</label>
+          <select id="f-modo">
+            <option value="palma">Palma da mão (padrão)</option>
+            <option value="rosto">Rosto (para quem não pode usar a mão)</option>
+          </select></div>
+        <p class="nota">A opção de rosto existe para quem não tem uma das mãos ou tem
+          limitação de mobilidade. <b>Ninguém fica de fora do sistema por causa do corpo que tem.</b></p>
+      </div>
+
+      <div class="passo" id="p2">
+        <h3>Autorização do responsável</h3>
+        <div class="consent">
+          Biometria é <b>dado pessoal sensível</b> (LGPD, Art. 5º, II). Tratamento de dado de
+          criança e adolescente exige <b>consentimento específico e destacado, dado por pelo
+          menos um dos pais ou responsável legal</b> (LGPD, Art. 14, §1º).
+          Sem este registro, o cadastro não abre.
+        </div>
+        <div class="dupla">
+          <div class="campo"><label for="f-resp">Nome do responsável</label>
+            <input id="f-resp" type="text" placeholder="Nome de quem autoriza" autocomplete="off"></div>
+          <div class="campo"><label for="f-vinc">Vínculo</label>
+            <input id="f-vinc" type="text" placeholder="mãe, pai, responsável legal" autocomplete="off"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="f-ok">
+          <span>Confirmo que o responsável autorizou a coleta da biometria para controle de
+            entrada e saída da escola, foi informado de que <b>nenhuma imagem é armazenada</b>,
+            e sabe que pode pedir a exclusão a qualquer momento.</span></label>
+        <button class="btn forte" id="autorizar" style="margin-top:14px;">Registrar autorização</button>
+      </div>
+
+      <div class="passo trancado" id="p3">
+        <h3>Coletar 5 amostras</h3>
+        <p class="nota" style="margin-top:10px;">Abra bem a mão, dedos separados, palma virada
+          para a câmera. Entre uma amostra e outra, <b>tire a mão e coloque de novo</b>, para
+          o cadastro aprender a variação natural.</p>
+        <button class="btn forte" id="abrircam" style="margin-top:14px;" disabled>Abrir câmera</button>
+        <button class="btn" id="salvar" style="margin-top:14px;" disabled>Salvar cadastro</button>
+      </div>
+
+      <div class="aviso">
+        <b>Limites deste protótipo, ditos na cara.</b> Geometria de mão por câmera comum é
+        biometria fraca: serve para dezenas de pessoas, não para uma escola inteira. E não há
+        detecção de vivacidade, então uma foto impressa de mão provavelmente engana. Sistema
+        de verdade usa leitura vascular por infravermelho, que exige sensor dedicado.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- =============================== PRESENÇA =============================== -->
+<section class="vista" id="v-presenca">
+  <div class="wrap grade">
+    <div class="painel">
+      <div class="painel-topo"><span class="rot">Dentro da escola agora</span>
+        <span class="rot" id="n-dentro">0</span></div>
+      <div id="lista-dentro"></div>
+    </div>
+    <div class="painel">
+      <div class="painel-topo"><span class="rot">Cadastrados</span>
+        <button class="btn" id="apagar" style="padding:6px 12px; font-size:12.5px;">Apagar tudo</button></div>
+      <div id="lista-cad"></div>
+      <p class="nota" style="padding:0 18px 18px;">A presença vem só dos eventos de porta.
+        <b>Ninguém é rastreado dentro da escola.</b> Entrou pela porta, está dentro. Saiu pela
+        porta, está fora.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+/* ===========================================================================
+   Um algoritmo, duas modalidades.
+   Palma e rosto passam pelo MESMO caminho: pontos -> normaliza -> proporções
+   -> compara. Muda só de qual conjunto de pontos as medidas saem.
+   =========================================================================== */
+const el = id => document.getElementById(id);
+const CDN = 'https://cdn.jsdelivr.net/npm/@mediapipe/';
+
+/* Ossos da mão. Comprimento de osso é rígido: não muda se a pessoa abre mais
+   ou menos os dedos, ao contrário da posição das pontas. É por isso que o
+   gabarito usa estes pares, e não as coordenadas cruas. */
+const OSSOS = [
+  [1,2],[2,3],[3,4],          // polegar
+  [5,6],[6,7],[7,8],          // indicador
+  [9,10],[10,11],[11,12],     // médio
+  [13,14],[14,15],[15,16],    // anelar
+  [17,18],[18,19],[19,20],    // mínimo
+  [0,1],[0,5],[0,9],[0,13],[0,17],   // palma, do pulso a cada base
+  [5,9],[9,13],[13,17],[5,17]        // largura e estrutura da palma
+];
+const LIGACOES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],
+  [10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+
+/* Rosto: pares entre pontos estáveis do MediaPipe FaceMesh (cantos dos olhos,
+   base do nariz, boca, contorno), pela mesma lógica de proporção. */
+const PARES_ROSTO = [
+  [33,133],[362,263],[33,263],[133,362],   // olhos e distância entre eles
+  [1,168],[1,13],[13,14],[61,291],         // nariz e boca
+  [10,152],[234,454],[127,356],            // altura e largura do rosto
+  [33,61],[263,291],[168,61],[168,291],
+  [70,300],[105,334],[46,276],[10,168],
+  [152,13],[234,10],[454,10],[61,152],[291,152]
+];
+const REF_ROSTO = [33, 263];   // olho a olho: a régua do rosto
+
+/* Nada de limiar chutado. Durante o cadastro medimos o quanto a MESMA mão varia
+   entre as 5 amostras (o espalhamento). O limiar de cada pessoa sai desse número
+   medido, com piso e teto só para não degenerar. */
+const K_LIMIAR  = 3.0;    // quantas vezes o espalhamento próprio ainda é "a mesma mão"
+const LIMIAR_MIN = 0.018, LIMIAR_MAX = 0.075;
+const FOLGA = 0.020;      // vantagem mínima sobre o segundo colocado
+const limiarDe = a => Math.min(LIMIAR_MAX,
+  Math.max(LIMIAR_MIN, K_LIMIAR * (a.esp || LIMIAR_MIN / K_LIMIAR)));
+
+/* ------------------------------------------------------------ normalização */
+// Move para a origem, gira para alinhar e divide pela régua. Sem isso, mão
+// perto e mão longe viram pessoas diferentes.
+function medir(pts, pares, iOrig, iRef){
+  const o = pts[iOrig], r = pts[iRef];
+  const dx = r.x - o.x, dy = r.y - o.y;
+  const regua = Math.hypot(dx, dy);
+  if(regua < 1e-6) return null;
+  const ang = Math.atan2(dy, dx), cos = Math.cos(-ang), sin = Math.sin(-ang);
+  const n = pts.map(p => {
+    const px = (p.x - o.x) / regua, py = (p.y - o.y) / regua;
+    return { x: px * cos - py * sin, y: px * sin + py * cos };
+  });
+  return pares.map(([a,b]) => Math.hypot(n[a].x - n[b].x, n[a].y - n[b].y));
+}
+const medirMao   = pts => medir(pts, OSSOS, 0, 9);
+const medirRosto = pts => medir(pts, PARES_ROSTO, REF_ROSTO[0], REF_ROSTO[1]);
+
+const distancia = (a,b) => {
+  if(!a || !b || a.length !== b.length) return Infinity;
+  let s = 0; for(let i=0;i<a.length;i++){ const d = a[i]-b[i]; s += d*d; }
+  return Math.sqrt(s / a.length);
+};
+const media = vs => vs[0].map((_,i) => vs.reduce((t,v) => t + v[i], 0) / vs.length);
+
+/* A mão precisa estar aberta e de frente, senão a projeção 2D encurta os ossos
+   e o gabarito muda. Em vez de aceitar qualquer quadro, medimos a qualidade. */
+function qualidadeMao(pts){
+  const p = i => pts[i];
+  const palma = Math.hypot(p(5).x-p(17).x, p(5).y-p(17).y);
+  const reg   = Math.hypot(p(0).x-p(9).x,  p(0).y-p(9).y);
+  if(reg < 1e-6) return { ok:false, txt:'Aproxime a mão' };
+  const achatada = palma / reg;                       // de frente ~0.8, de lado bem menor
+  const dedos = [[5,8],[9,12],[13,16],[17,20]].map(([a,b]) =>
+    Math.hypot(p(a).x-p(b).x, p(a).y-p(b).y) / reg);
+  const abertos = dedos.filter(d => d > 0.75).length;
+  if(reg < 0.12) return { ok:false, txt:'Aproxime a mão da câmera' };
+  if(reg > 0.42) return { ok:false, txt:'Afaste um pouco a mão' };
+  if(achatada < 0.55) return { ok:false, txt:'Vire a palma para a câmera' };
+  if(abertos < 3) return { ok:false, txt:'Abra bem os dedos' };
+  return { ok:true, txt:'Posição boa, pode ler' };
+}
+
+/* ---------------------------------------------------------------- dados --- */
+let alunos = [], eventos = [];
+try{ alunos  = JSON.parse(localStorage.getItem('auditix.alunos')  || '[]'); }catch(e){}
+try{ eventos = JSON.parse(localStorage.getItem('auditix.eventos') || '[]'); }catch(e){}
+const gravar = () => { try{
+  localStorage.setItem('auditix.alunos', JSON.stringify(alunos));
+  localStorage.setItem('auditix.eventos', JSON.stringify(eventos));
+}catch(e){} };
+
+const agora = () => new Date().toTimeString().slice(0,5);
+const iniciais = n => n.trim().split(/\s+/).slice(0,2).map(p => p[0]).join('').toUpperCase();
+
+/* ---------------------------------------------------------- identificação */
+function identificar(vetor, modo){
+  const cands = alunos.filter(a => a.modo === modo);
+  if(!cands.length) return { tipo:'vazio' };
+  const rank = cands.map(a => ({ a, d: distancia(vetor, a.gab) })).sort((x,y) => x.d - y.d);
+  const p = rank[0], seg = rank[1];
+  const folga = seg ? seg.d - p.d : Infinity;
+  const lim = limiarDe(p.a);
+  if(p.d > lim)      return { tipo:'nao',  d:p.d, folga, lim };
+  if(folga < FOLGA)  return { tipo:'duvida', a:p.a, d:p.d, folga, lim };
+  return { tipo:'ok', a:p.a, d:p.d, folga, lim };
+}
+
+/* ------------------------------------------------------------- desenho ---- */
+function pintarVeredito(r, modo){
+  const alvo = el('veredito');
+  el('d1').textContent = r && r.d !== undefined && isFinite(r.d)
+    ? r.d.toFixed(4) + (r.lim ? '  /  ' + r.lim.toFixed(4) : '') : '—';
+  el('d2').textContent = r && isFinite(r.folga) ? r.folga.toFixed(4) : '—';
+
+  if(!r || r.tipo === 'espera'){
+    alvo.className = 'vered';
+    alvo.innerHTML = '<div class="inicial" style="background:var(--sunk); color:var(--ink-3); border-color:var(--line)">?</div>' +
+      '<h2 style="font-size:22px">Aguardando a mão</h2>' +
+      '<p class="sub">Apresente a palma aberta na frente da câmera.</p>';
+    return;
+  }
+  if(r.tipo === 'vazio'){
+    alvo.className = 'vered duv';
+    alvo.innerHTML = '<span class="selo">Sem cadastro</span>' +
+      '<h2 style="font-size:22px">Ninguém cadastrado ainda</h2>' +
+      '<p class="sub">Vá em Cadastro e registre a primeira pessoa.</p>';
+    return;
+  }
+  if(r.tipo === 'nao'){
+    alvo.className = 'vered nao';
+    alvo.innerHTML = '<span class="selo">Não identificado</span>' +
+      '<h2 style="font-size:22px">Pendente de validação humana</h2>' +
+      '<p class="sub">O sistema não reconheceu esta mão. Isso não é acusação: ' +
+      'chame alguém da secretaria para conferir.</p>';
+    return;
+  }
+  if(r.tipo === 'duvida'){
+    alvo.className = 'vered duv';
+    alvo.innerHTML = '<span class="selo">Dúvida entre duas pessoas</span>' +
+      '<div class="inicial">' + iniciais(r.a.nome) + '</div>' +
+      '<h2 style="font-size:23px">' + r.a.nome + '?</h2>' +
+      '<p class="sub">A segunda pessoa mais parecida está perto demais para eu ter certeza. ' +
+      'Não vou registrar sozinho: confirmação humana.</p>';
+    return;
+  }
+  alvo.className = 'vered ok';
+  alvo.innerHTML = '<span class="selo">' + (modo === 'entrada' ? 'Entrada registrada' : 'Saída registrada') + '</span>' +
+    '<div class="inicial">' + iniciais(r.a.nome) + '</div>' +
+    '<h2>' + r.a.nome + '</h2>' +
+    '<p class="sub">' + (r.a.turma || 'sem turma') + ' · ' +
+      (r.a.modo === 'palma' ? 'palma da mão' : 'rosto') + ' · ' + agora() + '</p>';
+}
+
+function pintarGabarito(v){
+  el('gabarito').innerHTML = (v || new Array(OSSOS.length).fill(null))
+    .map((n,i) => '<span>' + String(i).padStart(2,'0') + ' <b>' +
+      (n === null ? '····' : n.toFixed(3)) + '</b></span>').join('');
+}
+
+function pintarListas(){
+  const dentro = alunos.filter(a => a.dentro);
+  el('c-dentro').textContent = dentro.length;
+  el('c-cad').textContent = alunos.length;
+  el('c-img').textContent = '0';
+  el('n-dentro').textContent = dentro.length;
+
+  el('lista-dentro').innerHTML = dentro.length
+    ? dentro.map(a => '<div class="linha"><span class="pino"></span>' +
+        '<span class="nm">' + a.nome + ' <em>' + (a.turma||'') + '</em></span>' +
+        '<span class="hr">desde ' + (a.desde||'—') + '</span></div>').join('')
+    : '<div class="vazio">Ninguém dentro da escola agora.</div>';
+
+  el('lista-cad').innerHTML = alunos.length
+    ? alunos.map(a => '<div class="linha"><span class="pino ' + (a.dentro?'':'fora') + '"></span>' +
+        '<span class="nm">' + a.nome + ' <em>' + (a.turma||'') + ' · ' + a.modo + '</em></span>' +
+        '<span class="hr">' + (a.dentro ? 'dentro' : 'fora') + '</span></div>').join('')
+    : '<div class="vazio">Nenhum cadastro ainda.</div>';
+
+  el('n-eventos').textContent = eventos.length;
+  el('eventos').innerHTML = eventos.length
+    ? eventos.slice(0,12).map(e => '<div class="linha"><span class="pino ' + e.pino + '"></span>' +
+        '<span class="nm">' + e.txt + '</span><span class="hr">' + e.hora + '</span></div>').join('')
+    : '<div class="vazio">Nenhum evento hoje.</div>';
+}
+
+/* --------------------------------------------------------------- câmera --- */
+let modoDoor = 'entrada', modoBio = 'palma';
+let maos = null, rostos = null, correndo = false, alvoAtual = 'porta';
+let ultimoVetor = null, ultimaQual = null, travaAte = 0;
+
+function ctxDe(qual){
+  const c = el(qual === 'porta' ? 'tela' : 'tela2');
+  const v = el(qual === 'porta' ? 'cam' : 'cam2');
+  if(c.width !== v.videoWidth && v.videoWidth){ c.width = v.videoWidth; c.height = v.videoHeight; }
+  return c.getContext('2d');
+}
+
+function desenhar(pts, qual, boa){
+  const x = ctxDe(qual);
+  if(!x) return;
+  const W = x.canvas.width, H = x.canvas.height;
+  x.clearRect(0,0,W,H);
+  if(!pts) return;
+  x.save();
+  x.translate(W, 0); x.scale(-1, 1);          // espelha junto com o vídeo
+  const cor = boa ? '#5FBFA0' : '#DFA94E';
+  if(modoBio === 'palma'){
+    x.strokeStyle = cor; x.lineWidth = Math.max(2, W/320); x.lineCap = 'round';
+    LIGACOES.forEach(([a,b]) => { x.beginPath();
+      x.moveTo(pts[a].x*W, pts[a].y*H); x.lineTo(pts[b].x*W, pts[b].y*H); x.stroke(); });
+    x.fillStyle = '#fff';
+    pts.forEach(p => { x.beginPath(); x.arc(p.x*W, p.y*H, Math.max(3, W/200), 0, 7); x.fill(); });
+  }else{
+    x.fillStyle = cor;
+    for(let i=0;i<pts.length;i+=4){ x.fillRect(pts[i].x*W, pts[i].y*H, 2, 2); }
+  }
+  x.restore();
+}
+
+function aoDetectar(res){
+  const qual = alvoAtual;
+  let pts = null;
+  if(modoBio === 'palma') pts = res.multiHandLandmarks && res.multiHandLandmarks[0];
+  else                    pts = res.multiFaceLandmarks && res.multiFaceLandmarks[0];
+
+  if(!pts){
+    ultimoVetor = null; ultimaQual = null;
+    desenhar(null, qual, false);
+    dizer(qual, modoBio === 'palma' ? 'Mostre a palma da mão' : 'Olhe para a câmera', '');
+    pintarGabarito(null);
+    if(qual === 'porta') pintarVeredito({ tipo:'espera' });
+    return;
+  }
+
+  const q = modoBio === 'palma' ? qualidadeMao(pts) : { ok:true, txt:'Rosto detectado' };
+  ultimaQual = q;
+  desenhar(pts, qual, q.ok);
+  dizer(qual, q.txt, q.ok ? 'boa' : 'ruim');
+
+  const v = modoBio === 'palma' ? medirMao(pts) : medirRosto(pts);
+  ultimoVetor = q.ok ? v : null;
+  pintarGabarito(v);
+
+  if(qual === 'porta' && q.ok && v && Date.now() > travaAte){
+    const r = identificar(v, modoBio);
+    pintarVeredito(r, modoDoor);
+    if(r.tipo === 'ok'){ registrarPassagem(r.a); travaAte = Date.now() + 4000; }
+    else if(r.tipo === 'nao' || r.tipo === 'duvida'){
+      anotar(r.tipo === 'nao' ? 'nao' : 'duv',
+        r.tipo === 'nao' ? 'Não identificado, pendente de validação humana'
+                         : 'Dúvida entre pessoas parecidas, pendente de validação humana');
+      travaAte = Date.now() + 3000;
+    }
+  }
+}
+
+const dizer = (qual, txt, cls) => {
+  el(qual === 'porta' ? 'dicatxt' : 'dicatxt2').textContent = txt;
+  el(qual === 'porta' ? 'dica' : 'dica2').className = 'dica ' + (cls || '');
+};
+
+function anotar(pino, txt){
+  eventos.unshift({ pino, txt, hora: agora() });
+  eventos = eventos.slice(0, 60);
+  gravar(); pintarListas();
+}
+
+function registrarPassagem(a){
+  if(modoDoor === 'entrada'){
+    if(a.dentro){ anotar('duv', a.nome + ' já constava dentro, entrada repetida'); return; }
+    a.dentro = true; a.desde = agora();
+    anotar('', a.nome + ' entrou');
+  }else{
+    if(!a.dentro){ anotar('duv', a.nome + ' não constava dentro, saída sem entrada'); return; }
+    a.dentro = false; a.desde = null;
+    anotar('fora', a.nome + ' saiu');
+  }
+  gravar(); pintarListas();
+}
+
+/* ----------------------------------------------------------- motor MP ----- */
+async function motor(){
+  if(modoBio === 'palma'){
+    if(!maos){
+      maos = new window.Hands({ locateFile: f => CDN + 'hands/' + f });
+      maos.setOptions({ maxNumHands:1, modelComplexity:1,
+        minDetectionConfidence:0.6, minTrackingConfidence:0.5 });
+      maos.onResults(aoDetectar);
+    }
+    return maos;
+  }
+  if(!rostos){
+    rostos = new window.FaceMesh({ locateFile: f => CDN + 'face_mesh/' + f });
+    rostos.setOptions({ maxNumFaces:1, refineLandmarks:false,
+      minDetectionConfidence:0.6, minTrackingConfidence:0.5 });
+    rostos.onResults(aoDetectar);
+  }
+  return rostos;
+}
+
+let fluxo = null, rodando = false;
+async function abrirCamera(qual){
+  alvoAtual = qual;
+  const v = el(qual === 'porta' ? 'cam' : 'cam2');
+  const off = el(qual === 'porta' ? 'desligado' : 'desligado2');
+  const txt = el(qual === 'porta' ? 'desltxt' : 'desltxt2');
+  try{
+    if(!window.Hands && !window.FaceMesh) throw { name:'SemBiblioteca' };
+    dizer(qual, 'Carregando o modelo…', '');
+    const m = await motor();
+    fluxo = await navigator.mediaDevices.getUserMedia({
+      video:{ facingMode:{ ideal:'user' }, width:{ ideal:1280 }, height:{ ideal:960 } },
+      audio:false });
+    v.srcObject = fluxo; await v.play();
+    off.classList.add('off');
+    rodando = true;
+    const passo = async () => {
+      if(!rodando) return;
+      if(v.videoWidth){ try{ await m.send({ image: v }); }catch(e){} }
+      requestAnimationFrame(passo);
+    };
+    passo();
+    if(qual === 'porta'){ el('ligar').disabled = true; el('desligar').disabled = false; }
+    else { el('capturar').disabled = false; el('parar2').disabled = false; }
+  }catch(err){
+    off.classList.remove('off');
+    const n = err && err.name ? err.name : 'erro';
+    txt.innerHTML = n === 'NotReadableError' || n === 'TrackStartError'
+      ? '<b>A câmera está ocupada por outro programa.</b> Feche Teams, Meet, Zoom ou o app Câmera e tente de novo.'
+      : n === 'NotAllowedError'
+        ? '<b>Permissão de câmera negada.</b> Se esta página estiver dentro de um visualizador, abra o arquivo direto no Chrome.'
+        : n === 'SemBiblioteca'
+          ? '<b>O modelo de detecção não carregou.</b> Esta página precisa de internet na primeira vez. Conecte e recarregue.'
+          : '<b>A câmera não abriu.</b> (' + n + ')';
+  }
+}
+
+function fecharCamera(){
+  rodando = false;
+  if(fluxo){ fluxo.getTracks().forEach(t => t.stop()); fluxo = null; }
+  ['cam','cam2'].forEach(id => { const v = el(id); if(v.srcObject){
+    v.srcObject.getTracks().forEach(t => t.stop()); v.srcObject = null; } });
+  ['tela','tela2'].forEach(id => { const c = el(id);
+    c.getContext('2d').clearRect(0,0,c.width,c.height); });
+  el('desligado').classList.remove('off'); el('desligado2').classList.remove('off');
+  el('ligar').disabled = false; el('desligar').disabled = true;
+  el('capturar').disabled = true; el('parar2').disabled = true;
+  dizer('porta','Câmera desligada',''); dizer('cadastro','Câmera desligada','');
+  ultimoVetor = null;
+}
+
+/* --------------------------------------------------------------- abas ----- */
+function aba(qual){
+  ['porta','cadastro','presenca'].forEach(k => {
+    el('v-' + k).classList.toggle('on', k === qual);
+    el('ab-' + k).setAttribute('aria-selected', String(k === qual));
+  });
+  if(qual !== 'porta' && qual !== 'cadastro') fecharCamera();
+  if(qual === 'presenca') pintarListas();
+}
+['porta','cadastro','presenca'].forEach(k =>
+  el('ab-' + k).addEventListener('click', () => aba(k)));
+
+/* -------------------------------------------------------------- cadastro -- */
+let autorizado = false, amostras = [];
+function pintarAmostras(){
+  el('amostras').innerHTML = [0,1,2,3,4].map(i =>
+    '<div class="am' + (amostras[i] ? ' feita' : '') + '">' +
+      (amostras[i] ? '✓' : (i+1)) + '</div>').join('');
+  el('salvar').disabled = amostras.length < 5;
+}
+
+el('autorizar').addEventListener('click', () => {
+  const nome = el('f-nome').value.trim(), resp = el('f-resp').value.trim();
+  const vinc = el('f-vinc').value.trim(), ok = el('f-ok').checked;
+  if(!nome){ alert('Preencha o nome do aluno no passo 1.'); return; }
+  if(!resp || !vinc){ alert('Informe quem autorizou e o vínculo com o aluno.'); return; }
+  if(!ok){ alert('Marque a confirmação da autorização para continuar.'); return; }
+  autorizado = true;
+  modoBio = el('f-modo').value;
+  el('p2').classList.add('pronto');
+  el('p3').classList.remove('trancado');
+  el('abrircam').disabled = false;
+  el('desltxt2').innerHTML = 'Autorização registrada com <b>' + resp + '</b> (' + vinc +
+    '). Agora abra a câmera e colete as 5 amostras.';
+});
+
+el('abrircam').addEventListener('click', () => {
+  if(!autorizado) return;
+  modoBio = el('f-modo').value;
+  maos = null; rostos = null;             // troca de modalidade recria o motor
+  abrirCamera('cadastro');
+});
+el('parar2').addEventListener('click', fecharCamera);
+
+el('capturar').addEventListener('click', () => {
+  if(!ultimoVetor){ alert('Ajuste a posição até a faixa embaixo ficar verde.'); return; }
+  amostras.push(ultimoVetor.slice());
+  pintarAmostras();
+  if(amostras.length === 5) dizer('cadastro','5 de 5 amostras, pode salvar','boa');
+});
+
+el('salvar').addEventListener('click', () => {
+  const nome = el('f-nome').value.trim();
+  if(amostras.length < 5 || !nome) return;
+  // Espalhamento medido: o quanto a própria mão variou entre as 5 capturas.
+  // É daqui que sai o limiar dessa pessoa, em vez de um número inventado.
+  const gab = media(amostras);
+  const esp = amostras.reduce((t,v) => t + distancia(v, gab), 0) / amostras.length;
+  alunos.push({
+    id: 'A' + Date.now().toString(36).toUpperCase(),
+    nome, turma: el('f-turma').value.trim(), modo: modoBio,
+    gab, esp, dentro:false, desde:null,
+    consent: { resp: el('f-resp').value.trim(), vinc: el('f-vinc').value.trim(),
+               em: new Date().toISOString().slice(0,16).replace('T',' ') }
+  });
+  gravar(); pintarListas();
+  anotar('', nome + ' cadastrado com autorização de ' + el('f-resp').value.trim());
+  amostras = []; autorizado = false;
+  ['f-nome','f-turma','f-resp','f-vinc'].forEach(i => el(i).value = '');
+  el('f-ok').checked = false;
+  el('p2').classList.remove('pronto'); el('p3').classList.add('trancado');
+  el('abrircam').disabled = true;
+  pintarAmostras(); fecharCamera();
+  alert('Cadastro salvo. Vá na aba Porta para testar a identificação.');
+});
+
+/* ---------------------------------------------------------------- porta --- */
+el('ligar').addEventListener('click', () => { modoBio = 'palma'; abrirCamera('porta'); });
+el('desligar').addEventListener('click', fecharCamera);
+el('trocar').addEventListener('click', () => {
+  modoBio = modoBio === 'palma' ? 'rosto' : 'palma';
+  maos = null; rostos = null;
+  el('trocar').textContent = modoBio === 'palma' ? 'Usar rosto' : 'Usar palma';
+  el('modo-rot').textContent = (modoBio === 'palma' ? 'Palma' : 'Rosto') + ' · ' + modoDoor;
+  el('n-medidas').textContent = (modoBio === 'palma' ? OSSOS.length : PARES_ROSTO.length) + ' medidas';
+  if(rodando){ fecharCamera(); abrirCamera('porta'); }
+});
+el('m-entrada').addEventListener('click', () => trocaModo('entrada'));
+el('m-saida').addEventListener('click', () => trocaModo('saida'));
+function trocaModo(m){
+  modoDoor = m;
+  el('m-entrada').setAttribute('aria-pressed', String(m === 'entrada'));
+  el('m-saida').setAttribute('aria-pressed', String(m === 'saida'));
+  el('modo-rot').textContent = (modoBio === 'palma' ? 'Palma' : 'Rosto') + ' · ' + m;
+}
+
+el('apagar').addEventListener('click', () => {
+  if(!confirm('Apagar todos os cadastros e eventos? Isso não tem volta.')) return;
+  alunos = []; eventos = []; gravar(); pintarListas();
+});
+
+/* ------------------------------------------------------------- exemplo --- */
+/* Serve para ver a tela sem câmera, e para o link de visualização, onde o
+   navegador não libera nem a câmera nem o download do modelo.
+   Os nomes são fictícios e a tela diz isso. */
+el('exemplo').addEventListener('click', () => {
+  const falsos = [
+    { nome:'Enzo Renato Cunha', turma:'2ECR', modo:'palma', dentro:true,  desde:'07:42' },
+    { nome:'Luan Ferreira',     turma:'2ECR', modo:'palma', dentro:true,  desde:'07:48' },
+    { nome:'Marina Alves',      turma:'1ADS', modo:'rosto', dentro:true,  desde:'07:51' },
+    { nome:'Caio Nogueira',     turma:'3TDS', modo:'palma', dentro:false, desde:null }
+  ];
+  alunos = falsos.map((f,i) => ({ id:'EX'+i, ...f, esp:0.0073,
+    gab: new Array(OSSOS.length).fill(0).map(() => Math.random()),
+    consent:{ resp:'exemplo', vinc:'exemplo', em:'exemplo' } }));
+  eventos = [
+    { pino:'',    txt:'Marina Alves entrou',  hora:'07:51' },
+    { pino:'duv', txt:'Não identificado, pendente de validação humana', hora:'07:50' },
+    { pino:'',    txt:'Luan Ferreira entrou', hora:'07:48' },
+    { pino:'fora',txt:'Caio Nogueira saiu',   hora:'07:45' },
+    { pino:'',    txt:'Enzo Renato Cunha entrou', hora:'07:42' }
+  ];
+  pintarListas();
+  pintarGabarito(alunos[0].gab.map(n => n * 0.6 + 0.4));
+  pintarVeredito({ tipo:'ok', a:alunos[0], d:0.0092, folga:0.0595, lim:0.0219 }, modoDoor);
+  el('desltxt').innerHTML = '<b>Mostrando dados de exemplo</b>, com nomes fictícios, só para ' +
+    'você ver a tela. Para ler mãos de verdade, abra o arquivo no Chrome do computador.';
+});
+
+/* -------------------------------------------------------------- abertura -- */
+pintarAmostras();
+pintarGabarito(null);
+pintarVeredito({ tipo:'espera' });
+pintarListas();
+el('n-medidas').textContent = OSSOS.length + ' medidas';
+
+// Dentro de um visualizador a câmera e o modelo não carregam. Explica antes de o
+// usuário clicar e achar que quebrou.
+try{
+  if(window.self !== window.top){
+    el('desltxt').innerHTML = 'Esta é uma <b>prévia visual</b>. Por este link o navegador não ' +
+      'libera a câmera nem o download do modelo de detecção. Use o botão ' +
+      '<b>Ver com dados de exemplo</b> aqui embaixo, ou abra o arquivo no Chrome do ' +
+      'computador para usar de verdade.';
+    el('desltxt2').innerHTML = 'Prévia visual. O cadastro por câmera só funciona com o ' +
+      'arquivo aberto direto no Chrome do computador.';
+  }
+}catch(e){}
+</script>

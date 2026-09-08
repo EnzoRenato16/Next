@@ -1,0 +1,882 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<title>Leitor de Patrimônio SVATech</title>
+
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js"></script>
+
+<style>
+/* ===========================================================================
+   SVATech, Leitor de Patrimônio.
+   Mesma família visual da Caixa-Preta, porém operado por uma pessoa em pé,
+   então: ação principal grande, sequência visível, tela nunca vazia.
+   =========================================================================== */
+:root{
+  --ground:#0A1315; --panel:#0F1C1F; --raised:#152A2E;
+  --bezel:#223B41;  --bezel-2:#1A2E33;
+  --text:#DAE7E8;   --muted:#8AA3A7; --faint:#5B767B;
+  --ok:#3E9E8B;     --ok-dim:#1C3A38; --ok-lit:#7FD3C0;
+  --hold:#DE9038;   --hold-dim:#3A2C18;
+  --break:#C9505C;  --break-dim:#3A1D22;
+  --escola:#5E8CA8; --escola-dim:#1B2C38;
+  --brass:#C8A63F;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --cond:'IBM Plex Sans Condensed','IBM Plex Sans',system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --r:4px;
+}
+*{ box-sizing:border-box; min-width:0; }
+html,body{ max-width:100%; overflow-x:hidden; }
+body{ margin:0; background:var(--ground); color:var(--text);
+  font-family:var(--sans); font-size:15px; line-height:1.55; -webkit-font-smoothing:antialiased; }
+.lbl{ font-family:var(--cond); font-weight:600; font-size:11px; letter-spacing:.15em;
+  text-transform:uppercase; color:var(--faint); }
+button{ font:inherit; color:inherit; }
+:focus-visible{ outline:2px solid var(--ok); outline-offset:3px; }
+.wrap{ max-width:1500px; margin:0 auto; padding:0 26px; }
+
+/* ------------------------------------------------------------------ rail -- */
+.rail{ border-bottom:1px solid var(--bezel); background:var(--panel); }
+.rail .wrap{ display:flex; align-items:center; flex-wrap:wrap; gap:10px 30px;
+  padding-top:14px; padding-bottom:14px; }
+.brand{ display:flex; flex-direction:column; }
+.brand b{ font-weight:600; font-size:16px; letter-spacing:.01em; }
+.brand b i{ font-style:normal; color:var(--ok); }
+.brand span{ font-family:var(--cond); font-size:11px; letter-spacing:.17em;
+  text-transform:uppercase; color:var(--faint); }
+.tabs{ display:flex; gap:4px; background:var(--raised); padding:4px; border-radius:var(--r); }
+.tab{ padding:8px 18px; background:none; border:0; border-radius:3px; cursor:pointer;
+  font-family:var(--cond); font-weight:600; font-size:12px; letter-spacing:.12em;
+  text-transform:uppercase; color:var(--muted); transition:background 180ms var(--ease); }
+.tab[aria-selected="true"]{ background:var(--ok-dim); color:var(--ok-lit); }
+.tab:hover:not([aria-selected="true"]){ color:var(--text); }
+.metrics{ display:flex; gap:30px; flex-wrap:wrap; margin-left:auto; }
+.mt{ display:flex; flex-direction:column; gap:1px; }
+.mt .v{ font-family:var(--mono); font-weight:500; font-size:21px;
+  font-variant-numeric:tabular-nums; line-height:1.2; }
+.mt.money .v{ font-size:25px; color:var(--brass); }
+.mt.hold .v{ color:var(--hold); }
+.mt .v small{ font-size:12px; color:var(--faint); }
+
+/* ------------------------------------------------------------------ guia -- */
+.guia{ background:var(--ok-dim); border-bottom:1px solid #2C5B54; }
+.guia .wrap{ display:flex; align-items:center; flex-wrap:wrap; gap:14px 34px;
+  padding-top:14px; padding-bottom:14px; }
+.passo{ display:flex; align-items:center; gap:11px; }
+.passo b{ width:23px; height:23px; flex:none; border-radius:50%; background:var(--ok);
+  color:#06100F; font-family:var(--mono); font-size:12px; font-weight:600;
+  display:grid; place-items:center; }
+.passo span{ font-size:13.5px; color:#C3E7DE; }
+.guia .fechar{ margin-left:auto; background:none; border:1px solid #2C5B54; color:#8FD9C8;
+  padding:6px 12px; border-radius:3px; cursor:pointer; font-family:var(--cond);
+  font-weight:600; font-size:11px; letter-spacing:.12em; text-transform:uppercase; }
+.guia .fechar:hover{ border-color:var(--ok); }
+.guia.off{ display:none; }
+
+/* ------------------------------------------------------------------ grid -- */
+.main{ display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);
+  gap:26px; padding-top:26px; padding-bottom:34px; align-items:start; }
+.card{ background:var(--panel); border:1px solid var(--bezel); border-radius:var(--r); }
+.card-head{ display:flex; align-items:center; justify-content:space-between; gap:14px;
+  padding:13px 18px; border-bottom:1px solid var(--bezel-2); }
+.card-body{ padding:18px; }
+
+/* ----------------------------------------------------------------- câmera -- */
+.screen{ position:relative; background:#050B0C; aspect-ratio:4/3;
+  border-radius:var(--r) var(--r) 0 0; overflow:hidden; }
+video{ width:100%; height:100%; object-fit:cover; display:block; }
+.reticle{ position:absolute; inset:0; pointer-events:none; opacity:0; transition:opacity 300ms; }
+.reticle.on{ opacity:1; }
+.reticle svg{ width:100%; height:100%; display:block; }
+.flash{ position:absolute; inset:0; background:var(--ok-lit); opacity:0;
+  pointer-events:none; transition:opacity 90ms linear; }
+.flash.on{ opacity:.3; }
+
+/* Estado desligado: convite, não um vazio preto */
+.off-state{ position:absolute; inset:0; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:16px; padding:30px; text-align:center;
+  background:radial-gradient(120% 90% at 50% 42%, #143036 0%, #0A1719 62%, #060E10 100%); }
+.off-state.hidden{ display:none; }
+.big-btn{ display:inline-flex; align-items:center; gap:12px; cursor:pointer;
+  background:var(--ok); border:0; color:#04120F; padding:17px 30px; border-radius:999px;
+  font-family:var(--cond); font-weight:700; font-size:15px; letter-spacing:.1em;
+  text-transform:uppercase; box-shadow:0 8px 30px rgba(62,158,139,.32);
+  transition:transform 180ms var(--ease), box-shadow 180ms var(--ease); }
+.big-btn:hover{ transform:translateY(-2px); box-shadow:0 12px 38px rgba(62,158,139,.42); }
+.big-btn svg{ width:21px; height:21px; }
+.off-msg{ margin:0; color:var(--muted); font-size:13.5px; max-width:46ch; }
+.off-msg.err{ color:#F2B3B9; }
+.off-msg b{ color:var(--text); font-weight:500; }
+
+.cam-foot{ display:flex; align-items:center; flex-wrap:wrap; gap:12px; padding:14px 18px;
+  border-top:1px solid var(--bezel-2); }
+.btn{ font-family:var(--cond); font-weight:600; font-size:12px; letter-spacing:.12em;
+  text-transform:uppercase; padding:10px 16px; border-radius:3px; cursor:pointer;
+  background:var(--raised); border:1px solid var(--bezel); color:var(--text);
+  transition:border-color 180ms var(--ease), background 180ms var(--ease); }
+.btn:hover:not(:disabled){ border-color:var(--ok); background:#1A3336; }
+.btn:disabled{ opacity:.35; cursor:not-allowed; }
+.eco{ display:flex; align-items:center; gap:8px; margin-left:auto;
+  font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+.eco .dot{ width:7px; height:7px; border-radius:50%; background:var(--faint); flex:none; }
+.eco.on .dot{ background:var(--ok); box-shadow:0 0 0 3px var(--ok-dim); }
+.eco.warn .dot{ background:var(--hold); box-shadow:0 0 0 3px var(--hold-dim); }
+
+/* --------------------------------------------------------- resultado hero -- */
+.hero{ padding:20px; }
+.hero .cls{ display:inline-flex; align-items:center; gap:7px; margin-bottom:12px;
+  font-family:var(--cond); font-weight:600; font-size:11px; letter-spacing:.13em;
+  text-transform:uppercase; padding:5px 11px; border-radius:3px;
+  background:var(--ok-dim); color:var(--ok-lit); border:1px solid #2C5B54; }
+.hero.escolar .cls{ background:var(--escola-dim); color:#A8CDE2; border-color:#2F4C60; }
+.hero.pend .cls{ background:var(--hold-dim); color:#F0BE79; border-color:#5C4322; }
+.hero h2{ margin:0; font-size:23px; font-weight:500; line-height:1.28; text-wrap:balance; }
+.hero .valor{ font-family:var(--mono); font-weight:500; font-size:33px; color:var(--brass);
+  font-variant-numeric:tabular-nums; margin-top:12px; line-height:1; }
+.hero.pend .valor{ color:var(--faint); font-size:23px; }
+.hero .kv{ display:grid; grid-template-columns:auto 1fr; gap:5px 16px; margin-top:16px;
+  padding-top:16px; border-top:1px solid var(--bezel-2); font-family:var(--mono); font-size:12.5px; }
+.hero .kv dt{ color:var(--faint); }
+.hero .kv dd{ margin:0; color:var(--muted); font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere; }
+.hero .kv dd b{ color:var(--text); font-weight:500; }
+.crit{ display:flex; align-items:center; gap:9px; margin-top:14px; }
+.crit .pips{ display:flex; gap:3px; }
+.crit .pip{ width:17px; height:5px; border-radius:1px; background:var(--bezel); }
+.crit .pip.on{ background:var(--hold); }
+.crit span{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+/* Catálogo, que é o estado inicial em vez de tela vazia */
+.cat{ display:flex; flex-direction:column; }
+.cat-item{ display:flex; align-items:center; gap:13px; padding:11px 18px;
+  border-bottom:1px solid var(--bezel-2); }
+.cat-item:last-child{ border-bottom:0; }
+.cat-item .tick{ width:8px; height:8px; border-radius:2px; background:var(--ok); flex:none; }
+.cat-item.escolar .tick{ background:var(--escola); }
+.cat-item .nm{ flex:1; font-size:13.5px; }
+.cat-item .cod{ font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+.cat-item .vl{ font-family:var(--mono); font-size:13px; color:var(--brass);
+  font-variant-numeric:tabular-nums; }
+.cat-item.lido{ opacity:.42; }
+.cat-item.lido .nm{ text-decoration:line-through; }
+
+/* ------------------------------------------------------------------ peso -- */
+.peso-row{ margin-bottom:15px; }
+.peso-top{ display:flex; align-items:baseline; justify-content:space-between; gap:10px;
+  margin-bottom:7px; }
+.peso-top b{ font-weight:500; font-size:13.5px; }
+.peso-top span{ font-family:var(--mono); font-size:13.5px; color:var(--brass);
+  font-variant-numeric:tabular-nums; }
+.bar{ height:13px; background:var(--raised); border:1px solid var(--bezel);
+  border-radius:2px; overflow:hidden; }
+.bar i{ display:block; height:100%; background:var(--ok); width:0;
+  transition:width 550ms var(--ease); }
+.bar.escolar i{ background:var(--escola); }
+.ratio{ border:1px solid var(--brass); background:#1C1A11; border-radius:3px;
+  padding:15px 16px; margin-top:18px; }
+.ratio .n{ font-family:var(--mono); font-weight:500; font-size:31px; color:var(--brass);
+  line-height:1; font-variant-numeric:tabular-nums; }
+.ratio p{ margin:9px 0 0; font-size:13px; color:var(--muted); }
+.ratio p b{ color:var(--text); font-weight:500; }
+
+/* ------------------------------------------------------- histórico/ledger -- */
+.duo{ display:grid; grid-template-columns:1fr 1fr; gap:26px; padding-bottom:40px; }
+.row{ display:flex; align-items:center; gap:12px; padding:11px 18px;
+  border-bottom:1px solid var(--bezel-2); }
+.row:last-child{ border-bottom:0; }
+.row .tick{ width:8px; height:8px; border-radius:2px; background:var(--ok); flex:none; }
+.row.escolar .tick{ background:var(--escola); }
+.row.pend .tick{ background:var(--hold); }
+.row .nm{ flex:1; font-size:13.5px; }
+.row .nm em{ font-style:normal; color:var(--faint); font-family:var(--mono); font-size:11.5px; }
+.row .hr{ font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+.blk{ padding:12px 18px; border-bottom:1px solid var(--bezel-2); }
+.blk:last-child{ border-bottom:0; }
+.blk-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.blk-n{ font-family:var(--mono); font-size:11.5px; color:var(--muted); }
+.blk-sig{ font-family:var(--cond); font-weight:600; font-size:10px; letter-spacing:.1em;
+  text-transform:uppercase; color:var(--ok); }
+.blk-item{ font-size:13px; margin-top:5px; }
+.blk-h{ font-family:var(--mono); font-size:10.5px; color:var(--faint); margin-top:5px;
+  overflow-wrap:anywhere; }
+.vazio{ padding:22px 18px; color:var(--faint); font-size:13.5px; text-align:center; }
+.nota{ padding:14px 18px; border-top:1px solid var(--bezel-2); font-size:12.5px;
+  color:var(--muted); }
+.nota b{ color:var(--text); font-weight:500; }
+
+/* -------------------------------------------------------------- etiquetas -- */
+.sheet{ display:none; }
+.sheet.on{ display:block; }
+.sheet .wrap{ padding-top:26px; padding-bottom:40px; }
+.sheet-intro{ max-width:72ch; margin-bottom:22px; color:var(--muted); font-size:14px; }
+.sheet-intro b{ color:var(--text); font-weight:500; }
+/* Tamanho é medido em mm de propósito: mm no CSS imprime em mm de verdade,
+   e é o milímetro, não o pixel, que decide a que distância a câmera lê. */
+.tags{ display:grid; grid-template-columns:repeat(var(--cols,4),1fr); gap:10px;
+  align-items:start; }
+.tagcard{ background:#fff; color:#0A1315; border-radius:3px; padding:10px;
+  display:flex; flex-direction:column; gap:7px; break-inside:avoid; }
+.tagcard .cls{ font-family:var(--cond); font-weight:700; font-size:9.5px; letter-spacing:.14em;
+  text-transform:uppercase; color:#5A6A6C; }
+.tagcard .nm{ font-weight:600; font-size:12.5px; line-height:1.3; }
+.tagcard .codes{ display:flex; flex-direction:column; align-items:center; gap:7px; }
+/* pixelated mantém o QR quadrado e nítido ao ampliar, borrão não decodifica */
+.tagcard .qr{ width:var(--qrmm,22mm); height:var(--qrmm,22mm); flex:none;
+  image-rendering:pixelated; }
+.tagcard .bc{ width:100%; max-width:100%; height:auto; }
+.tagcard .meta{ font-family:var(--mono); font-size:9.5px; color:#5A6A6C;
+  display:flex; justify-content:space-between; gap:8px; }
+.tagcard .meta b{ color:#0A1315; font-weight:500; }
+
+.sizes{ display:flex; flex-wrap:wrap; gap:8px; margin:14px 0 4px; }
+.size{ text-align:left; cursor:pointer; padding:10px 14px; border-radius:3px;
+  background:var(--raised); border:1px solid var(--bezel); color:var(--text);
+  transition:border-color 180ms var(--ease); }
+.size:hover{ border-color:var(--ok); }
+.size[aria-pressed="true"]{ background:var(--ok-dim); border-color:var(--ok); }
+.size b{ display:block; font-family:var(--cond); font-weight:600; font-size:12px;
+  letter-spacing:.1em; text-transform:uppercase; }
+.size span{ display:block; font-family:var(--mono); font-size:11px; color:var(--muted);
+  margin-top:3px; }
+.size[aria-pressed="true"] span{ color:var(--ok-lit); }
+
+@media print{
+  .rail,.guia,.main,.duo,.sheet-intro,.noprint{ display:none !important; }
+  body{ background:#fff; }
+  .sheet{ display:block !important; }
+  .sheet .wrap{ padding:0; max-width:none; }
+  .tags{ gap:6mm; }                 /* colunas vêm de --cols, escolhido pelo usuário */
+  .tagcard{ border:1px solid #C8CCD0; page-break-inside:avoid; }
+}
+@media (max-width:1020px){
+  .main,.duo{ grid-template-columns:1fr; }
+  .metrics{ margin-left:0; gap:22px; }
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:1ms !important; transition-duration:1ms !important; }
+}
+</style>
+
+<header class="rail noprint">
+  <div class="wrap">
+    <div class="brand"><b>SVA<i>Tech</i></b><span>Leitor de patrimônio</span></div>
+    <div class="tabs">
+      <button class="tab" id="tab-scan" aria-selected="true">Leitor</button>
+      <button class="tab" id="tab-tags" aria-selected="false">Etiquetas</button>
+    </div>
+    <div class="metrics">
+      <div class="mt money"><span class="lbl">Patrimônio auditado</span><span class="v" id="money">R$ 0</span></div>
+      <div class="mt"><span class="lbl">Bens lidos</span><span class="v" id="count">0 <small id="deTotal">de 8</small></span></div>
+      <div class="mt hold"><span class="lbl">Pendente de validação</span><span class="v" id="pending">0</span></div>
+      <div class="mt"><span class="lbl">Enviado à nuvem</span><span class="v">0 <small>B</small></span></div>
+    </div>
+  </div>
+</header>
+
+<section class="guia noprint" id="guia">
+  <div class="wrap">
+    <div class="passo"><b>1</b><span>Abra <strong>Etiquetas</strong> e imprima a folha</span></div>
+    <div class="passo"><b>2</b><span>Cole uma etiqueta numa caixa qualquer</span></div>
+    <div class="passo"><b>3</b><span>Ligue a câmera e aponte para o QR</span></div>
+    <button class="fechar" id="fecharGuia">Entendi</button>
+  </div>
+</section>
+
+<!-- ================================ LEITOR ================================ -->
+<div id="view-scan">
+  <div class="wrap main">
+
+    <!-- câmera -->
+    <section class="card">
+      <div class="screen">
+        <video id="cam" playsinline muted></video>
+        <div class="reticle" id="reticle" aria-hidden="true">
+          <svg viewBox="0 0 400 300" preserveAspectRatio="none">
+            <path d="M78 84 H46 V114"  fill="none" stroke="#3E9E8B" stroke-width="3"/>
+            <path d="M322 84 H354 V114" fill="none" stroke="#3E9E8B" stroke-width="3"/>
+            <path d="M78 216 H46 V186"  fill="none" stroke="#3E9E8B" stroke-width="3"/>
+            <path d="M322 216 H354 V186" fill="none" stroke="#3E9E8B" stroke-width="3"/>
+          </svg>
+        </div>
+        <div class="flash" id="flash"></div>
+        <div class="off-state" id="offstate">
+          <button class="big-btn" id="start">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+              <circle cx="12" cy="13" r="4"/>
+            </svg>
+            Ligar câmera
+          </button>
+          <p class="off-msg" id="offmsg">A leitura acontece no seu aparelho. Nenhuma imagem é
+             guardada nem enviada para lugar nenhum.</p>
+        </div>
+      </div>
+      <div class="cam-foot">
+        <button class="btn" id="stop" disabled>Desligar</button>
+        <button class="btn" id="fake">Simular leitura</button>
+        <span class="eco" id="eco"><span class="dot"></span><span id="ecotext">verificando</span></span>
+      </div>
+    </section>
+
+    <!-- resultado + peso -->
+    <div style="display:flex; flex-direction:column; gap:26px;">
+      <section class="card">
+        <div class="card-head">
+          <span class="lbl" id="resultLbl">Bens no cadastro</span>
+          <button class="btn" id="clear" style="padding:6px 12px; font-size:10.5px;">Limpar</button>
+        </div>
+        <div id="resultado"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head"><span class="lbl">Peso do patrimônio</span></div>
+        <div class="card-body">
+          <div id="peso"></div>
+          <div class="ratio">
+            <div class="n" id="ratio-n">19×</div>
+            <p>Um <b>monitor multiparamétrico</b> (R$ 62.000) pesa o mesmo que
+               <b id="ratio-eq">19 projetores</b> de sala de aula. O problema é o mesmo,
+               o que muda é o quanto custa errar.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div class="wrap duo">
+    <section class="card">
+      <div class="card-head"><span class="lbl">Histórico de leituras</span>
+        <span class="lbl" id="histCount"></span></div>
+      <div id="hist"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><span class="lbl">Corrente de registro</span>
+        <span class="lbl" id="blockcount">0 blocos</span></div>
+      <div id="chain"></div>
+      <p class="nota">Toda leitura vira um bloco que tranca o anterior por hash, inclusive
+        releitura do mesmo bem. Já o <b>valor conta cada bem uma vez só</b>, por isso o
+        número de blocos pode passar o número de bens.</p>
+    </section>
+  </div>
+</div>
+
+<!-- =============================== ETIQUETAS =============================== -->
+<section class="sheet" id="view-tags">
+  <div class="wrap">
+    <div class="sheet-intro noprint">
+      <p style="margin:0 0 4px;">O tamanho da etiqueta decide de que distância a câmera lê.
+        A regra é direta: <b>a webcam precisa de cerca de 57mm de QR para cada metro</b> de
+        distância. Escolha pelo lugar onde você vai usar.</p>
+      <div class="sizes" id="sizes"></div>
+      <p style="margin:12px 0;" id="sizeHint"></p>
+      <button class="btn" id="print" style="background:var(--ok-dim); border-color:var(--ok); color:var(--ok-lit);">Imprimir etiquetas</button>
+    </div>
+    <div class="tags" id="tags"></div>
+  </div>
+</section>
+
+<script>
+/* ===========================================================================
+   CADASTRO DE PATRIMÔNIO, duas classes de bem como o professor orientou.
+   Para ligar no backend do Pi depois:
+     const CATALOGO = await (await fetch(API + '/api/v1/assets')).json();
+   =========================================================================== */
+const CATALOGO = [
+  { codigo:'SVA-H-001', classe:'hospital', tipo:'OPME',
+    nome:'Parafuso cortical de titânio 4.5mm', lote:'TI-2026-08A',
+    anvisa:'80102510037', valor:15000, crit:5 },
+  { codigo:'SVA-H-002', classe:'hospital', tipo:'OPME',
+    nome:'Placa bloqueada de tíbia, 6 furos', lote:'PL-2026-03C',
+    anvisa:'80102510112', valor:8400, crit:5 },
+  { codigo:'SVA-H-003', classe:'hospital', tipo:'Equipamento',
+    nome:'Monitor multiparamétrico de leito', lote:'MM-2024-77X',
+    anvisa:'80102510440', valor:62000, crit:5 },
+  { codigo:'SVA-H-004', classe:'hospital', tipo:'Equipamento',
+    nome:'Bomba de infusão volumétrica', lote:'BI-2025-19T',
+    anvisa:'80102510331', valor:12500, crit:4 },
+  { codigo:'SVA-E-001', classe:'escolar', tipo:'Equipamento',
+    nome:'Projetor multimídia da sala 12', lote:'PJ-2024-12S',
+    anvisa:'', valor:3200, crit:2 },
+  { codigo:'SVA-E-002', classe:'escolar', tipo:'Equipamento',
+    nome:'Notebook do laboratório de informática', lote:'NB-2025-08L',
+    anvisa:'', valor:4100, crit:2 },
+  { codigo:'SVA-E-003', classe:'escolar', tipo:'Equipamento',
+    nome:'Microscópio binocular do laboratório', lote:'MC-2023-31B',
+    anvisa:'', valor:2800, crit:2 },
+  { codigo:'SVA-E-004', classe:'escolar', tipo:'Kit',
+    nome:'Kit de robótica educacional', lote:'KR-2026-04R',
+    anvisa:'', valor:950, crit:1 }
+];
+
+const CRIT_TXT = { 5:'risco direto ao paciente', 4:'suporte à vida',
+  3:'interrompe o atendimento', 2:'interrompe a aula', 1:'reposição simples' };
+
+const el = id => document.getElementById(id);
+const brl = v => 'R$ ' + v.toLocaleString('pt-BR',{maximumFractionDigits:0});
+const acharItem = c => CATALOGO.find(i => i.codigo === String(c).trim().toUpperCase());
+const nomeClasse = c => c === 'hospital' ? 'Patrimônio hospitalar' : 'Patrimônio escolar';
+
+/* ------------------------------------------------------ corrente de hash -- */
+function fnv(s, seed){
+  let h = seed >>> 0;
+  for(let i=0;i<s.length;i++){ h ^= s.charCodeAt(i); h = Math.imul(h,0x01000193) >>> 0; }
+  return h.toString(16).padStart(8,'0');
+}
+const hashBloco = (p,pl) => fnv(p+'|'+pl, 0x811c9dc5) + fnv(p+'|'+pl, 0x7ee3a1c9);
+const curto = h => h.slice(0,4)+'…'+h.slice(-4);
+
+/* ---------------------------------------------------------------- estado -- */
+const estado = { leituras:[], blocos:[], valor:0, lidos:0, pendentes:0 };
+const ULTIMA = {}, JANELA = 4000;
+
+const salvar = () => { try{
+  localStorage.setItem('svatech.leituras', JSON.stringify(estado.leituras)); }catch(e){} };
+
+function carregar(){
+  try{
+    const cru = localStorage.getItem('svatech.leituras');
+    if(!cru) return;
+    JSON.parse(cru).slice().reverse().forEach(l => aplicar(l, false));
+  }catch(e){}
+}
+
+// Totais sempre derivados da lista de bens distintos, nunca somados de forma incremental.
+function recalcular(){
+  const bens = estado.leituras.filter(l => l.item);
+  estado.valor = bens.reduce((t,l) => t + l.item.valor, 0);
+  estado.lidos = bens.length;
+  estado.pendentes = estado.leituras.length - bens.length;
+}
+
+function aplicar(leitura, novo){
+  // Um bem conta uma vez. Reler atualiza o horário e o contador, nunca soma de novo.
+  const ex = estado.leituras.find(l => l.codigo === leitura.codigo);
+  if(ex){
+    ex.hora = leitura.hora;
+    ex.vezes = (ex.vezes || 1) + 1;
+    estado.leituras = [ex, ...estado.leituras.filter(l => l !== ex)];
+  }else{
+    leitura.vezes = leitura.vezes || 1;
+    estado.leituras.unshift(leitura);
+  }
+  recalcular();
+
+  const prev = estado.blocos.length ? estado.blocos[estado.blocos.length-1].hash : '0000000000000000';
+  const payload = [leitura.codigo, leitura.hora, leitura.item ? leitura.item.valor : 0].join(';');
+  estado.blocos.push({ n:1+estado.blocos.length, prev, payload, hash:hashBloco(prev,payload),
+    rotulo: leitura.item ? leitura.item.nome : 'Código fora do cadastro' });
+
+  if(novo) salvar();
+  pintarTudo();
+}
+
+function registrar(codigo){
+  const agora = Date.now();
+  if(ULTIMA[codigo] && agora - ULTIMA[codigo] < JANELA) return;
+  ULTIMA[codigo] = agora;
+  aplicar({ codigo, item: acharItem(codigo) || null,
+            hora: new Date().toTimeString().slice(0,8) }, true);
+  el('guia').classList.add('off');
+  const f = el('flash');
+  f.classList.add('on'); setTimeout(() => f.classList.remove('on'), 140);
+}
+
+/* ---------------------------------------------------------------- pintar -- */
+function pintarResultado(){
+  const alvo = el('resultado');
+
+  if(!estado.leituras.length){
+    // Estado inicial: mostra o que o sistema sabe reconhecer, em vez de tela vazia.
+    el('resultLbl').textContent = 'Bens no cadastro';
+    alvo.className = 'cat';
+    alvo.innerHTML = CATALOGO.map(i =>
+      '<div class="cat-item ' + i.classe + '">' +
+        '<span class="tick"></span>' +
+        '<span class="nm">' + i.nome + '</span>' +
+        '<span class="cod">' + i.codigo + '</span>' +
+        '<span class="vl">' + brl(i.valor) + '</span>' +
+      '</div>').join('');
+    return;
+  }
+
+  const l = estado.leituras[0];
+  el('resultLbl').textContent = 'Último bem identificado';
+  alvo.className = 'hero ' + (l.item ? l.item.classe : 'pend');
+
+  if(!l.item){
+    alvo.innerHTML =
+      '<span class="cls">⏸ Pendente de validação humana</span>' +
+      '<h2>Código fora do cadastro</h2>' +
+      '<div class="valor">sem valor atribuído</div>' +
+      '<dl class="kv"><dt>código lido</dt><dd><b>' + l.codigo + '</b></dd>' +
+        '<dt>leitura</dt><dd>' + l.hora + '</dd>' +
+        (l.vezes > 1 ? '<dt>relido</dt><dd><b>' + l.vezes + '×</b></dd>' : '') +
+      '</dl>';
+    return;
+  }
+
+  const i = l.item;
+  const pips = [1,2,3,4,5].map(n => '<span class="pip'+(n<=i.crit?' on':'')+'"></span>').join('');
+  alvo.innerHTML =
+    '<span class="cls">✓ ' + nomeClasse(i.classe) + '</span>' +
+    '<h2>' + i.nome + '</h2>' +
+    '<div class="valor">' + brl(i.valor) + '</div>' +
+    '<div class="crit"><span class="pips">' + pips + '</span><span>' + CRIT_TXT[i.crit] + '</span></div>' +
+    '<dl class="kv">' +
+      '<dt>código</dt><dd><b>' + i.codigo + '</b></dd>' +
+      '<dt>lote</dt><dd>' + i.lote + '</dd>' +
+      (i.anvisa ? '<dt>anvisa</dt><dd>' + i.anvisa + '</dd>' : '') +
+      '<dt>tipo</dt><dd>' + i.tipo + '</dd>' +
+      '<dt>leitura</dt><dd>' + l.hora + '</dd>' +
+      (l.vezes > 1 ? '<dt>relido</dt><dd><b>' + l.vezes + '×</b>, conta uma vez</dd>' : '') +
+    '</dl>';
+}
+
+function pintarHistorico(){
+  const alvo = el('hist');
+  el('histCount').textContent = estado.leituras.length
+    ? estado.leituras.length + (estado.leituras.length === 1 ? ' bem' : ' bens') : '';
+  if(!estado.leituras.length){
+    alvo.innerHTML = '<div class="vazio">Nenhuma leitura ainda. Ligue a câmera e aponte para uma etiqueta.</div>';
+    return;
+  }
+  alvo.innerHTML = estado.leituras.map(l =>
+    '<div class="row ' + (l.item ? l.item.classe : 'pend') + '">' +
+      '<span class="tick"></span>' +
+      '<span class="nm">' + (l.item ? l.item.nome : 'Código fora do cadastro') +
+        (l.vezes > 1 ? ' <em>' + l.vezes + '×</em>' : '') + '</span>' +
+      '<span class="hr">' + l.hora + '</span>' +
+    '</div>').join('');
+}
+
+function pintarPeso(){
+  const soma = c => estado.leituras.filter(l => l.item && l.item.classe === c)
+                                   .reduce((t,l) => t + l.item.valor, 0);
+  const h = soma('hospital'), e = soma('escolar'), teto = Math.max(h, e, 1);
+  el('peso').innerHTML =
+    linha('Hospitalar', h, teto, '') + linha('Escolar', e, teto, 'escolar');
+}
+const linha = (nome, v, teto, cls) =>
+  '<div class="peso-row"><div class="peso-top"><b>' + nome + '</b><span>' + brl(v) + '</span></div>' +
+  '<div class="bar ' + cls + '"><i style="width:' + (v/teto*100) + '%"></i></div></div>';
+
+function pintarLedger(){
+  const alvo = el('chain');
+  el('blockcount').textContent = estado.blocos.length + (estado.blocos.length === 1 ? ' bloco' : ' blocos');
+  if(!estado.blocos.length){ alvo.innerHTML = '<div class="vazio">Nada registrado ainda.</div>'; return; }
+  alvo.innerHTML = estado.blocos.slice(-5).reverse().map(b =>
+    '<div class="blk"><div class="blk-top">' +
+      '<span class="blk-n">BLOCO #' + b.n + '</span><span class="blk-sig">✓ assinado</span></div>' +
+    '<div class="blk-item">' + b.rotulo + '</div>' +
+    '<div class="blk-h">hash ' + curto(b.hash) + ' · ant ' + curto(b.prev) + '</div></div>').join('');
+}
+
+function pintarTudo(){
+  el('money').textContent = brl(estado.valor);
+  el('count').innerHTML = estado.lidos + ' <small>de ' + CATALOGO.length + '</small>';
+  el('pending').textContent = estado.pendentes;
+  pintarResultado(); pintarHistorico(); pintarPeso(); pintarLedger();
+}
+
+/* ---------------------------------------------------------------- câmera -- */
+let stream = null, laco = null, leitorZX = null, detectorNativo = null, pronto = null;
+const lona = document.createElement('canvas');
+const lctx = lona.getContext('2d', { willReadFrequently:true });
+const zoom = document.createElement('canvas');
+const zctx = zoom.getContext('2d', { willReadFrequently:true });
+const NO_IFRAME = (() => { try{ return window.self !== window.top; }catch(e){ return true; } })();
+
+async function prepararDecodificador(){
+  const eco = el('eco'), txt = el('ecotext'), motores = [];
+  if('BarcodeDetector' in window){
+    try{
+      const fmts = await window.BarcodeDetector.getSupportedFormats();
+      detectorNativo = new window.BarcodeDetector({ formats: fmts.filter(f =>
+        ['qr_code','code_128','ean_13','code_39','data_matrix'].includes(f)) });
+      motores.push('nativo');
+    }catch(e){}
+  }
+  if(window.jsQR) motores.push('jsQR');
+  if(window.ZXing){ leitorZX = new window.ZXing.BrowserMultiFormatReader(); motores.push('ZXing'); }
+
+  if(motores.length){
+    eco.className = 'eco on';
+    txt.textContent = motores.length + ' motores: ' + motores.join(' + ');
+  }else{
+    eco.className = 'eco warn'; txt.textContent = 'nenhum leitor carregou, recarregue com internet';
+  }
+}
+
+// Driver de webcam no Windows costuma recusar resolução pedida, então tentamos
+// do mais específico para o mais simples antes de desistir.
+const RESTRICOES = [
+  { video:{ facingMode:{ ideal:'environment' }, width:{ ideal:1280 }, height:{ ideal:720 } }, audio:false },
+  { video:{ width:{ ideal:640 }, height:{ ideal:480 } }, audio:false },
+  { video:true, audio:false }
+];
+
+async function ligar(){
+  await pronto;
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    return falha({ name:'SemSuporte' });
+  }
+  const v = el('cam');
+  let erro = null;
+
+  if(!detectorNativo && !window.jsQR && !leitorZX) return falha({ name:'SemLeitor' });
+
+  for(const r of RESTRICOES){
+    try{
+      stream = await navigator.mediaDevices.getUserMedia(r);
+      v.srcObject = stream;
+      await v.play();
+      quadros = 0; achou = false;
+      laco = setInterval(varrer, 180);
+      el('offstate').classList.add('hidden');
+      el('reticle').classList.add('on');
+      el('start').disabled = true; el('stop').disabled = false;
+      return;
+    }catch(e){ erro = e; if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+  }
+  falha(erro);
+}
+
+function falha(err){
+  const n = err && err.name ? err.name : 'desconhecido';
+  const m = el('offmsg');
+  m.classList.add('err');
+  el('offstate').classList.remove('hidden');
+
+  if(n === 'NotReadableError' || n === 'TrackStartError'){
+    m.innerHTML = '<b>A câmera está ocupada por outro programa.</b> Feche Teams, Meet, Zoom, ' +
+      'OBS, Discord ou o app Câmera do Windows e ligue de novo. Se continuar, abra ' +
+      'Configurações do Windows, Privacidade e segurança, Câmera, e permita o acesso ' +
+      'para aplicativos da área de trabalho.';
+  }else if(n === 'NotAllowedError' && NO_IFRAME){
+    m.innerHTML = '<b>Este visualizador não libera a câmera.</b> Abra o arquivo ' +
+      'svatech-scanner.html direto no Chrome do computador.';
+  }else if(n === 'NotAllowedError'){
+    m.innerHTML = '<b>Permissão negada.</b> Clique no ícone de câmera na barra de endereço, ' +
+      'permita o acesso e ligue de novo.';
+  }else if(n === 'NotFoundError' || n === 'DevicesNotFoundError'){
+    m.innerHTML = '<b>Nenhuma câmera encontrada.</b> Conecte uma webcam e ligue de novo.';
+  }else if(n === 'SemLeitor'){
+    m.innerHTML = '<b>Nenhum leitor de código carregou.</b> Conecte à internet e recarregue. ' +
+      'O botão de simular leitura continua funcionando.';
+  }else{
+    m.innerHTML = '<b>A câmera não abriu.</b> (' + n + ') Use o Chrome, e confira se outro ' +
+      'programa está usando a webcam.';
+  }
+}
+
+function desligar(){
+  clearInterval(laco); laco = null;
+  if(leitorZX){ try{ leitorZX.reset(); }catch(e){} }
+  const v = el('cam');
+  if(v.srcObject){ v.srcObject.getTracks().forEach(t => t.stop()); }
+  if(stream){ stream.getTracks().forEach(t => t.stop()); stream = null; }
+  v.srcObject = null;
+  el('offstate').classList.remove('hidden');
+  el('reticle').classList.remove('on');
+  el('offmsg').classList.remove('err');
+  el('offmsg').textContent = 'Câmera desligada. Nenhuma imagem foi guardada nem enviada.';
+  el('start').disabled = false; el('stop').disabled = true;
+  if(!achou) el('ecotext').textContent = 'leitor pronto';
+}
+
+/* Ler QR na tela de um celular é o caso mais difícil: brilho, cast de cor e moiré
+   entre o pixel da tela e o sensor. Por isso cada quadro passa por várias
+   tentativas em vez de uma só, e o recorte central resolve código pequeno/longe. */
+let varrendo = false, quadros = 0, achou = false;
+
+function porJsQR(dados){
+  if(!window.jsQR) return null;
+  const r = window.jsQR(dados.data, dados.width, dados.height,
+    { inversionAttempts:'attemptBoth' });
+  return r && r.data ? r.data : null;
+}
+
+async function varrer(){
+  if(varrendo) return;
+  const v = el('cam');
+  if(!v.videoWidth) return;
+  varrendo = true;
+  quadros++;
+
+  try{
+    const W = v.videoWidth, H = v.videoHeight;
+    lona.width = W; lona.height = H;
+    lctx.drawImage(v, 0, 0);
+
+    // 1) detector nativo do navegador, quando existe: rápido e faz QR e barras
+    if(detectorNativo){
+      try{
+        const achados = await detectorNativo.detect(lona);
+        if(achados.length) return void sucesso(achados[0].rawValue);
+      }catch(e){}
+    }
+
+    // 2) jsQR no quadro inteiro
+    let txt = porJsQR(lctx.getImageData(0, 0, W, H));
+    if(txt) return void sucesso(txt);
+
+    // 3) jsQR no recorte central ampliado: ajuda quando o código está pequeno
+    const lc = Math.round(Math.min(W, H) * 0.62);
+    const cx0 = Math.round((W - lc) / 2), cy0 = Math.round((H - lc) / 2);
+    zoom.width = 640; zoom.height = 640;
+    zctx.imageSmoothingEnabled = false;
+    zctx.drawImage(lona, cx0, cy0, lc, lc, 0, 0, 640, 640);
+    txt = porJsQR(zctx.getImageData(0, 0, 640, 640));
+    if(txt) return void sucesso(txt);
+
+    // 4) ZXing a cada 5 quadros, que é quem pega código de barras 1D no desktop
+    if(leitorZX && quadros % 5 === 0){
+      try{
+        const img = new Image();
+        img.src = lona.toDataURL('image/jpeg', 0.75);
+        await new Promise((ok, no) => { img.onload = ok; img.onerror = no; });
+        const res = await leitorZX.decodeFromImageElement(img);
+        if(res) return void sucesso(res.getText());
+      }catch(e){ /* NotFound é o caso normal */ }
+    }
+
+    if(!achou && quadros % 6 === 0){
+      el('ecotext').textContent = 'procurando código… ' + quadros + ' quadros';
+    }
+  }catch(e){}
+  finally{ varrendo = false; }
+}
+
+function sucesso(valor){
+  achou = true;
+  el('ecotext').textContent = 'código lido: ' + valor;
+  registrar(valor);
+  varrendo = false;
+}
+
+/* ------------------------------------------------------------- etiquetas -- */
+/* Alcance de leitura, deduzido em vez de chutado:
+   webcam de 1280px com campo de ~60° enxerga uma faixa de ~1,15·d metros.
+   Um QR curto tem 21 módulos e precisa de ~3px por módulo para decodificar,
+   ou seja ~63px de largura na imagem. Daí sai QR_mm ≈ 57 × distância_em_metros. */
+const MM_POR_METRO = 57;
+const alcance = qrmm => (qrmm / MM_POR_METRO);
+
+const TAMANHOS = [
+  { id:'palco',      rot:'Palco',      cols:1, qr:120, nota:'1 por folha' },
+  { id:'sala',       rot:'Sala',       cols:2, qr:78,  nota:'2 por folha' },
+  { id:'bancada',    rot:'Bancada',    cols:3, qr:46,  nota:'6 por folha' },
+  { id:'inventario', rot:'Inventário', cols:4, qr:22,  nota:'8 por folha' }
+];
+let tamanhoAtual = TAMANHOS[1];
+
+function montarSeletor(){
+  el('sizes').innerHTML = TAMANHOS.map(t =>
+    '<button class="size" data-id="' + t.id + '" aria-pressed="' +
+      (t.id === tamanhoAtual.id) + '">' +
+      '<b>' + t.rot + '</b>' +
+      '<span>QR ' + t.qr + 'mm · lê a ~' + alcance(t.qr).toFixed(1).replace('.',',') + ' m</span>' +
+    '</button>').join('');
+  el('sizes').querySelectorAll('.size').forEach(b =>
+    b.addEventListener('click', () => {
+      tamanhoAtual = TAMANHOS.find(t => t.id === b.dataset.id);
+      montarSeletor(); montarEtiquetas();
+    }));
+
+  const t = tamanhoAtual;
+  el('sizeHint').innerHTML = '<b>' + t.rot + '</b>: ' + t.nota + ', QR de ' + t.qr +
+    'mm, lê a cerca de <b>' + alcance(t.qr).toFixed(1).replace('.',',') + ' metros</b>. ' +
+    (t.id === 'palco'
+      ? 'É o tamanho para você segurar a caixa em pé, longe do notebook.'
+      : t.id === 'inventario'
+        ? 'Tamanho de etiqueta real de patrimônio, para ler encostado no bem.'
+        : 'Bom equilíbrio entre alcance e folhas gastas.');
+}
+
+function montarEtiquetas(){
+  const t = tamanhoAtual;
+  const alvo = el('tags');
+  alvo.style.setProperty('--cols', t.cols);
+  alvo.style.setProperty('--qrmm', t.qr + 'mm');
+
+  alvo.innerHTML = CATALOGO.map(i =>
+    '<div class="tagcard"><div class="cls">' + nomeClasse(i.classe) + '</div>' +
+      '<div class="nm">' + i.nome + '</div>' +
+      '<div class="codes"><canvas class="qr" data-cod="' + i.codigo + '"></canvas>' +
+      '<svg class="bc" data-cod="' + i.codigo + '"></svg></div>' +
+      '<div class="meta"><span>' + i.codigo + '</span><b>' + brl(i.valor) + '</b></div></div>').join('');
+
+  // Gera o QR numa resolução compatível com o tamanho impresso, senão borra ao ampliar.
+  const px = Math.max(220, Math.round(t.qr * 5));
+  alvo.querySelectorAll('canvas.qr').forEach(c => {
+    if(window.QRious) new window.QRious({ element:c, value:c.dataset.cod, size:px,
+      level:'M', background:'#ffffff', foreground:'#0A1315' });
+  });
+  alvo.querySelectorAll('svg.bc').forEach(s => {
+    if(window.JsBarcode){
+      try{
+        window.JsBarcode(s, s.dataset.cod, { format:'CODE128',
+          width: Math.max(1, Math.round(t.qr / 22)), height: Math.round(t.qr * 0.42),
+          fontSize: Math.max(10, Math.round(t.qr / 5)), margin:0, lineColor:'#0A1315' });
+        return;
+      }catch(e){}
+    }
+    s.outerHTML = '<span style="font:11px monospace">' + s.dataset.cod + '</span>';
+  });
+}
+
+/* ------------------------------------------------------------------ abas -- */
+function aba(qual){
+  const leitor = qual === 'scan';
+  el('view-scan').style.display = leitor ? 'block' : 'none';
+  el('view-tags').classList.toggle('on', !leitor);
+  el('tab-scan').setAttribute('aria-selected', String(leitor));
+  el('tab-tags').setAttribute('aria-selected', String(!leitor));
+}
+
+el('start').addEventListener('click', ligar);
+el('stop').addEventListener('click', desligar);
+el('tab-scan').addEventListener('click', () => aba('scan'));
+el('tab-tags').addEventListener('click', () => aba('tags'));
+el('print').addEventListener('click', () => window.print());
+el('fecharGuia').addEventListener('click', () => el('guia').classList.add('off'));
+
+// Rede de segurança de palco: se a webcam falhar, a demo continua.
+el('fake').addEventListener('click', () => {
+  const faltam = CATALOGO.filter(i => !estado.leituras.some(l => l.codigo === i.codigo));
+  const alvo = (faltam.length ? faltam : CATALOGO)[0];
+  delete ULTIMA[alvo.codigo];
+  registrar(alvo.codigo);
+});
+
+el('clear').addEventListener('click', () => {
+  estado.leituras = []; estado.blocos = [];
+  Object.keys(ULTIMA).forEach(k => delete ULTIMA[k]);
+  recalcular(); salvar(); pintarTudo();
+});
+
+/* --------------------------------------------------------------- abertura -- */
+(function abrir(){
+  const maq = CATALOGO.find(i => i.codigo === 'SVA-H-003');
+  const esc = CATALOGO.find(i => i.codigo === 'SVA-E-001');
+  const razao = Math.round(maq.valor / esc.valor);
+  el('ratio-n').textContent = razao + '×';
+  el('ratio-eq').textContent = razao + ' projetores';
+
+  if(NO_IFRAME){
+    el('offmsg').innerHTML = 'Por este link a câmera fica bloqueada pelo visualizador. ' +
+      'Para ler etiquetas de verdade, abra o arquivo no Chrome do computador. ' +
+      '<b>Simular leitura funciona aqui.</b>';
+  }
+
+  carregar();
+  pintarTudo();
+  montarSeletor();
+  montarEtiquetas();
+  pronto = prepararDecodificador();
+})();
+</script>

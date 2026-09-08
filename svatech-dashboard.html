@@ -1,0 +1,809 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<title>Caixa-Preta Cirúrgica</title>
+
+<style>
+/* ===========================================================================
+   SVATech Health, Caixa-Preta Cirúrgica
+   Painel de instrumento, não dashboard web. Tema único escuro por decisão:
+   o aparelho vive numa sala cirúrgica de luz baixa.
+   =========================================================================== */
+:root{
+  /* Ground: grafite com viés teal, escolhido (não cinza puro herdado) */
+  --ground:  #0A1315;
+  --panel:   #0F1C1F;
+  --raised:  #152A2E;
+  --bezel:   #223B41;
+  --bezel-2: #1A2E33;
+
+  --text:    #DAE7E8;
+  --muted:   #789296;
+  --faint:   #4E686D;
+
+  /* Semânticos: estado do item. Nunca usados como acento decorativo. */
+  --ok:      #3E9E8B;   /* verde-cirúrgico: auditado */
+  --ok-dim:  #1C3A38;
+  --hold:    #DE9038;   /* âmbar: pendente de validação humana */
+  --hold-dim:#3A2C18;
+  --break:   #C9505C;   /* corrente quebrada */
+  --break-dim:#3A1D22;
+
+  /* O dinheiro. Toda a ousadia de cor mora aqui. */
+  --brass:   #C8A63F;
+
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --cond: 'IBM Plex Sans Condensed', 'IBM Plex Sans', system-ui, sans-serif;
+
+  --dur: 240ms;
+  --ease: cubic-bezier(.2,.8,.2,1);
+}
+
+*{ box-sizing:border-box; }
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--text);
+  font-family:var(--sans);
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Rótulo de instrumento: condensado, caixa alta, tracking generoso */
+.lbl{
+  font-family:var(--cond);
+  font-weight:600;
+  font-size:11px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--faint);
+}
+
+button{ font:inherit; color:inherit; }
+:focus-visible{ outline:2px solid var(--ok); outline-offset:2px; }
+
+/* ---------------------------------------------------------------- RAIL --- */
+.rail{
+  display:flex; align-items:stretch; flex-wrap:wrap;
+  border-bottom:1px solid var(--bezel);
+  background:linear-gradient(180deg, #122226, var(--panel));
+}
+.brand{
+  display:flex; flex-direction:column; justify-content:center;
+  padding:12px 22px; border-right:1px solid var(--bezel);
+  min-width:236px;
+}
+.brand b{ font-weight:600; font-size:15px; letter-spacing:.01em; }
+.brand b i{ font-style:normal; color:var(--ok); }
+.brand span{ font-family:var(--cond); font-size:11px; letter-spacing:.18em;
+  text-transform:uppercase; color:var(--faint); margin-top:2px; }
+
+.edge{
+  display:flex; align-items:center; gap:16px;
+  padding:12px 22px; border-right:1px solid var(--bezel);
+}
+.edge .dot{
+  width:7px; height:7px; border-radius:50%; background:var(--ok);
+  box-shadow:0 0 0 3px var(--ok-dim);
+}
+.edge-txt{ font-family:var(--mono); font-size:12px; color:var(--muted); }
+.edge-txt b{ color:var(--text); font-weight:500; }
+
+/* Leituras de telemetria: separadas por fio de cabelo, sem card algum */
+.readouts{ display:flex; flex:1; min-width:0; }
+.ro{
+  flex:1; min-width:118px;
+  padding:10px 20px 12px;
+  border-right:1px solid var(--bezel-2);
+  display:flex; flex-direction:column; gap:3px;
+}
+.ro:last-child{ border-right:0; }
+.ro .v{
+  font-family:var(--mono); font-weight:500; font-size:20px;
+  font-variant-numeric:tabular-nums; letter-spacing:-.01em;
+}
+.ro.money .v{ font-size:27px; color:var(--brass); }
+.ro.hold .v{ color:var(--hold); }
+.ro .v small{ font-size:13px; color:var(--faint); font-weight:400; }
+
+/* ---------------------------------------------------------------- BENCH -- */
+.bench{
+  display:grid;
+  grid-template-columns: minmax(0,1.32fr) minmax(0,1fr) minmax(0,.86fr);
+  align-items:start;
+  min-height:calc(100vh - 78px);
+}
+.col{ border-right:1px solid var(--bezel); min-width:0; }
+.col:last-child{ border-right:0; }
+.col-head{
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:11px 18px; border-bottom:1px solid var(--bezel);
+  background:var(--panel);
+}
+.col-body{ padding:18px; }
+
+/* ---------------------------------------------------------------- FEED --- */
+.screen{
+  position:relative; border:1px solid var(--bezel); background:#060C0D;
+  border-radius:3px; overflow:hidden;
+}
+canvas{ display:block; width:100%; height:auto; }
+
+.controls{ display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+.btn{
+  font-family:var(--cond); font-weight:600; font-size:12px;
+  letter-spacing:.13em; text-transform:uppercase;
+  padding:11px 16px; border-radius:2px; cursor:pointer;
+  background:var(--raised); border:1px solid var(--bezel); color:var(--text);
+  transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.btn:hover:not(:disabled){ border-color:var(--ok); background:#1A3336; }
+.btn:disabled{ opacity:.38; cursor:not-allowed; }
+.btn.primary{ background:var(--ok-dim); border-color:var(--ok); color:#BFE9DF; }
+.btn.primary:hover:not(:disabled){ background:#245049; }
+.btn.risk:hover:not(:disabled){ border-color:var(--break); background:#33191E; }
+
+.note{
+  margin-top:14px; padding-top:14px; border-top:1px solid var(--bezel-2);
+  font-size:12.5px; color:var(--muted); max-width:62ch;
+}
+.note b{ color:var(--text); font-weight:500; }
+
+/* ------------------------------------------------------------ EVIDENCE --- */
+.stack{ display:flex; flex-direction:column; gap:12px; }
+.ev{
+  border:1px solid var(--bezel); border-left:3px solid var(--ok);
+  background:var(--panel); border-radius:2px; padding:13px 15px 14px;
+  animation:land var(--dur) var(--ease) both;
+}
+.ev.pend{ border-left-color:var(--hold); }
+@keyframes land{ from{ opacity:0; transform:translateY(-7px);} to{ opacity:1; transform:none;} }
+
+.ev-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.ev-name{ font-weight:500; font-size:14px; line-height:1.35; }
+.ev-val{
+  font-family:var(--mono); font-weight:500; font-size:15px; color:var(--brass);
+  font-variant-numeric:tabular-nums; white-space:nowrap;
+}
+.ev.pend .ev-val{ color:var(--faint); text-decoration:line-through; }
+
+.chip{
+  display:inline-flex; align-items:center; gap:6px; margin-top:9px;
+  font-family:var(--cond); font-weight:600; font-size:10.5px;
+  letter-spacing:.13em; text-transform:uppercase;
+  padding:4px 9px; border-radius:2px;
+  background:var(--ok-dim); color:#7FD3C0; border:1px solid #2C5B54;
+}
+.ev.pend .chip{ background:var(--hold-dim); color:#F0BE79; border-color:#5C4322; }
+.chip .gl{ font-family:var(--mono); font-size:11px; }
+
+.kv{
+  display:grid; grid-template-columns:auto 1fr; gap:3px 14px;
+  margin-top:11px; padding-top:11px; border-top:1px solid var(--bezel-2);
+  font-family:var(--mono); font-size:12px;
+}
+.kv dt{ color:var(--faint); }
+.kv dd{ margin:0; color:var(--muted); font-variant-numeric:tabular-nums; }
+.kv dd b{ color:var(--text); font-weight:500; }
+
+.thumb{
+  width:100%; height:64px; margin-top:11px; border-radius:2px;
+  border:1px solid var(--bezel-2); display:block; object-fit:cover;
+}
+
+/* -------------------------------------------------------------- LEDGER --- */
+.chain{ display:flex; flex-direction:column; }
+.blk{
+  border:1px solid var(--bezel); background:var(--panel);
+  border-radius:2px; padding:11px 13px;
+  transition:border-color var(--dur) var(--ease), background var(--dur) var(--ease);
+}
+.blk.bad{ border-color:var(--break); background:#1C1215; }
+.blk.tampered{ border-color:var(--break); background:var(--break-dim); }
+.blk-top{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.blk-n{ font-family:var(--mono); font-size:12px; color:var(--muted); font-weight:500; }
+.blk-sig{
+  font-family:var(--cond); font-weight:600; font-size:10.5px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ok);
+}
+.blk.bad .blk-sig, .blk.tampered .blk-sig{ color:var(--break); }
+.blk-item{ font-size:13px; margin-top:6px; line-height:1.35; }
+.blk-h{
+  font-family:var(--mono); font-size:11px; color:var(--faint);
+  margin-top:6px; word-break:break-all;
+}
+.blk-h b{ color:var(--muted); font-weight:400; }
+.link{ text-align:center; color:var(--faint); font-size:13px; line-height:1; padding:5px 0; }
+.link.bad{ color:var(--break); }
+
+.verdict{
+  margin-top:15px; padding:11px 13px; border-radius:2px;
+  border:1px solid #2C5B54; background:var(--ok-dim);
+  font-family:var(--mono); font-size:12px; color:#8FD9C8; line-height:1.5;
+}
+.verdict.bad{ border-color:#6B2B33; background:var(--break-dim); color:#F0A3AC; }
+
+/* ------------------------------------------------------------ CONTEST --- */
+.contest{
+  margin-top:16px; border:1px solid var(--brass); border-radius:2px;
+  background:#1D1A10; padding:14px 16px;
+  animation:land 300ms var(--ease) both;
+}
+.contest h3{
+  margin:0; font-family:var(--cond); font-weight:700; font-size:13px;
+  letter-spacing:.13em; text-transform:uppercase; color:var(--brass);
+}
+.contest p{ margin:8px 0 0; font-size:13px; color:var(--muted); }
+.contest p b{ color:var(--text); font-weight:500; }
+.contest .stamp{
+  font-family:var(--mono); font-size:12px; color:var(--brass);
+  margin-top:10px; padding-top:10px; border-top:1px solid #3B3418;
+  font-variant-numeric:tabular-nums;
+}
+
+.empty{
+  border:1px dashed var(--bezel); border-radius:2px; padding:16px;
+  color:var(--faint); font-size:13px; text-align:center;
+}
+
+@media (max-width:1180px){
+  .bench{ grid-template-columns:1fr; }
+  .col{ border-right:0; border-bottom:1px solid var(--bezel); }
+  .col:last-child{ border-bottom:0; }
+}
+@media (max-width:640px){
+  .brand, .edge{ border-right:0; }
+  .ro{ min-width:50%; flex:1 0 50%; border-bottom:1px solid var(--bezel-2); }
+}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{ animation-duration:1ms !important; transition-duration:1ms !important; }
+}
+</style>
+
+<!-- ===================== TRILHO DE STATUS (telemetria) ===================== -->
+<div class="rail">
+  <div class="brand">
+    <b>SVA<i>Tech</i> Health</b>
+    <span>Caixa-preta cirúrgica</span>
+  </div>
+
+  <div class="edge">
+    <span class="dot" aria-hidden="true"></span>
+    <span class="edge-txt">
+      <b>Raspberry Pi 4</b> na sala · offline<br>
+      <span id="fps">3.8</span> fps · <span id="lat">214</span> ms · YOLO nano 320
+    </span>
+  </div>
+
+  <div class="readouts">
+    <div class="ro money">
+      <span class="lbl">Protegido contra glosa</span>
+      <span class="v" id="money">R$ 10.550</span>
+    </div>
+    <div class="ro">
+      <span class="lbl">OPMEs auditados</span>
+      <span class="v" id="count">2</span>
+    </div>
+    <div class="ro hold">
+      <span class="lbl">Aguardando enfermagem</span>
+      <span class="v" id="pending">0</span>
+    </div>
+    <div class="ro">
+      <span class="lbl">Enviado à nuvem</span>
+      <span class="v">0 <small>B</small></span>
+    </div>
+  </div>
+</div>
+
+<!-- ============================ BANCADA ============================ -->
+<main class="bench">
+
+  <!-- ------------------------------- FEED ------------------------------- -->
+  <section class="col">
+    <div class="col-head">
+      <span class="lbl">Mesa de instrumentação · câmera 01</span>
+      <span class="lbl" id="clock">14:22:07</span>
+    </div>
+    <div class="col-body">
+      <div class="screen"><canvas id="feed" width="1120" height="700"></canvas></div>
+
+      <div class="controls">
+        <button class="btn primary" id="run">Iniciar cirurgia simulada</button>
+        <button class="btn" id="glosa" disabled>Convênio glosou um item</button>
+      </div>
+
+      <p class="note">
+        O detector roda a <b>2 a 6 fps</b> no Pi 4, e isso basta: o material fica parado
+        na mesa. O ByteTrack segura o ID entre os frames, então nada é contado duas vezes.
+        A prova de verdade não é reconhecer o formato, é <b>ler a etiqueta</b>: código de
+        barras, lote e registro ANVISA.
+      </p>
+
+      <div id="contest-slot"></div>
+    </div>
+  </section>
+
+  <!-- ----------------------------- PROVAS ------------------------------- -->
+  <section class="col">
+    <div class="col-head">
+      <span class="lbl">Provas capturadas</span>
+      <span class="lbl">Mais recente primeiro</span>
+    </div>
+    <div class="col-body">
+      <div class="stack" id="stack"></div>
+      <p class="note">
+        Confiança abaixo de <b>0,75</b> não vira acusação. O item entra como
+        <b>pendente de validação humana</b> e fica fora do valor protegido até
+        a enfermagem confirmar. Alerta não é acusação.
+      </p>
+    </div>
+  </section>
+
+  <!-- ----------------------------- LEDGER ------------------------------- -->
+  <section class="col">
+    <div class="col-head">
+      <span class="lbl">Ledger encadeado</span>
+      <span class="lbl" id="blockcount">2 blocos</span>
+    </div>
+    <div class="col-body">
+      <div class="chain" id="chain"></div>
+      <div class="verdict" id="verdict">Corrente íntegra. Todos os hashes conferem.</div>
+
+      <div class="controls">
+        <button class="btn risk" id="tamper">Adulterar bloco #182</button>
+        <button class="btn" id="restore" disabled>Restaurar</button>
+      </div>
+
+      <p class="note">
+        Cada bloco tranca o anterior por hash. O convênio confere a assinatura e o
+        horário <b>sem receber o vídeo bruto</b>. Os hashes desta tela são calculados
+        no navegador, então a quebra da corrente é real, não encenada.
+      </p>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ===========================================================================
+   CAMADA DE DADOS SIMULADA
+   Para ligar no Pi de verdade, troque este objeto por:
+     const r = await fetch('http://<ip-do-pi>:8000/api/v1/audit/log');
+   O resto da tela consome exatamente este formato.
+   =========================================================================== */
+const SIMULACAO = {
+  sala: 'Sala 3',
+  procedimento: 'Artrodese de tornozelo',
+
+  // Já auditados antes de a tela abrir (o aparelho não começa vazio)
+  jaAuditados: [
+    { classe:'Haste intramedular de tíbia 10mm', lote:'HI-2026-05F', anvisa:'80102510091',
+      valor:9400, conf:0.93, hora:'14:09:52', fab:'Ortosynthes' },
+    { classe:'Fio-guia flexível 2.0mm',          lote:'FG-2026-07K', anvisa:'10247190022',
+      valor:1150, conf:0.88, hora:'14:14:31', fab:'Medtrace' }
+  ],
+
+  // Roteiro da demo
+  sequencia: [
+    { classe:'Parafuso cortical de titânio 4.5mm', lote:'TI-2026-08A', anvisa:'80102510037',
+      valor:15000, conf:0.94, fab:'Ortosynthes' },
+    { classe:'Placa bloqueada de tíbia, 6 furos',  lote:'PL-2026-03C', anvisa:'80102510112',
+      valor:8400,  conf:0.91, fab:'Ortosynthes' },
+    { classe:'Cimento ósseo com gentamicina 40g',  lote:'CO-2026-11B', anvisa:'10247190094',
+      valor:2150,  conf:0.61, fab:'Biomatriz' },   // baixa confiança de propósito
+    { classe:'Âncora de sutura 5.5mm',             lote:'AN-2026-02D', anvisa:'80102510208',
+      valor:3900,  conf:0.89, fab:'Medtrace' }
+  ]
+};
+
+const LIMIAR = 0.75;   // abaixo disso: revisão humana, nunca acusação
+const REDUZIR = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ------------------------------------------------------ hash de verdade --- */
+// FNV-1a 32 bits, duas passadas com sementes diferentes = 16 hex por bloco.
+function fnv(str, seed){
+  let h = seed >>> 0;
+  for(let i=0; i<str.length; i++){
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8,'0');
+}
+function hashBloco(prevHash, payload){
+  const s = prevHash + '|' + payload;
+  return fnv(s, 0x811c9dc5) + fnv(s, 0x7ee3a1c9);
+}
+const curto = h => h.slice(0,4) + '…' + h.slice(-4);
+
+// ID do ByteTrack: um número por item, estável entre o feed e a prova.
+const TRACK = {};
+function idDe(lote){
+  if(!(lote in TRACK)) TRACK[lote] = 7 + Object.keys(TRACK).length;
+  return TRACK[lote];
+}
+
+/* ------------------------------------------------------------- estado ---- */
+const estado = {
+  blocos: [],       // { n, item, payload, prev, hash, adulterado }
+  provas: [],       // cards de evidência
+  dinheiro: 0,
+  auditados: 0,
+  pendentes: 0,
+  rodando: false
+};
+
+const brl = v => 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits:0 });
+const el = id => document.getElementById(id);
+
+/* ---------------------------------------------------------- construção --- */
+function payloadDe(item, hora){
+  return [item.classe, item.lote, item.anvisa, item.valor, hora].join(';');
+}
+
+function anexarBloco(item, hora){
+  const prev = estado.blocos.length ? estado.blocos[estado.blocos.length-1].hash
+                                    : '0000000000000000';
+  const payload = payloadDe(item, hora);
+  estado.blocos.push({
+    n: 182 + estado.blocos.length,
+    item, payload, prev,
+    hash: hashBloco(prev, payload),
+    adulterado: false
+  });
+}
+
+// Recalcula a corrente inteira a partir dos payloads atuais.
+// O hash RECALCULADO é o que se propaga, não o guardado. Por isso mexer no
+// bloco #182 derruba #183 e #184 junto: cada um trancava o anterior.
+function verificarCorrente(){
+  let prevReal = '0000000000000000';
+  let quebrouEm = null;
+  for(const b of estado.blocos){
+    const recalculado = hashBloco(prevReal, b.payload);
+    b.confere = (recalculado === b.hash);
+    if(!b.confere && quebrouEm === null) quebrouEm = b.n;
+    prevReal = recalculado;
+  }
+  return quebrouEm;
+}
+
+/* ------------------------------------------------------------ desenho ---- */
+function pintarLedger(){
+  const quebrouEm = verificarCorrente();
+  const alvo = el('chain');
+  alvo.innerHTML = '';
+
+  estado.blocos.forEach((b, i) => {
+    if(i > 0){
+      const lk = document.createElement('div');
+      lk.className = 'link' + (b.confere ? '' : ' bad');
+      lk.textContent = b.confere ? '⌇' : '✕';
+      alvo.appendChild(lk);
+    }
+    const d = document.createElement('div');
+    d.className = 'blk' + (b.adulterado ? ' tampered' : (b.confere ? '' : ' bad'));
+    d.innerHTML =
+      '<div class="blk-top">' +
+        '<span class="blk-n">BLOCO #' + b.n + '</span>' +
+        '<span class="blk-sig">' + (b.confere ? '✓ assinado' : '✕ hash não confere') + '</span>' +
+      '</div>' +
+      '<div class="blk-item">' + b.item.classe + '</div>' +
+      '<div class="blk-h">lote <b>' + b.item.lote + '</b> · hash <b>' + curto(b.hash) +
+        '</b> · ant <b>' + curto(b.prev) + '</b></div>';
+    alvo.appendChild(d);
+  });
+
+  el('blockcount').textContent = estado.blocos.length + ' blocos';
+
+  const v = el('verdict');
+  if(quebrouEm === null){
+    v.className = 'verdict';
+    v.textContent = 'Corrente íntegra. Todos os hashes conferem.';
+  }else{
+    v.className = 'verdict bad';
+    v.textContent = 'Corrente quebrada a partir do bloco #' + quebrouEm +
+      '. O conteúdo foi alterado depois de assinado, e os blocos seguintes deixaram de bater.';
+  }
+}
+
+function thumbDe(item){
+  // Miniatura do frame, desenhada (não é foto de banco de imagem)
+  const c = document.createElement('canvas');
+  c.width = 260; c.height = 64;
+  const x = c.getContext('2d');
+  x.fillStyle = '#0B1618'; x.fillRect(0,0,260,64);
+  x.strokeStyle = '#1B3236'; x.lineWidth = 1;
+  for(let i=0;i<64;i+=8){ x.beginPath(); x.moveTo(0,i+.5); x.lineTo(260,i+.5); x.stroke(); }
+  x.fillStyle = '#22383C'; x.fillRect(96,16,88,34);
+  x.fillStyle = '#D7E4E2'; x.fillRect(104,22,72,13);
+  x.fillStyle = '#0B1618';
+  for(let i=0;i<24;i++){ if(i%3) x.fillRect(106+i*2.9, 24, 1.4, 9); }
+  const cor = item.conf >= LIMIAR ? '#3E9E8B' : '#DE9038';
+  x.strokeStyle = cor; x.lineWidth = 2;
+  [[92,12],[188,12],[92,54],[188,54]].forEach(([px,py],k)=>{
+    const dx = k%2 ? -10 : 10, dy = k<2 ? 10 : -10;
+    x.beginPath(); x.moveTo(px+dx,py); x.lineTo(px,py); x.lineTo(px,py+dy); x.stroke();
+  });
+  x.fillStyle = cor; x.font = '500 10px monospace';
+  x.fillText('ID ' + idDe(item.lote) + ' · ' + item.conf.toFixed(2), 94, 9);
+  const img = document.createElement('img');
+  img.className = 'thumb'; img.alt = 'Frame do momento do uso, ' + item.classe;
+  img.src = c.toDataURL();
+  return img;
+}
+
+function pintarProva(item, hora, auditado){
+  const d = document.createElement('div');
+  d.className = 'ev' + (auditado ? '' : ' pend');
+  d.innerHTML =
+    '<div class="ev-top">' +
+      '<span class="ev-name">' + item.classe + '</span>' +
+      '<span class="ev-val">' + brl(item.valor) + '</span>' +
+    '</div>' +
+    '<span class="chip"><span class="gl">' + (auditado ? '✓' : '⏸') + '</span>' +
+      (auditado ? 'Auditado' : 'Pendente de validação humana') + '</span>' +
+    '<dl class="kv">' +
+      '<dt>lote</dt><dd><b>' + item.lote + '</b></dd>' +
+      '<dt>anvisa</dt><dd>' + item.anvisa + '</dd>' +
+      '<dt>fabricante</dt><dd>' + item.fab + '</dd>' +
+      '<dt>confiança</dt><dd><b>' + item.conf.toFixed(2) + '</b></dd>' +
+      '<dt>horário</dt><dd>' + hora + '</dd>' +
+    '</dl>';
+  d.appendChild(thumbDe(item));
+  el('stack').prepend(d);
+}
+
+/* ------------------------------------------------------- odômetro R$ ----- */
+let animMoeda = null;
+function subirDinheiro(de, para){
+  if(REDUZIR){ el('money').textContent = brl(para); return; }
+  const t0 = performance.now(), dur = 700;
+  cancelAnimationFrame(animMoeda);
+  const passo = t => {
+    const p = Math.min(1, (t - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3);
+    el('money').textContent = brl(Math.round(de + (para - de) * e));
+    if(p < 1) animMoeda = requestAnimationFrame(passo);
+  };
+  animMoeda = requestAnimationFrame(passo);
+}
+
+function registrar(item, hora){
+  const auditado = item.conf >= LIMIAR;
+  if(auditado){
+    const antes = estado.dinheiro;
+    estado.dinheiro += item.valor;
+    estado.auditados++;
+    subirDinheiro(antes, estado.dinheiro);
+    el('count').textContent = estado.auditados;
+  }else{
+    estado.pendentes++;
+    el('pending').textContent = estado.pendentes;
+  }
+  estado.provas.push({ item, hora, auditado });
+  pintarProva(item, hora, auditado);
+  anexarBloco(item, hora);
+  pintarLedger();
+  if(auditado) el('glosa').disabled = false;
+}
+
+/* =========================== FEED DA CÂMERA ============================== */
+const cv = el('feed'), cx = cv.getContext('2d');
+const W = cv.width, H = cv.height;
+
+// Posições fixas na mesa. O item aparece, é detectado, e fica.
+const VAGAS = [
+  {x:150, y:250}, {x:420, y:230}, {x:690, y:255}, {x:900, y:395},
+  {x:250, y:470}, {x:560, y:455}
+];
+const naMesa = [];   // { item, vaga, t0, fase, leituraT }
+
+let largAnterior = 0;
+function ajustarDPR(){
+  const r = Math.min(2, window.devicePixelRatio || 1);
+  const larg = cv.clientWidth || W;
+  if(larg === largAnterior) return;      // redimensionar limpa o canvas, só quando muda
+  largAnterior = larg;
+  cv.width  = Math.round(larg * r);
+  cv.height = Math.round(larg * (H / W) * r);
+  cx.setTransform(r * (larg / W), 0, 0, r * (larg / W), 0, 0);
+}
+
+function fundo(){
+  const g = cx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#0A1719'); g.addColorStop(1, '#060E10');
+  cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+
+  // campo cirúrgico: pano verde dessaturado sob a mesa
+  cx.fillStyle = '#10262A';
+  cx.beginPath();
+  cx.moveTo(60, 190); cx.lineTo(W-60, 190); cx.lineTo(W-20, H-40); cx.lineTo(20, H-40);
+  cx.closePath(); cx.fill();
+  cx.strokeStyle = '#17383D'; cx.lineWidth = 2; cx.stroke();
+
+  // dobras do pano
+  cx.strokeStyle = 'rgba(62,158,139,.09)'; cx.lineWidth = 1;
+  for(let i=1;i<5;i++){
+    const y = 190 + i * ((H-230) / 5);
+    cx.beginPath(); cx.moveTo(52 + i*4, y); cx.lineTo(W-52-i*4, y); cx.stroke();
+  }
+}
+
+function caixaOPME(x, y){
+  // embalagem do material: corpo + etiqueta com código de barras
+  cx.fillStyle = '#1B3439'; cx.strokeStyle = '#2D5158'; cx.lineWidth = 1.5;
+  cx.beginPath(); cx.roundRect(x-70, y-42, 140, 84, 3); cx.fill(); cx.stroke();
+  cx.fillStyle = '#0D1E21'; cx.fillRect(x-70, y-42, 140, 12);
+
+  cx.fillStyle = '#DCE6E4';
+  cx.beginPath(); cx.roundRect(x-52, y-16, 104, 40, 2); cx.fill();
+  cx.fillStyle = '#0A1315';
+  for(let i=0;i<32;i++){ if(i%3) cx.fillRect(x-46 + i*3.1, y-9, 1.5, 20); }
+  cx.fillStyle = '#4E686D'; cx.font = '400 8px ' + 'monospace';
+  cx.fillText('LOTE', x-46, y+21);
+}
+
+function moldura(x, y, cor, rot, conf){
+  const w = 96, h = 62, br = 20;
+  cx.strokeStyle = cor; cx.lineWidth = 2.5; cx.lineCap = 'round';
+  [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx, sy]) => {
+    cx.beginPath();
+    cx.moveTo(x + sx*w - sx*br, y + sy*h);
+    cx.lineTo(x + sx*w, y + sy*h);
+    cx.lineTo(x + sx*w, y + sy*h - sy*br);
+    cx.stroke();
+  });
+  // etiqueta de rastreio acima da moldura
+  const txt = 'ID ' + rot + ' · ' + conf.toFixed(2);
+  cx.font = '500 15px ' + 'monospace';
+  const tw = cx.measureText(txt).width + 16;
+  cx.fillStyle = cor;
+  cx.beginPath(); cx.roundRect(x - w, y - h - 26, tw, 21, 2); cx.fill();
+  cx.fillStyle = '#06100F';
+  cx.fillText(txt, x - w + 8, y - h - 10);
+}
+
+function varredura(x, y, p){
+  // a linha do pyzbar passando pela etiqueta
+  const yy = y - 16 + 40 * p;
+  const g = cx.createLinearGradient(x-52, yy-8, x-52, yy+8);
+  g.addColorStop(0, 'rgba(62,158,139,0)');
+  g.addColorStop(.5, 'rgba(126,226,201,.85)');
+  g.addColorStop(1, 'rgba(62,158,139,0)');
+  cx.fillStyle = g; cx.fillRect(x-52, yy-8, 104, 16);
+}
+
+function hud(){
+  cx.font = '500 15px monospace';
+  cx.fillStyle = '#5C787C';
+  cx.fillText(SIMULACAO.sala.toUpperCase() + ' · CAM 01 · ' + SIMULACAO.procedimento, 24, 34);
+  cx.fillText('YOLO nano 320×320 · ByteTrack · pyzbar', 24, H - 22);
+
+  const fps = el('fps').textContent;
+  const t = el('clock').textContent;
+  cx.textAlign = 'right';
+  cx.fillText(fps + ' fps · borda local', W - 24, H - 22);
+  cx.fillStyle = '#C9505C';
+  cx.beginPath(); cx.arc(W - 92, 29, 5, 0, 7); cx.fill();
+  cx.fillStyle = '#5C787C';
+  cx.fillText(t, W - 24, 34);
+  cx.textAlign = 'left';
+}
+
+function quadro(agora){
+  ajustarDPR();
+  fundo();
+
+  naMesa.forEach(o => {
+    const cor = o.item.conf >= LIMIAR ? '#3E9E8B' : '#DE9038';
+    caixaOPME(o.vaga.x, o.vaga.y);
+    if(o.fase >= 1) moldura(o.vaga.x, o.vaga.y, cor, idDe(o.item.lote), o.item.conf);
+    if(o.fase === 2 && !REDUZIR){
+      const p = Math.min(1, (agora - o.leituraT) / 900);
+      varredura(o.vaga.x, o.vaga.y, p);
+    }
+  });
+
+  hud();
+  requestAnimationFrame(quadro);
+}
+
+/* ============================== ROTEIRO ================================== */
+const espera = ms => new Promise(r => setTimeout(r, REDUZIR ? Math.min(ms, 60) : ms));
+
+let relogio = new Date(2026, 8, 3, 14, 22, 7);
+function horaAtual(){
+  relogio = new Date(relogio.getTime() + 1000 * (12 + Math.floor(Math.random() * 40)));
+  const h = relogio.toTimeString().slice(0, 8);
+  el('clock').textContent = h;
+  return h;
+}
+
+async function processar(item){
+  const vaga = VAGAS[naMesa.length % VAGAS.length];
+  const o = { item, vaga, fase:0, rot: 7 + naMesa.length, leituraT: 0 };
+  naMesa.push(o);
+  await espera(600);
+
+  o.fase = 1;                                   // YOLO fechou a caixa
+  el('lat').textContent = 190 + Math.floor(Math.random() * 70);
+  el('fps').textContent = (3.2 + Math.random() * 1.6).toFixed(1);
+  await espera(750);
+
+  o.fase = 2; o.leituraT = performance.now();   // pyzbar lendo o lote
+  await espera(1000);
+
+  o.fase = 3;
+  registrar(item, horaAtual());
+  await espera(650);
+}
+
+el('run').addEventListener('click', async () => {
+  if(estado.rodando) return;
+  estado.rodando = true;
+  const b = el('run');
+  b.disabled = true;
+  b.textContent = 'Cirurgia em andamento';
+  for(const item of SIMULACAO.sequencia){ await processar(item); }
+  b.textContent = 'Cirurgia registrada';
+  estado.rodando = false;
+});
+
+/* --------------------------------------------------------- adulteração --- */
+el('tamper').addEventListener('click', () => {
+  const alvo = estado.blocos[0];
+  // Alguém zerou o valor do item no registro, depois de assinado.
+  alvo.payload = payloadDe({ ...alvo.item, valor: 0 }, alvo.item.hora);
+  alvo.adulterado = true;
+  el('tamper').disabled = true;
+  el('restore').disabled = false;
+  pintarLedger();
+});
+
+el('restore').addEventListener('click', () => {
+  const alvo = estado.blocos[0];
+  alvo.payload = payloadDe(alvo.item, alvo.item.hora);
+  alvo.adulterado = false;
+  el('tamper').disabled = false;
+  el('restore').disabled = true;
+  pintarLedger();
+});
+
+/* -------------------------------------------------------------- glosa ---- */
+el('glosa').addEventListener('click', () => {
+  const auditadas = estado.provas.filter(p => p.auditado);
+  if(!auditadas.length) return;
+  const alvo = auditadas.reduce((a, b) => b.item.valor > a.item.valor ? b : a);
+  const bloco = estado.blocos.find(b => b.item.lote === alvo.item.lote);
+
+  el('contest-slot').innerHTML =
+    '<div class="contest">' +
+      '<h3>Contestação respondida</h3>' +
+      '<p>O convênio glosou <b>' + alvo.item.classe + '</b> alegando que o material não foi ' +
+        'utilizado. O hospital devolveu o pacote de prova do momento do uso: frame, lote ' +
+        '<b>' + alvo.item.lote + '</b>, registro ANVISA <b>' + alvo.item.anvisa + '</b> e ' +
+        'assinatura do bloco <b>#' + (bloco ? bloco.n : '—') + '</b>.</p>' +
+      '<p>A auditoria do convênio confere a assinatura e o horário sem receber o vídeo bruto ' +
+        'da sala, então o dado do paciente nunca sai do Pi.</p>' +
+      '<div class="stamp">' + brl(alvo.item.valor) + ' mantidos · resposta em 0,8 s · ' +
+        'hash ' + (bloco ? curto(bloco.hash) : '') + '</div>' +
+    '</div>';
+});
+
+/* ============================== ABERTURA ================================= */
+// A tela abre operando, com a cirurgia já em curso. Aparelho ligado não fica vazio.
+(function abrir(){
+  SIMULACAO.jaAuditados.forEach(it => {
+    estado.dinheiro += it.valor;
+    estado.auditados++;
+    estado.provas.push({ item:it, hora:it.hora, auditado:true });
+    pintarProva(it, it.hora, true);
+    anexarBloco(it, it.hora);
+    naMesa.push({ item:it, vaga:VAGAS[naMesa.length], fase:1, rot:7 + naMesa.length, leituraT:0 });
+  });
+  el('money').textContent = brl(estado.dinheiro);
+  el('count').textContent = estado.auditados;
+  el('glosa').disabled = false;
+  pintarLedger();
+  requestAnimationFrame(quadro);
+})();
+</script>

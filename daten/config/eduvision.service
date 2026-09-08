@@ -1,0 +1,19 @@
+# Passo 15 do roteiro — template de servico systemd.
+#
+# ATENCAO: NAO copie para /etc/systemd/system e NAO use systemctl com sudo.
+# Entregue este arquivo ao professor para revisao e instalacao.
+# (grupo11 = Auditix AI; troque a porta se o professor indicar outra)
+
+[Unit]
+Description=EduVision Grupo11 (Auditix AI)
+After=network-online.target
+
+[Service]
+User=grupo11
+WorkingDirectory=/home/grupo11/eduvision
+EnvironmentFile=/home/grupo11/eduvision/config/camera.env
+ExecStart=/home/grupo11/eduvision/.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

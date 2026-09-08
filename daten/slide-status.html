@@ -1,0 +1,188 @@
+<title>EduVision · Status do Grupo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+  :root{
+    color-scheme: dark;
+    --ground:#0b1220;        /* azul-ardósia bem escuro (neutro viés frio) */
+    --ground-2:#0f1a2e;
+    --panel:#111e33;
+    --panel-2:#0d1728;
+    --line:#22344f;
+    --line-soft:#1a293f;
+    --ink:#eaf1fb;
+    --ink-dim:#9fb2ce;
+    --ink-faint:#6b809f;
+    --teal:#2ee6c5;          /* acento: visão/câmera (o que está feito) */
+    --teal-deep:#0f7d6e;
+    --amber:#ffb648;         /* roadmap: próximos passos */
+    --amber-deep:#a6660f;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, #16294a 0%, transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, #0e2033 0%, transparent 55%),
+      var(--ground);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,Segoe UI,Roboto,Arial,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:clamp(12px,3vw,40px);
+    min-height:100%;
+  }
+
+  /* O slide é um container; tudo escala com cqw pra caber em qualquer tela */
+  .slide{
+    container-type:inline-size;
+    width:min(96vw,1320px);
+    aspect-ratio:16/9;
+    position:relative;
+    background:
+      linear-gradient(180deg,var(--ground-2),var(--ground));
+    border:1px solid var(--line);
+    border-radius:14px;
+    overflow:hidden;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  /* grade sutil de "tela de monitor" */
+  .slide::before{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background-image:
+      linear-gradient(var(--line-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:4.4cqw 4.4cqw;
+    opacity:.14;
+    mask-image:radial-gradient(120% 120% at 50% 30%,#000 55%,transparent 100%);
+  }
+
+  .inner{position:absolute;inset:0;padding:5cqw 5.4cqw;display:flex;flex-direction:column;}
+
+  /* brackets de enquadramento de câmera (floreio fiel ao tema) */
+  .bracket{position:absolute;width:3.4cqw;height:3.4cqw;border:.28cqw solid var(--teal);opacity:.55;}
+  .bracket.tl{top:2.4cqw;left:2.4cqw;border-right:0;border-bottom:0;}
+  .bracket.tr{top:2.4cqw;right:2.4cqw;border-left:0;border-bottom:0;}
+  .bracket.bl{bottom:2.4cqw;left:2.4cqw;border-right:0;border-top:0;}
+  .bracket.br{bottom:2.4cqw;right:2.4cqw;border-left:0;border-top:0;}
+
+  /* ---- cabeçalho ---- */
+  header{display:flex;justify-content:space-between;align-items:flex-start;gap:2cqw;}
+  .eyebrow{
+    font-family:"IBM Plex Mono",monospace;font-size:1.25cqw;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:.8cqw;
+  }
+  .eyebrow .rec{width:.9cqw;height:.9cqw;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 .35cqw rgba(46,230,197,.18);}
+  h1{
+    font-family:"Chakra Petch",sans-serif;font-weight:700;
+    font-size:6.4cqw;line-height:.98;margin:.7cqw 0 0;letter-spacing:.01em;
+    text-wrap:balance;
+  }
+  h1 .box{color:var(--teal);}
+  .subtitle{color:var(--ink-dim);font-size:1.7cqw;margin-top:1cqw;max-width:52cqw;line-height:1.35;}
+  .subtitle b{color:var(--ink);font-weight:600;}
+  .badge{
+    font-family:"IBM Plex Mono",monospace;text-align:right;font-size:1.2cqw;
+    color:var(--ink-faint);line-height:1.7;flex-shrink:0;
+  }
+  .badge b{color:var(--ink-dim);font-weight:600;}
+
+  /* ---- colunas ---- */
+  .cols{display:grid;grid-template-columns:1fr 1fr;gap:2.6cqw;margin-top:auto;padding-top:3cqw;}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:10px;padding:2.4cqw 2.4cqw 2.1cqw;
+    position:relative;
+  }
+  .card.done{border-top:.3cqw solid var(--teal);}
+  .card.next{border-top:.3cqw solid var(--amber);}
+  .card h2{
+    font-family:"Chakra Petch",sans-serif;font-size:1.9cqw;margin:0 0 1.6cqw;
+    display:flex;align-items:center;gap:1cqw;letter-spacing:.04em;text-transform:uppercase;
+  }
+  .card h2 .pill{
+    font-family:"IBM Plex Mono",monospace;font-size:1cqw;font-weight:500;letter-spacing:.12em;
+    padding:.35cqw .9cqw;border-radius:999px;margin-left:auto;
+  }
+  .done h2 .pill{color:var(--teal);background:rgba(46,230,197,.12);border:1px solid rgba(46,230,197,.35);}
+  .next h2 .pill{color:var(--amber);background:rgba(255,182,72,.10);border:1px solid rgba(255,182,72,.32);}
+
+  ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1.35cqw;}
+  li{display:flex;gap:1.2cqw;align-items:flex-start;}
+  .mk{flex-shrink:0;width:2.1cqw;height:2.1cqw;border-radius:6px;display:grid;place-items:center;
+    font-size:1.15cqw;font-weight:700;margin-top:.15cqw;font-family:"IBM Plex Mono",monospace;}
+  .done .mk{background:rgba(46,230,197,.14);color:var(--teal);border:1px solid rgba(46,230,197,.3);}
+  .next .mk{background:rgba(255,182,72,.12);color:var(--amber);border:1px solid rgba(255,182,72,.28);}
+  .txt{font-size:1.5cqw;line-height:1.3;}
+  .txt b{font-weight:600;color:var(--ink);}
+  .txt span{display:block;color:var(--ink-faint);font-size:1.2cqw;margin-top:.25cqw;}
+
+  /* ---- rodapé HUD ---- */
+  footer{
+    margin-top:2.4cqw;display:flex;justify-content:space-between;align-items:center;
+    font-family:"IBM Plex Mono",monospace;font-size:1.15cqw;color:var(--ink-faint);
+    border-top:1px solid var(--line-soft);padding-top:1.6cqw;letter-spacing:.04em;
+  }
+  footer .env{display:flex;gap:1.6cqw;flex-wrap:wrap;}
+  footer .env i{font-style:normal;color:var(--ink-dim);}
+  footer .goal{color:var(--teal);}
+</style>
+
+<div class="slide">
+  <span class="bracket tl"></span><span class="bracket tr"></span>
+  <span class="bracket bl"></span><span class="bracket br"></span>
+
+  <div class="inner">
+    <header>
+      <div>
+        <div class="eyebrow"><span class="rec"></span>DATEN &times; FIAP · Antes do NEXT</div>
+        <h1>Edu<span class="box">Vision</span> AIBOX</h1>
+        <p class="subtitle"><b>Auditix AI · grupo11.</b> No challenge, uma <b>sala com pessoas
+          sentadas</b>: o sistema, rodando no AIBOX (Edge AI, sem nuvem), precisa
+          <b>reconhecer quem é quem</b>.</p>
+      </div>
+      <div class="badge">
+        AIBOX · ARM64<br>
+        <b>SALA_01 / CAM_01</b><br>
+        câmera Intelbras · RTSP
+      </div>
+    </header>
+
+    <div class="cols">
+      <section class="card done">
+        <h2>Já fizemos<span class="pill">FEITO</span></h2>
+        <ul>
+          <li><span class="mk">✓</span><div class="txt"><b>Código do reconhecimento escrito</b>
+            <span>pipeline detecção → comparação → identificação já programado</span></div></li>
+          <li><span class="mk">✓</span><div class="txt"><b>Modelos leves definidos</b>
+            <span>escolhidos pra rodar no próprio AIBOX, sem nuvem</span></div></li>
+          <li><span class="mk">✓</span><div class="txt"><b>Arquitetura planejada</b>
+            <span>câmera → IA → banco de presença → dashboard</span></div></li>
+          <li><span class="mk">✓</span><div class="txt"><b>Plano da demo do challenge</b>
+            <span>como reconhecer as pessoas sentadas na sala</span></div></li>
+        </ul>
+      </section>
+
+      <section class="card next">
+        <h2>Como vamos reconhecer<span class="pill">O PLANO</span></h2>
+        <ul>
+          <li><span class="mk">1</span><div class="txt"><b>Cadastro (antes do dia)</b>
+            <span>foto de cada integrante vira uma "assinatura" numérica do rosto</span></div></li>
+          <li><span class="mk">2</span><div class="txt"><b>Câmera na sala</b>
+            <span>a IA localiza cada rosto das pessoas sentadas no vídeo</span></div></li>
+          <li><span class="mk">3</span><div class="txt"><b>Comparação</b>
+            <span>cada rosto é comparado com as assinaturas cadastradas</span></div></li>
+          <li><span class="mk">4</span><div class="txt"><b>Identificação</b>
+            <span>bateu → nome na tela ("Enzo ✓"); não bateu → "Desconhecido"</span></div></li>
+        </ul>
+      </section>
+    </div>
+
+    <footer>
+      <div class="env"><i>Ubuntu 20.04</i><i>Python 3.8</i><i>OpenCV</i><i>FastAPI</i><i>SQLite</i></div>
+      <div class="goal">objetivo → reconhecer quem está sentado na sala</div>
+    </footer>
+  </div>
+</div>

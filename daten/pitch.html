@@ -1,0 +1,289 @@
+<title>EduVision · Pitch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+
+<style>
+  :root{
+    color-scheme: dark;
+    --ground:#0b1220;
+    --ground-2:#0f1a2e;
+    --panel:#111e33;
+    --panel-2:#0d1728;
+    --line:#22344f;
+    --line-soft:#1a293f;
+    --ink:#eaf1fb;
+    --ink-dim:#9fb2ce;
+    --ink-faint:#6b809f;
+    --teal:#2ee6c5;
+    --amber:#ffb648;
+    --red:#ff6b7a;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 80% -10%, #16294a 0%, transparent 60%),
+      radial-gradient(900px 600px at -10% 110%, #0e2033 0%, transparent 55%),
+      var(--ground);
+    color:var(--ink);
+    font-family:"IBM Plex Sans",system-ui,Segoe UI,Roboto,Arial,sans-serif;
+    display:flex;align-items:center;justify-content:center;
+    padding:clamp(12px,3vw,40px);min-height:100%;
+  }
+
+  .stage{
+    container-type:inline-size;
+    width:min(96vw,1320px);aspect-ratio:16/9;position:relative;
+    background:linear-gradient(180deg,var(--ground-2),var(--ground));
+    border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 30px 80px -30px rgba(0,0,0,.8), inset 0 1px 0 rgba(255,255,255,.03);
+  }
+  .stage::before{
+    content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+    background-image:
+      linear-gradient(var(--line-soft) 1px,transparent 1px),
+      linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);
+    background-size:4.4cqw 4.4cqw;opacity:.13;
+    mask-image:radial-gradient(120% 120% at 50% 30%,#000 55%,transparent 100%);
+  }
+  .bracket{position:absolute;width:3.2cqw;height:3.2cqw;border:.26cqw solid var(--teal);opacity:.5;z-index:5;pointer-events:none;}
+  .bracket.tl{top:2.2cqw;left:2.2cqw;border-right:0;border-bottom:0;}
+  .bracket.tr{top:2.2cqw;right:2.2cqw;border-left:0;border-bottom:0;}
+  .bracket.bl{bottom:2.2cqw;left:2.2cqw;border-right:0;border-top:0;}
+  .bracket.br{bottom:2.2cqw;right:2.2cqw;border-left:0;border-top:0;}
+
+  .track{display:flex;height:100%;width:500cqw;transition:transform .55s cubic-bezier(.7,0,.2,1);}
+  @media (prefers-reduced-motion:reduce){.track{transition:none;}}
+  .slide{
+    flex:0 0 100cqw;width:100cqw;height:100%;position:relative;z-index:2;
+    padding:5.4cqw 5.8cqw 7.4cqw;display:flex;flex-direction:column;
+  }
+
+  /* tipografia comum */
+  .eyebrow{font-family:"IBM Plex Mono",monospace;font-size:1.25cqw;letter-spacing:.32em;
+    text-transform:uppercase;color:var(--teal);display:flex;align-items:center;gap:.8cqw;}
+  .eyebrow .rec{width:.85cqw;height:.85cqw;border-radius:50%;background:var(--teal);
+    box-shadow:0 0 0 .32cqw rgba(46,230,197,.18);}
+  h2.title{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:4.4cqw;
+    line-height:1;margin:1.4cqw 0 0;letter-spacing:.01em;text-wrap:balance;}
+  .lead{color:var(--ink-dim);font-size:1.72cqw;line-height:1.38;margin:1.1cqw 0 0;max-width:62cqw;}
+  .lead b{color:var(--ink);font-weight:600;}
+
+  .rows{display:flex;flex-direction:column;gap:1.2cqw;margin-top:auto;}
+  .row{display:flex;gap:1.6cqw;align-items:flex-start;background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:10px;padding:1.4cqw 2.1cqw;}
+  .row .mk{flex-shrink:0;width:2.6cqw;height:2.6cqw;border-radius:7px;display:grid;place-items:center;
+    font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:1.5cqw;}
+  .row h3{margin:0;font-size:1.6cqw;font-family:"Chakra Petch",sans-serif;font-weight:600;letter-spacing:.01em;}
+  .row p{margin:.35cqw 0 0;font-size:1.32cqw;color:var(--ink-dim);line-height:1.32;}
+  .teal .mk{background:rgba(46,230,197,.14);color:var(--teal);border:1px solid rgba(46,230,197,.3);}
+  .amber .mk{background:rgba(255,182,72,.12);color:var(--amber);border:1px solid rgba(255,182,72,.3);}
+  .red .mk{background:rgba(255,107,122,.12);color:var(--red);border:1px solid rgba(255,107,122,.3);}
+
+  .note{margin-top:1.8cqw;font-family:"IBM Plex Mono",monospace;font-size:1.2cqw;color:var(--ink-faint);}
+  .note b{color:var(--teal);font-weight:500;}
+
+  /* ---- slide 1 (capa) ---- */
+  .cover{justify-content:center;}
+  .cover h1{font-family:"Chakra Petch",sans-serif;font-weight:700;font-size:8.6cqw;line-height:.94;
+    margin:1.6cqw 0 0;letter-spacing:.005em;}
+  .cover h1 .v{color:var(--teal);}
+  .cover .tagline{font-size:2.5cqw;color:var(--ink);margin-top:2.2cqw;max-width:56cqw;line-height:1.25;font-weight:500;}
+  .cover .who{margin-top:2.6cqw;font-family:"IBM Plex Mono",monospace;font-size:1.35cqw;color:var(--ink-faint);letter-spacing:.06em;}
+  .cover .who b{color:var(--ink-dim);}
+
+  /* ---- grid de 2 colunas (slide 5) ---- */
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:2.4cqw;margin-top:auto;}
+  .col{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);
+    border-radius:10px;padding:2.2cqw;}
+  .col.done{border-top:.3cqw solid var(--teal);}
+  .col.next{border-top:.3cqw solid var(--amber);}
+  .col h3{margin:0 0 1.3cqw;font-family:"Chakra Petch",sans-serif;font-size:1.6cqw;text-transform:uppercase;letter-spacing:.05em;}
+  .col ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:1cqw;}
+  .col li{display:flex;gap:1cqw;font-size:1.4cqw;line-height:1.3;color:var(--ink-dim);}
+  .col li b{color:var(--ink);font-weight:600;}
+  .col.done li::before{content:"✓";color:var(--teal);font-weight:700;}
+  .col.next li::before{content:"→";color:var(--amber);font-weight:700;}
+  .chips{display:flex;flex-wrap:wrap;gap:.7cqw;margin-top:1.3cqw;}
+  .chip{font-family:"IBM Plex Mono",monospace;font-size:1.05cqw;color:var(--ink-dim);
+    border:1px solid var(--line);border-radius:999px;padding:.35cqw 1cqw;background:var(--ground);}
+
+  /* ---- chrome de navegação ---- */
+  .chrome{position:absolute;left:0;right:0;bottom:0;z-index:6;height:5.4cqw;
+    display:flex;align-items:center;justify-content:space-between;
+    padding:0 5.8cqw;border-top:1px solid var(--line-soft);
+    font-family:"IBM Plex Mono",monospace;font-size:1.1cqw;color:var(--ink-faint);letter-spacing:.05em;}
+  .chrome .brand b{color:var(--ink-dim);font-weight:600;}
+  .dots{display:flex;gap:.9cqw;align-items:center;}
+  .dot{width:1cqw;height:1cqw;border-radius:50%;border:1px solid var(--ink-faint);background:transparent;
+    padding:0;cursor:pointer;transition:all .25s;}
+  .dot[aria-current="true"]{background:var(--teal);border-color:var(--teal);box-shadow:0 0 0 .3cqw rgba(46,230,197,.16);}
+  .nav{display:flex;gap:.7cqw;}
+  .nav button{font-family:"IBM Plex Mono",monospace;color:var(--ink-dim);background:var(--ground);
+    border:1px solid var(--line);border-radius:7px;width:3.2cqw;height:2.6cqw;font-size:1.3cqw;cursor:pointer;transition:all .2s;}
+  .nav button:hover{border-color:var(--teal);color:var(--teal);}
+  .nav button:disabled{opacity:.3;cursor:default;}
+  button:focus-visible,.dot:focus-visible{outline:2px solid var(--teal);outline-offset:2px;}
+  .counter{color:var(--ink-dim);}
+  .counter b{color:var(--teal);}
+</style>
+
+<div class="stage" tabindex="0" aria-roledescription="apresentação">
+  <span class="bracket tl"></span><span class="bracket tr"></span>
+  <span class="bracket bl"></span><span class="bracket br"></span>
+
+  <div class="track" id="track">
+
+    <!-- 1. CAPA -->
+    <section class="slide cover">
+      <div class="eyebrow"><span class="rec"></span>DATEN &times; FIAP · Antes do NEXT</div>
+      <h1>Edu<span class="v">Vision</span></h1>
+      <p class="tagline">Segurança patrimonial com <b>visão de IA</b> que reconhece,
+        em tempo real, quem pode estar ali.</p>
+      <div class="who"><b>Auditix AI</b> · grupo11 · Edge AI no AIBOX</div>
+    </section>
+
+    <!-- 2. PROBLEMA -->
+    <section class="slide">
+      <div class="eyebrow"><span class="rec"></span>O problema</div>
+      <h2 class="title">Câmera todo mundo tem. Vigilância de verdade, não.</h2>
+      <p class="lead">A segurança patrimonial ainda depende de <b>olho humano</b> vigiando
+        dezenas de câmeras ao mesmo tempo.</p>
+      <div class="rows">
+        <div class="row red"><div class="mk">!</div><div>
+          <h3>Olho humano cansa</h3>
+          <p>Muitas telas para poucos vigilantes: distração e fadiga deixam passar o que importa.</p></div></div>
+        <div class="row red"><div class="mk">!</div><div>
+          <h3>Estranho passa despercebido</h3>
+          <p>Pessoas não autorizadas circulam sem ninguém notar até ser tarde.</p></div></div>
+        <div class="row red"><div class="mk">!</div><div>
+          <h3>Sem prova do que aconteceu</h3>
+          <p>Sem registro confiável de quem entrou e quando, a câmera só mostra o passado.</p></div></div>
+      </div>
+    </section>
+
+    <!-- 3. SOLUÇÃO -->
+    <section class="slide">
+      <div class="eyebrow"><span class="rec"></span>A solução</div>
+      <h2 class="title">Uma câmera que entende quem está no ambiente.</h2>
+      <p class="lead"><b>EduVision</b> roda a IA no próprio local (AIBOX) e transforma a
+        câmera comum em um vigia que <b>reconhece pessoas</b> em tempo real.</p>
+      <div class="rows">
+        <div class="row teal"><div class="mk">✓</div><div>
+          <h3>Reconhece os autorizados</h3>
+          <p>Sabe quem faz parte da equipe cadastrada e confirma sua presença.</p></div></div>
+        <div class="row teal"><div class="mk">?</div><div>
+          <h3>Sinaliza desconhecidos</h3>
+          <p>Rosto sem cadastro vira um evento de segurança para revisão.</p></div></div>
+        <div class="row teal"><div class="mk">▤</div><div>
+          <h3>Registra tudo localmente</h3>
+          <p>Nome, horário e imagem salvos no próprio aparelho, sem depender de nuvem.</p></div></div>
+      </div>
+      <p class="note"><b>Ética:</b> alerta não é acusação. Todo evento fica pendente de validação humana.</p>
+    </section>
+
+    <!-- 4. COMO FUNCIONA -->
+    <section class="slide">
+      <div class="eyebrow"><span class="rec"></span>Como funciona</div>
+      <h2 class="title">Do rosto na sala ao nome na tela.</h2>
+      <p class="lead">Cenário: um ambiente com <b>pessoas</b>. O sistema precisa reconhecer
+        cada uma e decidir se é autorizada.</p>
+      <div class="rows">
+        <div class="row amber"><div class="mk">1</div><div>
+          <h3>Cadastro</h3>
+          <p>A foto de cada pessoa autorizada vira uma "assinatura" numérica do rosto.</p></div></div>
+        <div class="row amber"><div class="mk">2</div><div>
+          <h3>Câmera no ambiente</h3>
+          <p>A IA localiza cada rosto no vídeo, mesmo com várias pessoas ao mesmo tempo.</p></div></div>
+        <div class="row amber"><div class="mk">3</div><div>
+          <h3>Comparação</h3>
+          <p>Cada rosto é comparado com as assinaturas cadastradas.</p></div></div>
+        <div class="row amber"><div class="mk">4</div><div>
+          <h3>Decisão</h3>
+          <p>Autorizado (nome na tela) ou desconhecido (alerta e registro do evento).</p></div></div>
+      </div>
+    </section>
+
+    <!-- 5. TECNOLOGIA + STATUS -->
+    <section class="slide">
+      <div class="eyebrow"><span class="rec"></span>Tecnologia e próximos passos</div>
+      <h2 class="title">Roda no local, sem nuvem.</h2>
+      <p class="lead">Processar no <b>AIBOX</b> (Edge AI) deixa a resposta rápida e mantém
+        as imagens no próprio ambiente (privacidade e LGPD).</p>
+      <div class="two">
+        <div class="col done">
+          <h3>Já fizemos</h3>
+          <ul>
+            <li><b>Código do reconhecimento</b> escrito (detectar, comparar, decidir)</li>
+            <li><b>Modelos leves</b> escolhidos para rodar no AIBOX</li>
+            <li><b>Arquitetura</b> definida: câmera, IA, banco, alertas</li>
+          </ul>
+          <div class="chips"><span class="chip">OpenCV</span><span class="chip">FastAPI</span>
+            <span class="chip">SQLite</span><span class="chip">ARM64</span></div>
+        </div>
+        <div class="col next">
+          <h3>Próximos passos</h3>
+          <ul>
+            <li><b>Subir no AIBOX</b> e conectar a câmera</li>
+            <li><b>Cadastrar</b> as pessoas autorizadas</li>
+            <li><b>Testar</b> o reconhecimento no ambiente real</li>
+          </ul>
+          <div class="chips"><span class="chip">reconhecido</span><span class="chip">desconhecido</span>
+            <span class="chip">evento de segurança</span></div>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /track -->
+
+  <div class="chrome">
+    <div class="brand"><b>EduVision</b> · Auditix AI</div>
+    <div class="dots" id="dots" role="tablist" aria-label="slides"></div>
+    <div style="display:flex;align-items:center;gap:1.6cqw;">
+      <span class="counter"><b id="cur">1</b> / <span id="total">5</span></span>
+      <div class="nav">
+        <button id="prev" aria-label="slide anterior">&#8249;</button>
+        <button id="next" aria-label="próximo slide">&#8250;</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var track=document.getElementById('track');
+  var slides=track.children.length;
+  var i=0;
+  var dotsWrap=document.getElementById('dots');
+  var cur=document.getElementById('cur');
+  var prev=document.getElementById('prev');
+  var next=document.getElementById('next');
+  document.getElementById('total').textContent=slides;
+
+  for(var d=0;d<slides;d++){
+    var b=document.createElement('button');
+    b.className='dot';b.setAttribute('role','tab');
+    b.setAttribute('aria-label','slide '+(d+1));
+    (function(n){b.addEventListener('click',function(){go(n);});})(d);
+    dotsWrap.appendChild(b);
+  }
+  var dots=dotsWrap.children;
+
+  function go(n){
+    i=Math.max(0,Math.min(slides-1,n));
+    track.style.transform='translateX(-'+(i*(100/slides))+'%)';
+    cur.textContent=i+1;
+    for(var k=0;k<dots.length;k++)dots[k].setAttribute('aria-current',k===i?'true':'false');
+    prev.disabled=(i===0);next.disabled=(i===slides-1);
+  }
+  prev.addEventListener('click',function(){go(i-1);});
+  next.addEventListener('click',function(){go(i+1);});
+  document.addEventListener('keydown',function(e){
+    if(e.key==='ArrowRight'||e.key==='PageDown'){go(i+1);}
+    if(e.key==='ArrowLeft'||e.key==='PageUp'){go(i-1);}
+    if(e.key==='Home'){go(0);} if(e.key==='End'){go(slides-1);}
+  });
+  go(0);
+})();
+</script>

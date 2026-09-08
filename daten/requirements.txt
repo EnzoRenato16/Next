@@ -1,0 +1,15 @@
+# EduVision — Grupo11 (Auditix AI) — AIBOX (Ubuntu 20.04, Python 3.8, ARM64)
+# Instale SOMENTE no venv do grupo (nunca com sudo).
+#
+#   cd ~/eduvision
+#   python3 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+#
+# opencv-contrib traz cv2.FaceDetectorYN e cv2.FaceRecognizerSF (YuNet/SFace).
+# Se a versao fixada nao tiver wheel para ARM64/py38, use a mais recente que
+# instalar sem compilar: pip install opencv-contrib-python numpy fastapi uvicorn
+opencv-contrib-python>=4.7,<4.11
+numpy>=1.21,<2.0
+fastapi>=0.100
+uvicorn>=0.22

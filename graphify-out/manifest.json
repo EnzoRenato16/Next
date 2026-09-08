@@ -1,0 +1,98 @@
+{
+  "daten/app/__init__.py": {
+    "mtime": 1788196572.376311,
+    "seen": 1788437627.2177458,
+    "ast_hash": "1e42dad93b8aa33c773e66102dd9c7cf",
+    "semantic_hash": "1e42dad93b8aa33c773e66102dd9c7cf"
+  },
+  "daten/app/camera.py": {
+    "mtime": 1788196679.695577,
+    "seen": 1788437627.2177505,
+    "ast_hash": "4692688cb181457cf05fe0c1d9b07513",
+    "semantic_hash": "4692688cb181457cf05fe0c1d9b07513"
+  },
+  "daten/app/capture_once.py": {
+    "mtime": 1788196825.8246126,
+    "seen": 1788437627.217753,
+    "ast_hash": "3047086099e2dc76211df98c399a8577",
+    "semantic_hash": "3047086099e2dc76211df98c399a8577"
+  },
+  "daten/app/config.py": {
+    "mtime": 1788196594.071952,
+    "seen": 1788437627.2177541,
+    "ast_hash": "392e8cd709008fcd5c7f2719463e66fb",
+    "semantic_hash": "392e8cd709008fcd5c7f2719463e66fb"
+  },
+  "daten/app/db.py": {
+    "mtime": 1788196610.0892625,
+    "seen": 1788437627.2177553,
+    "ast_hash": "d4b0617cd0a92d28734d4cedaee715da",
+    "semantic_hash": "d4b0617cd0a92d28734d4cedaee715da"
+  },
+  "daten/app/enroll.py": {
+    "mtime": 1788196647.2371857,
+    "seen": 1788437627.2177567,
+    "ast_hash": "048782499ef94b9edbed00a427d98d91",
+    "semantic_hash": "048782499ef94b9edbed00a427d98d91"
+  },
+  "daten/app/main.py": {
+    "mtime": 1788196710.597698,
+    "seen": 1788437627.2177577,
+    "ast_hash": "913c262adffb886adc23fdb8447f12ae",
+    "semantic_hash": "913c262adffb886adc23fdb8447f12ae"
+  },
+  "daten/app/recognizer.py": {
+    "mtime": 1788196630.7766767,
+    "seen": 1788437627.2177587,
+    "ast_hash": "39fc95546e66defea8f03a774f6f575b",
+    "semantic_hash": "39fc95546e66defea8f03a774f6f575b"
+  },
+  "daten/build_pptx.js": {
+    "mtime": 1788218580.0667582,
+    "seen": 1788437627.21776,
+    "ast_hash": "306b428ebfc93a6a5f873959a61b4272",
+    "semantic_hash": "306b428ebfc93a6a5f873959a61b4272"
+  },
+  "SVATech_Health.md": {
+    "mtime": 1788191767.2660747,
+    "seen": 1788437627.217761,
+    "ast_hash": "cf716283171206c625c23f4f4b2ffd4c",
+    "semantic_hash": "cf716283171206c625c23f4f4b2ffd4c"
+  },
+  "daten/README.md": {
+    "mtime": 1788196867.896826,
+    "seen": 1788437627.2177618,
+    "ast_hash": "0114ee7b52f6ed631ec1277273771df2",
+    "semantic_hash": "0114ee7b52f6ed631ec1277273771df2"
+  },
+  "daten/models/README.md": {
+    "mtime": 1788196819.0512857,
+    "seen": 1788437627.2177634,
+    "ast_hash": "42deb9cc2541ff4d647df7bc50597736",
+    "semantic_hash": "42deb9cc2541ff4d647df7bc50597736"
+  },
+  "daten/pitch.html": {
+    "mtime": 1788215009.882424,
+    "seen": 1788437627.2177644,
+    "ast_hash": "96fd9914770f7e9e714c81d32a936778",
+    "semantic_hash": "96fd9914770f7e9e714c81d32a936778"
+  },
+  "daten/requirements.txt": {
+    "mtime": 1788196719.243422,
+    "seen": 1788437627.2177653,
+    "ast_hash": "b4fe4db88b6292905c4f1156bf6909b2",
+    "semantic_hash": "b4fe4db88b6292905c4f1156bf6909b2"
+  },
+  "daten/slide-status.html": {
+    "mtime": 1788198341.611992,
+    "seen": 1788437627.2177668,
+    "ast_hash": "31ce53e465cac75d92f44fbfeed55863",
+    "semantic_hash": "31ce53e465cac75d92f44fbfeed55863"
+  },
+  "index.html": {
+    "mtime": 1788195285.1104252,
+    "seen": 1788437627.2177677,
+    "ast_hash": "b0409f72e98035190df1921988f3933f",
+    "semantic_hash": "b0409f72e98035190df1921988f3933f"
+  }
+}

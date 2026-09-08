@@ -1,0 +1,16 @@
+# Credenciais e dados sensiveis — NUNCA versionar (regra do roteiro)
+config/camera.env
+data/eduvision.db
+data/embeddings.npz
+data/faces/
+data/*.jpg
+logs/
+*.log
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Modelos grandes (baixe localmente — ver models/README.md)
+models/*.onnx

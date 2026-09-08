@@ -1,0 +1,1431 @@
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<title>Sala Auditada</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script type="module">
+/* O MoveNet do TensorFlow morreu junto com o tfhub.dev, que responde 400 desde o
+   desligamento. O PoseLandmarker do MediaPipe carrega em 1,5s contra 16s do
+   COCO-SSD, roda em 16ms por quadro na GPU, aceita várias pessoas e ainda
+   devolve os 33 pontos que as camadas de anomalia e assinatura precisam. */
+import { FilesetResolver, PoseLandmarker }
+  from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+window.__mp = { FilesetResolver, PoseLandmarker };
+</script>
+
+<style>
+/* ===========================================================================
+   Auditix, Sala Auditada.
+   Uma câmera fixa, três camadas: quem está na sala, quem não deveria estar,
+   e o que sumiu da sala. Mesma família visual da Portaria, porque agora o
+   grupo tem uma marca e vale manter.
+   =========================================================================== */
+:root{
+  --paper:#F3F6F4; --card:#FFFFFF; --sunk:#E9EEEB;
+  --ink:#13221E;   --ink-2:#4C5F59; --ink-3:#7D8F89;
+  --line:#DBE3DF;  --line-2:#EAF0ED;
+  --verde:#237A61; --verde-luz:#E3F2EC; --verde-linha:#A8D6C6;
+  --ambar:#A9670C; --ambar-luz:#FBF0DC; --ambar-linha:#E6C48A;
+  --rubi:#A3374A;  --rubi-luz:#FBE9EC;  --rubi-linha:#E3AAB4;
+  --azul:#2C5D8A;  --azul-luz:#E6EFF7;
+  --disp:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;
+  --corpo:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --sombra:0 1px 2px rgba(19,34,30,.05), 0 8px 24px rgba(19,34,30,.06);
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+  --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+  --line:#26332F;  --line-2:#1E2A27;
+  --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+  --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+  --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+  --azul:#7FB2DE;  --azul-luz:#142634;
+  --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+} }
+:root[data-theme="dark"]{
+  --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+  --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+  --line:#26332F;  --line-2:#1E2A27;
+  --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+  --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+  --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+  --azul:#7FB2DE;  --azul-luz:#142634;
+  --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+}
+
+*{ box-sizing:border-box; min-width:0; }
+html,body{ max-width:100%; overflow-x:hidden; }
+body{ margin:0; background:var(--paper); color:var(--ink); font-family:var(--corpo);
+  font-size:15px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+button{ font:inherit; color:inherit; }
+:focus-visible{ outline:2.5px solid var(--verde); outline-offset:2px; border-radius:3px; }
+h1,h2,h3{ font-family:var(--disp); font-weight:700; letter-spacing:-.012em;
+  text-wrap:balance; margin:0; }
+.wrap{ max-width:1400px; margin:0 auto; padding:0 24px; }
+.rot{ font-size:11.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-3); }
+
+.topo{ background:var(--card); border-bottom:1px solid var(--line); }
+.topo .wrap{ display:flex; align-items:center; flex-wrap:wrap; gap:12px 26px;
+  padding:15px 24px; }
+.marca b{ font-family:var(--disp); font-weight:700; font-size:18px; letter-spacing:-.02em; }
+.marca b i{ font-style:normal; color:var(--verde); }
+.marca span{ display:block; font-size:11.5px; font-weight:600; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--ink-3); }
+.cts{ display:flex; gap:24px; margin-left:auto; flex-wrap:wrap; }
+.ct b{ display:block; font-family:var(--mono); font-size:22px; font-weight:500;
+  line-height:1.15; font-variant-numeric:tabular-nums; }
+.ct.ok b{ color:var(--verde); } .ct.duv b{ color:var(--ambar); } .ct.mal b{ color:var(--rubi); }
+
+.grade{ display:grid; grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);
+  gap:22px; padding:22px 0 40px; align-items:start; }
+.painel{ background:var(--card); border:1px solid var(--line); border-radius:10px;
+  box-shadow:var(--sombra); overflow:hidden; }
+.painel-topo{ display:flex; align-items:center; justify-content:space-between; gap:12px;
+  padding:13px 17px; border-bottom:1px solid var(--line-2); }
+.painel-corpo{ padding:17px; }
+
+.palco{ position:relative; background:#0C1512; aspect-ratio:4/3; overflow:hidden; }
+.palco video, .palco canvas{ position:absolute; inset:0; width:100%; height:100%; }
+.palco video{ object-fit:cover; }
+#marcar{ cursor:crosshair; }
+.desl{ position:absolute; inset:0; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:17px; padding:30px; text-align:center;
+  background:radial-gradient(120% 90% at 50% 40%, #1B302A, #0C1512 70%); }
+.desl.off{ display:none; }
+.desl p{ margin:0; color:#9BB5AC; font-size:14px; max-width:46ch; }
+.desl p b{ color:#DCEAE4; }
+.grandao{ display:inline-flex; align-items:center; gap:11px; cursor:pointer;
+  background:var(--verde); border:0; color:#fff; padding:17px 30px; border-radius:999px;
+  font-family:var(--disp); font-weight:700; font-size:16.5px;
+  box-shadow:0 10px 34px rgba(35,122,97,.36); transition:transform 170ms var(--ease); }
+.grandao:hover{ transform:translateY(-2px); }
+.grandao:disabled{ opacity:.5; cursor:wait; transform:none; }
+
+.faixa{ position:absolute; left:0; right:0; bottom:0; padding:10px 15px;
+  background:linear-gradient(transparent,rgba(8,18,15,.9)); color:#DCEAE4; font-size:13px;
+  display:flex; align-items:center; gap:9px; }
+.faixa .luz{ width:9px; height:9px; border-radius:50%; background:#7D8F89; flex:none; }
+.faixa.on .luz{ background:#5FBFA0; box-shadow:0 0 0 4px rgba(95,191,160,.22); }
+
+.pe{ display:flex; align-items:center; flex-wrap:wrap; gap:10px; padding:14px 17px;
+  border-top:1px solid var(--line-2); }
+.btn{ padding:10px 16px; border-radius:8px; cursor:pointer; font-weight:600; font-size:13.5px;
+  background:var(--sunk); border:1px solid var(--line); color:var(--ink);
+  transition:border-color 160ms var(--ease); }
+.btn:hover:not(:disabled){ border-color:var(--verde); }
+.btn:disabled{ opacity:.42; cursor:not-allowed; }
+.btn.forte{ background:var(--verde); border-color:var(--verde); color:#fff; }
+.btn[aria-pressed="true"]{ background:var(--verde-luz); border-color:var(--verde);
+  color:var(--verde); }
+
+/* --------------------------------------------------------------- camadas -- */
+.camada{ border-bottom:1px solid var(--line-2); }
+.camada:last-child{ border-bottom:0; }
+.camada-topo{ display:flex; align-items:center; gap:10px; padding:12px 17px;
+  background:var(--sunk); }
+.camada-topo .n{ width:22px; height:22px; flex:none; border-radius:50%; background:var(--verde);
+  color:#fff; font-family:var(--mono); font-size:12px; display:grid; place-items:center; }
+.camada-topo h3{ font-size:14.5px; flex:1; }
+.camada-topo .q{ font-family:var(--mono); font-size:13px; color:var(--ink-2); }
+
+.linha{ display:flex; align-items:center; gap:12px; padding:11px 17px;
+  border-bottom:1px solid var(--line-2); }
+.linha:last-child{ border-bottom:0; }
+.pino{ width:9px; height:9px; border-radius:50%; flex:none; background:var(--verde); }
+.pino.duv{ background:var(--ambar); } .pino.mal{ background:var(--rubi); }
+.pino.fora{ background:var(--ink-3); }
+.linha .nm{ flex:1; font-weight:500; font-size:14px; }
+.linha .nm em{ font-style:normal; color:var(--ink-3); font-size:12.5px; font-weight:400; }
+.linha .hr{ font-family:var(--mono); font-size:12px; color:var(--ink-3);
+  font-variant-numeric:tabular-nums; }
+.vazio{ padding:20px 17px; text-align:center; color:var(--ink-3); font-size:13.5px; }
+
+.selo{ display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px;
+  font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.04em;
+  border:1px solid; }
+.selo.ok{ background:var(--verde-luz); color:var(--verde); border-color:var(--verde-linha); }
+.selo.duv{ background:var(--ambar-luz); color:var(--ambar); border-color:var(--ambar-linha); }
+.selo.mal{ background:var(--rubi-luz); color:var(--rubi); border-color:var(--rubi-linha); }
+
+.peso{ padding:17px; border-top:1px solid var(--line-2); }
+.razao{ background:var(--ambar-luz); border:1px solid var(--ambar-linha); border-radius:8px;
+  padding:14px 15px; margin-top:14px; }
+.razao b.n{ font-family:var(--mono); font-size:27px; color:var(--ambar); font-weight:500; }
+.razao p{ margin:6px 0 0; font-size:13px; color:var(--ink-2); }
+.razao p b{ color:var(--ink); }
+
+.campo{ display:flex; flex-direction:column; gap:5px; margin-top:12px; }
+.campo label{ font-size:13px; font-weight:600; color:var(--ink-2); }
+.campo input, .campo select{ font:inherit; padding:10px 12px; border-radius:8px;
+  border:1px solid var(--line); background:var(--paper); color:var(--ink); }
+.dupla{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.nota{ font-size:12.5px; color:var(--ink-3); margin:12px 0 0; }
+.nota b{ color:var(--ink-2); }
+.aviso{ background:var(--azul-luz); border:1px solid var(--line); border-radius:8px;
+  padding:13px 15px; font-size:13px; color:var(--ink-2); margin:14px 17px 17px; }
+.aviso b{ color:var(--ink); }
+
+/* ---------------------------------------------------------- prova de vida -- */
+/* O óvalo é um furo na escuridão: um círculo com uma sombra gigante em volta.
+   É o mesmo truque dos apps de banco, e ele resolve duas coisas de uma vez,
+   dizer onde por o rosto e esconder o resto da sala durante o cadastro. */
+.vivo{ position:absolute; inset:0; z-index:5; }
+.vivo[hidden]{ display:none; }
+.vivo-oval{ position:absolute; left:50%; top:48%; translate:-50% -50%;
+  width:37%; aspect-ratio:.78; border-radius:50%; border:3px solid var(--ambar);
+  box-shadow:0 0 0 9999px rgba(6,14,12,.80);
+  transition:border-color 220ms var(--ease); }
+.vivo-oval.ok{ border-color:#5FBFA0; }
+.vivo-oval.feito{ border-color:#5FBFA0; box-shadow:0 0 0 9999px rgba(6,14,12,.88),
+  0 0 34px rgba(95,191,160,.55); }
+.vivo-topo{ position:absolute; left:0; right:0; top:0; padding:20px 20px 0;
+  text-align:center; }
+.vivo-topo b{ display:block; font-family:var(--disp); font-size:19px; color:#EAF3EF; }
+.vivo-topo span{ display:block; margin-top:5px; font-size:14px; color:#A9C4BB; }
+.vivo-pe{ position:absolute; left:0; right:0; bottom:0; padding:0 16px 14px;
+  display:flex; align-items:center; gap:10px; }
+.vivo-passos{ display:flex; gap:6px; flex:1; }
+.vp{ flex:1; text-align:center; font-size:11px; font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; color:#7F9A92; padding:7px 4px; border-radius:6px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.09); }
+.vp.on{ color:#0B1A16; background:#5FBFA0; border-color:#5FBFA0; }
+.vp.ok{ color:#5FBFA0; border-color:#2C5A4C; background:rgba(95,191,160,.12); }
+.vivo-pe .btn{ background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.16);
+  color:#DCEAE4; padding:7px 13px; font-size:12.5px; }
+
+dialog{ border:1px solid var(--line); border-radius:12px; background:var(--card);
+  color:var(--ink); padding:20px; max-width:400px; box-shadow:var(--sombra); }
+dialog::backdrop{ background:rgba(10,20,17,.5); }
+
+@media (max-width:1020px){ .grade{ grid-template-columns:1fr; } }
+@media (prefers-reduced-motion: reduce){ *,*::before,*::after{
+  animation-duration:1ms !important; transition-duration:1ms !important; } }
+</style>
+
+<header class="topo">
+  <div class="wrap">
+    <div class="marca"><b>Audit<i>ix</i></b><span>Sala auditada</span></div>
+    <div class="cts">
+      <div class="ct ok"><span class="rot">Presentes</span><b id="c-pres">0</b></div>
+      <div class="ct duv"><span class="rot">Não identificados</span><b id="c-desc">0</b></div>
+      <div class="ct mal"><span class="rot">Anomalias</span><b id="c-anom">0</b></div>
+      <div class="ct"><span class="rot">Imagens salvas</span><b>0</b></div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap grade">
+  <!-- --------------------------------- câmera --------------------------------- -->
+  <section class="painel">
+    <div class="palco" id="palco">
+      <video id="cam" playsinline muted></video>
+      <canvas id="calor"></canvas>
+      <canvas id="over"></canvas>
+      <div class="vivo" id="vivo" hidden>
+        <div class="vivo-oval" id="vivo-oval"></div>
+        <div class="vivo-topo">
+          <b id="vivo-titulo">Encaixe o rosto no óvalo</b>
+          <span id="vivo-dica">Aproxime-se até o rosto preencher o contorno</span>
+        </div>
+        <div class="vivo-pe">
+          <div class="vivo-passos">
+            <span class="vp" id="vp1">Enquadrar</span>
+            <span class="vp" id="vp2">Boca</span>
+            <span class="vp" id="vp3">Virar</span>
+          </div>
+          <button class="btn" id="vivo-cancelar">Cancelar</button>
+        </div>
+      </div>
+      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span></div>
+      <div class="desl" id="desl">
+        <button class="grandao" id="ligar">Abrir a sala</button>
+        <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
+          saber o que mudou nela. Nenhuma imagem é guardada.</p>
+      </div>
+    </div>
+    <div class="pe">
+      <button class="btn" id="desligar" disabled>Fechar</button>
+      <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
+      <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
+      <button class="btn" id="btn-exemplo">Ver com exemplo</button>
+      <button class="btn" id="btn-apagar" style="margin-left:auto">Apagar cadastros</button>
+    </div>
+    <p class="aviso"><b>Como cadastrar:</b> clique em "cadastrar quem está na frente".
+      A tela pede para encaixar o rosto no óvalo, <b>abrir bem a boca</b> e virar a
+      cabeça. Isso é <b>prova de vida</b>: uma foto impressa não abre a boca nem vira.
+      O limiar da boca é medido <b>na hora, no seu rosto</b>, durante o enquadramento,
+      em vez de ser um número fixo que serve para uns e não para outros. E o giro serve
+      de novo, porque é ali que o sistema colhe as amostras <b>de perfil</b>, que são as
+      que fazem o nome grudar quando o aluno não está de frente.</p>
+    <p class="aviso"><b>O limite honesto da prova de vida:</b> ela derrota foto impressa
+      e rosto em papel, que é o ataque comum. <b>Não</b> derrota um vídeo gravado da
+      pessoa, nem máscara. Bloquear isso exige câmera com infravermelho ou sensor de
+      profundidade, que é o que o celular do banco tem e uma webcam não.</p>
+    <p class="aviso"><b>O que o ID de corpo resolve, e o que não resolve:</b> o nome
+      gruda no corpo assim que o rosto aparece uma vez, e continua lá quando o aluno
+      vira para o quadro e a câmera só vê a nuca. O relógio ao lado do nome diz há
+      quanto tempo o rosto não é reconferido, e o rótulo cai sozinho para
+      <b>"provavelmente"</b> depois de 6 segundos. Duas pessoas que se cruzam podem
+      trocar de ID, e quem sai do enquadramento e volta ganha um ID novo até o rosto
+      ser lido de novo. Por isso nada aqui vira decisão sozinho.</p>
+    <p class="aviso"><b>Sobre a assinatura de corpo:</b> quando alguém sai do
+      enquadramento, o nome fica 30 segundos guardado junto com as proporções do
+      corpo, e volta sozinho se a pessoa reaparecer. Isso é um <b>desempate entre
+      as poucas pessoas da cena</b>, não identificação: não serve para achar um
+      aluno entre quinhentos, e por isso o nome recolado fica marcado como
+      <b>"por assinatura"</b> até um rosto confirmar. A camada 4 usa a mesma pose
+      para ver queda, corrida e agitação. <b>Agitação não é briga</b>, é um pedido
+      de conferência humana.</p>
+  </section>
+
+  <!-- --------------------------------- camadas -------------------------------- -->
+  <div style="display:flex; flex-direction:column; gap:22px;">
+    <section class="painel">
+      <div class="camada">
+        <div class="camada-topo"><span class="n">1</span>
+          <h3>Quem está na sala</h3><span class="rot" style="font-size:10.5px">rosto conferido</span><span class="q" id="q1">0</span></div>
+        <div id="l-presentes"></div>
+      </div>
+      <div class="camada">
+        <div class="camada-topo"><span class="n" style="background:var(--ambar)">2</span>
+          <h3>Quem não foi identificado</h3><span class="q" id="q2">0</span></div>
+        <div id="l-desconhecidos"></div>
+      </div>
+      <div class="camada">
+        <div class="camada-topo"><span class="n" style="background:var(--rubi)">3</span>
+          <h3>O que está acontecendo</h3><span class="q" id="q4">0</span></div>
+        <div id="l-anomalias"></div>
+      </div>
+    </section>
+
+    <section class="painel" id="p-trilha" hidden>
+      <div class="painel-topo"><span class="rot">Trilha de auditoria</span>
+        <button class="btn" id="btn-verificar" style="padding:5px 11px; font-size:12px;">Verificar cadeia</button></div>
+      <div class="peso">
+        <div id="trilha-estado" class="razao" style="margin-top:0">
+          <b class="n" id="trilha-n">—</b>
+          <p id="trilha-txt">Cada evento é gravado com um SHA-256 do próprio conteúdo
+            somado ao hash da linha anterior. Mexer numa linha antiga quebra a cadeia
+            dali para a frente, e a verificação aponta a linha exata.</p>
+        </div>
+        <p class="nota" id="trilha-banco"></p>
+      </div>
+    </section>
+
+    <section class="painel">
+      <div class="painel-topo"><span class="rot">Eventos</span>
+        <button class="btn" id="limpar" style="padding:5px 11px; font-size:12px;">Limpar</button></div>
+      <div id="l-eventos"></div>
+    </section>
+  </div>
+</div>
+
+<dialog id="dlg-pes">
+  <h3 style="font-size:17px">Quem é esta pessoa?</h3>
+  <div class="campo"><label for="pe-nome">Nome</label>
+    <input id="pe-nome" type="text" placeholder="Enzo Renato Cunha"></div>
+  <div class="campo"><label for="pe-turma">Turma</label>
+    <input id="pe-turma" type="text" placeholder="2ECR"></div>
+  <p class="nota">Prova de vida concluída. Serão salvas <b id="pe-qtd">0</b> amostras
+    deste rosto, de frente e de perfil, cada uma um <b>descritor de 128 números</b>.
+    A foto não é guardada e não dá para reconstruir o rosto a partir deles.</p>
+  <div style="display:flex; gap:9px; margin-top:16px; justify-content:flex-end;">
+    <button class="btn" id="pe-cancelar">Cancelar</button>
+    <button class="btn forte" id="pe-salvar">Cadastrar</button>
+  </div>
+</dialog>
+
+<script>
+const el = id => document.getElementById(id);
+const hora = () => new Date().toTimeString().slice(0,5);
+const MODELOS = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+
+/* Reconhecimento facial: descritor de 128 dimensões, o mesmo tipo de coisa que o
+   SFace produz no AIBOX. 0.5 é conservador; o padrão da literatura é 0.6. */
+const LIMIAR_ROSTO = 0.50;
+
+/* Quantas amostras o cadastro guarda, e o mínimo para deixar cadastrar. */
+const AMOSTRAS_CAD = 6, AMOSTRAS_MIN = 3;
+let bufferRosto = [];
+
+/* Distância até a pessoa cadastrada: a MENOR entre todas as amostras dela. Uma
+   pessoa cadastrada de frente, de lado e olhando um pouco para baixo é
+   reconhecida nas três posições, e é isso que faz o nome grudar rápido para o
+   ID de corpo poder carregá-lo depois. Aceita `desc` avulso dos cadastros
+   antigos, para o que já está salvo no navegador não virar lixo. */
+function distDe(desc, p){
+  const lista = p.descs && p.descs.length ? p.descs : (p.desc ? [p.desc] : []);
+  let melhor = Infinity;
+  for(const d of lista){
+    const v = faceapi.euclideanDistance(desc, d);
+    if(v < melhor) melhor = v;
+  }
+  return melhor;
+}
+
+let pessoas = [], eventos = [];
+try{ pessoas = JSON.parse(localStorage.getItem('auditix.pessoas')||'[]'); }catch(e){}
+const gravar = () => { try{
+  localStorage.setItem('auditix.pessoas', JSON.stringify(pessoas));
+}catch(e){} };
+
+let presentes = [], naoIdent = [], fluxo = null, rodando = false, prontos = false;
+
+/* ---------------------------------------------------------------- pintar --- */
+function pintarTudo(){
+  el('c-pres').textContent = presentes.length;
+  el('c-desc').textContent = naoIdent.length;
+  el('q1').textContent = presentes.length;
+  el('q2').textContent = naoIdent.length;
+
+  el('l-presentes').innerHTML = presentes.length
+    ? presentes.map(p => '<div class="linha">' +
+        '<span class="pino' + (p.firme ? '' : ' duv') + '"></span>' +
+        '<span class="nm">' + p.nome + ' <em>' + (p.turma ? p.turma + ' · ' : '') +
+          'corpo #' + p.id + '</em></span>' +
+        (p.porAssin
+          ? '<span class="selo duv">por assinatura</span>'
+          : '<span class="hr" title="rosto conferido pela última vez">' + p.idade + '</span>') +
+        '</div>').join('')
+    : '<div class="vazio">' + (rodando ? 'Nenhum rosto cadastrado reconhecido ainda.'
+        : 'Abra a sala para começar.') + '</div>';
+
+  el('l-desconhecidos').innerHTML = naoIdent.length
+    ? naoIdent.map(u => '<div class="linha"><span class="pino duv"></span>' +
+        '<span class="nm">Corpo #' + u.id +
+        ' <em>rosto ainda não lido · pendente de validação humana</em></span>' +
+        '<span class="hr">' + u.idade + '</span></div>').join('')
+    : '<div class="vazio">Ninguém sem identificação na sala.</div>';
+
+  el('c-anom').textContent = anomalias.length;
+  el('q4').textContent = anomalias.length;
+  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
+  el('l-anomalias').innerHTML = anomalias.length
+    ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
+        '<span class="nm">' + ICONE[a.tipo] + ' <em>' + a.texto + '</em></span>' +
+        '<span class="hr">' + a.h + '</span></div>').join('')
+    : '<div class="vazio">' + (rodando
+        ? 'Nada fora do padrão na sala.'
+        : 'Quedas, corridas e agitação aparecem aqui.') + '</div>';
+
+  el('l-eventos').innerHTML = eventos.length
+    ? eventos.slice(0,10).map(e => '<div class="linha"><span class="pino ' + e.p + '"></span>' +
+        '<span class="nm">' + e.t + '</span><span class="hr">' + e.h + '</span></div>').join('')
+    : '<div class="vazio">Nenhum evento ainda.</div>';
+}
+function anotar(p, t){ eventos.unshift({ p, t, h: hora() }); eventos = eventos.slice(0,40); pintarTudo(); }
+
+/* ---------------------------------------------------------------- câmera --- */
+async function ligar(){
+  const b = el('ligar');
+  try{
+    b.disabled = true; b.textContent = 'Carregando os modelos…';
+    if(!window.faceapi) throw { name:'SemModelo' };
+    if(!prontos){
+      await faceapi.nets.tinyFaceDetector.loadFromUri(MODELOS);
+      await faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS);
+      await faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS);
+      b.textContent = 'Carregando o detector de corpo…';
+      for(let i = 0; i < 100 && !window.__mp; i++)
+        await new Promise(r => setTimeout(r, 100));
+      if(!window.__mp) throw { name:'SemModelo' };
+      const visao = await window.__mp.FilesetResolver.forVisionTasks(
+        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+      const opcoes = delegado => ({
+        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/' +
+          'pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: delegado },
+        runningMode:'VIDEO', numPoses:6,
+        /* Sem isto o modelo aceita qualquer coisa que lembre uma pessoa, e uma
+           pessoa só vira duas ou três poses encaixadas uma na outra. */
+        minPoseDetectionConfidence:0.6,
+        minPosePresenceConfidence:0.6,
+        minTrackingConfidence:0.6 });
+      try{
+        redePose = await window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('GPU'));
+      }catch(e){
+        /* máquina sem WebGL decente ainda roda, só mais devagar */
+        redePose = await window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('CPU'));
+      }
+      prontos = true;
+    }
+    b.textContent = 'Abrindo a câmera…';
+    fluxo = await navigator.mediaDevices.getUserMedia({
+      video:{ width:{ ideal:1280 }, height:{ ideal:960 } }, audio:false });
+    const v = el('cam');
+    v.srcObject = fluxo; await v.play();
+    el('palco').style.aspectRatio = v.videoWidth + '/' + v.videoHeight;
+    ['over','calor'].forEach(id => { const c = el(id);
+      c.width = v.videoWidth; c.height = v.videoHeight; });
+    el('desl').classList.add('off');
+    el('faixa').className = 'faixa on';
+    el('desligar').disabled = false;
+    el('btn-cad').disabled = false; el('btn-mapa').disabled = false;
+    mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
+    rodando = true;
+    trilhas = []; proxId = 1;
+    laco(); lacoRosto();
+  }catch(err){
+    const n = err && err.name ? err.name : 'erro';
+    el('desltxt').innerHTML = n === 'NotReadableError' || n === 'TrackStartError'
+      ? '<b>A câmera está ocupada por outro programa.</b> Feche Teams, Meet, Zoom ou o app Câmera.'
+      : n === 'NotAllowedError'
+        ? '<b>Permissão de câmera negada.</b> Se estiver por link, abra o arquivo direto no Chrome.'
+        : n === 'SemModelo'
+          ? '<b>Os modelos não carregaram.</b> Esta página precisa de internet na primeira vez.'
+          : '<b>Não abriu.</b> ' + n +
+            (err && err.message ? ': ' + err.message : '') +
+            '<br><small>Abra o console do navegador (F12) para o rastro completo.</small>';
+  }finally{ b.disabled = false; b.textContent = 'Abrir a sala'; }
+}
+
+function desligar(){
+  rodando = false;
+  if(fluxo){ fluxo.getTracks().forEach(t => t.stop()); fluxo = null; }
+  el('cam').srcObject = null;
+  const c = el('over'); c.getContext('2d').clearRect(0,0,c.width,c.height);
+  el('desl').classList.remove('off');
+  el('faixa').className = 'faixa';
+  el('faixatxt').textContent = 'Câmera desligada';
+  el('desligar').disabled = true;
+  el('btn-cad').disabled = true; el('btn-mapa').disabled = true;
+  el('calor').getContext('2d').clearRect(0,0,el('calor').width,el('calor').height);
+  trilhas = []; presentes = []; naoIdent = []; bufferRosto = [];
+  fecharVivo(); pintarTudo();
+}
+
+/* ------------------------------------------------ camada de pose (33 pontos) --
+   Uma passada só de pose alimenta quatro coisas: a caixa de cada pessoa, que é o
+   que o rastreador de ID já usava, as anomalias, a assinatura de corpo e o mapa
+   de calor. Derivar tudo de um modelo só é mais barato e mais coerente do que
+   empilhar um detector para cada função. */
+
+const P = { NARIZ:0, OMBRO_E:11, OMBRO_D:12, COTOV_E:13, COTOV_D:14,
+            PULSO_E:15, PULSO_D:16, QUADRIL_E:23, QUADRIL_D:24,
+            JOELHO_E:25, JOELHO_D:26, TORN_E:27, TORN_D:28 };
+
+const VIS_MIN = 0.40;      // abaixo disso o ponto é chute do modelo, não medida
+const HIST_MS = 2500;      // memória de movimento de cada pessoa
+
+/* Queda. Tronco deitado não basta: quem se abaixa para pegar a borracha também
+   deita o tronco. O que separa é o quadril despencar E a pessoa continuar lá. */
+const QUEDA_ANG = 55;      // graus fora da vertical
+const QUEDA_CAI = 0.10;    // fração da altura do quadro que o quadril desceu
+const QUEDA_SEG = 1200;    // ms deitado para virar alerta
+
+/* Corrida, medida em alturas-de-corpo por segundo e não em pixels, senão quem
+   está longe da câmera nunca corre e quem está perto está sempre correndo. */
+const CORRE_VEL = 1.5;
+const CORRE_SEG = 400;
+
+/* Agitação. Não é detector de briga e não vai ser chamado disso. É gente perto
+   demais mexendo os braços rápido demais, o que pede olho humano. */
+const AGITA_PERTO = 0.9;   // distância entre quadris, em alturas-de-corpo
+const AGITA_ENER  = 1.1;   // energia dos punhos, em alturas-de-corpo por segundo
+const AGITA_SEG   = 700;
+
+const GX = 32, GY = 24;    // grade do mapa de calor
+let mapaCalor = new Float32Array(GX*GY), mostrarMapa = false;
+let redePose = null, anomalias = [], limbo = [], agitacao = {};
+
+const vis = p => (p && p.visibility != null) ? p.visibility : 1;
+const meio = (lm, a, b) => ({ x:(lm[a].x + lm[b].x)/2, y:(lm[a].y + lm[b].y)/2 });
+const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z||0) - (b.z||0));
+
+/* A caixa sai dos próprios pontos visíveis, com uma folga, porque o modelo
+   entrega a pessoa e não a moldura dela. */
+function caixaDe(lm, larg, alt){
+  /* Ombros são o mínimo para dizer "isto é uma pessoa". O quadril era exigido
+     junto, e isso quebrava todo enquadramento fechado: numa webcam de notebook,
+     com a pessoa sentada, o quadril simplesmente não está no quadro. Sem caixa
+     não nasce trilha, sem trilha o rosto reconhecido não tinha onde grudar o
+     nome, e a tela vivia dizendo "sala vazia" com uma pessoa na frente dela.
+     Contra os corpos fantasmas que o quadril barrava sobram três filtros: o
+     mínimo de 6 pontos aqui embaixo, o podar() por sobreposição, e os
+     VISTAS_MIN quadros seguidos antes de virar pessoa de verdade. */
+  for(const i of [P.OMBRO_E, P.OMBRO_D])
+    if(vis(lm[i]) < VIS_MIN) return null;
+  let x0 = 1, y0 = 1, x1 = 0, y1 = 0, n = 0;
+  for(const p of lm){
+    if(vis(p) < VIS_MIN) continue;
+    x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x);
+    y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); n++;
+  }
+  if(n < 6 || x1 <= x0 || y1 <= y0) return null;
+  const fx = (x1 - x0) * 0.06, fy = (y1 - y0) * 0.04;
+  return { x:(x0 - fx)*larg, y:(y0 - fy)*alt,
+           w:(x1 - x0 + 2*fx)*larg, h:(y1 - y0 + 2*fy)*alt };
+}
+
+/* Interseção sobre a MENOR das duas caixas. O IoU comum não serve aqui: uma
+   caixa pequena encaixada dentro de uma grande tem IoU baixo e passa batido,
+   e é exatamente essa a forma dos fantasmas. */
+function ios(a, b){
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = x2 - x1, h = y2 - y1;
+  if(w <= 0 || h <= 0) return 0;
+  return (w * h) / Math.max(1, Math.min(a.w * a.h, b.w * b.h));
+}
+const IOS_MESMO = 0.65;
+const nitidez = d => d.lm.reduce((s, p) => s + vis(p), 0) / d.lm.length;
+
+/* O detector às vezes devolve duas ou três poses para a MESMA pessoa. Sem podar
+   isso viram três corpos na lista, os IDs disparam e a agitação acusa alguém
+   brigando consigo mesmo. Fica a pose mais nítida de cada aglomerado. */
+function podar(dets){
+  const fora = new Set();
+  for(let i = 0; i < dets.length; i++){
+    if(fora.has(i)) continue;
+    for(let j = i + 1; j < dets.length; j++){
+      if(fora.has(j)) continue;
+      if(ios(dets[i].box, dets[j].box) > IOS_MESMO)
+        fora.add(nitidez(dets[i]) >= nitidez(dets[j]) ? j : i);
+    }
+  }
+  return dets.filter((_, i) => !fora.has(i));
+}
+
+/* Assinatura de corpo: razões entre segmentos, tiradas dos pontos em metros que
+   o modelo estima com a origem no quadril. Razão não muda com a distância da
+   câmera nem com o zoom, que é justamente o que a caixa em pixels não garante.
+
+   Isto NÃO identifica um aluno entre quinhentos, e a tela diz isso. Serve para
+   desempatar entre as poucas pessoas da cena e recolar um ID após uma oclusão. */
+function assinaturaCorpo(w){
+  if(!w || w.length < 29) return null;
+  const ombro    = dist3(w[P.OMBRO_E], w[P.OMBRO_D]);
+  const quadril  = dist3(w[P.QUADRIL_E], w[P.QUADRIL_D]);
+  const tronco   = dist3(meio(w,P.OMBRO_E,P.OMBRO_D), meio(w,P.QUADRIL_E,P.QUADRIL_D));
+  const braco    = (dist3(w[P.OMBRO_E],w[P.COTOV_E]) + dist3(w[P.OMBRO_D],w[P.COTOV_D]))/2;
+  const antebrac = (dist3(w[P.COTOV_E],w[P.PULSO_E]) + dist3(w[P.COTOV_D],w[P.PULSO_D]))/2;
+  const coxa     = (dist3(w[P.QUADRIL_E],w[P.JOELHO_E]) + dist3(w[P.QUADRIL_D],w[P.JOELHO_D]))/2;
+  const canela   = (dist3(w[P.JOELHO_E],w[P.TORN_E]) + dist3(w[P.JOELHO_D],w[P.TORN_D]))/2;
+  if(tronco < 1e-4 || antebrac < 1e-4 || canela < 1e-4 || quadril < 1e-4) return null;
+  return [ ombro/tronco, quadril/tronco, braco/antebrac,
+           coxa/canela, (coxa+canela)/tronco, ombro/quadril ];
+}
+const difAssinCorpo = (a, b) => {
+  if(!a || !b) return Infinity;
+  let s = 0; for(let i = 0; i < a.length; i++) s += (a[i]-b[i]) * (a[i]-b[i]);
+  return Math.sqrt(s);
+};
+const LIMIAR_CORPO = 0.34;   // a mesma pessoa entre quadros fica bem abaixo disto
+const MARGEM_CORPO = 0.12;   // e o segundo colocado tem que estar claramente atrás
+const LIMBO_MS = 30000;
+
+/* Uma amostra só é ruidosa demais, então a assinatura da trilha é a média das
+   últimas boas. */
+function guardarAssin(t, a){
+  if(!a) return;
+  if(!t.amostras) t.amostras = [];
+  t.amostras.push(a);
+  if(t.amostras.length > 30) t.amostras.shift();
+  t.assin = a.map((_, i) => t.amostras.reduce((s, m) => s + m[i], 0) / t.amostras.length);
+}
+
+/* Quando uma trilha com nome morre, o nome não some na hora: fica no limbo por
+   30 segundos junto com a assinatura, esperando a pessoa reaparecer. */
+function paraLimbo(t, agora){
+  if(!t.nome || !t.assin) return;
+  limbo = limbo.filter(l => l.nome !== t.nome);
+  limbo.push({ nome:t.nome, turma:t.turma, assin:t.assin, em:agora });
+}
+function tentarRecolar(t, agora){
+  if(t.nome || !t.assin || !t.firme) return false;
+  limbo = limbo.filter(l => agora - l.em < LIMBO_MS);
+  const notas = limbo.map(l => ({ l, d:difAssinCorpo(t.assin, l.assin) }))
+                     .sort((a, b) => a.d - b.d);
+  if(!notas.length || notas[0].d > LIMIAR_CORPO) return false;
+  if(notas[1] && notas[1].d - notas[0].d < MARGEM_CORPO) return false;   // empate
+  t.nome = notas[0].l.nome; t.turma = notas[0].l.turma;
+  t.porAssinatura = true; t.confirmado = -Infinity;
+  limbo = limbo.filter(l => l !== notas[0].l);
+  anotar('duv', t.nome + ' recolado no corpo #' + t.id +
+    ' pela assinatura, aguardando o rosto confirmar');
+  return true;
+}
+
+/* ------------------------------------------------------------- anomalias --- */
+function registrarAnomalia(tipo, t, texto){
+  if(!t.firme) return;   // trilha provisória não acusa nada
+  const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
+  if(ja){ ja.visto = Date.now(); return; }
+  anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, h:hora(), visto:Date.now() });
+  anomalias = anomalias.slice(0, 20);
+  anotar('mal', texto);
+  mandarEvento(tipo, 'corpo-' + t.id);
+}
+
+function analisar(t, lm, agora){
+  /* Com o quadril fora do quadro o modelo devolve os pontos de baixo mesmo
+     assim: ele os INVENTA. Toda a camada de anomalia mede a partir do quadril e
+     normaliza pela altura do corpo, então quadril inventado vira gerador de
+     alarme falso. Num enquadramento fechado a pessoa continua sendo detectada e
+     identificada, mas o que ela está FAZENDO não é afirmado. */
+  if(vis(lm[P.QUADRIL_E]) < VIS_MIN || vis(lm[P.QUADRIL_D]) < VIS_MIN){
+    t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
+    t.qx = null; t.qy = null;
+    return;
+  }
+  const q  = meio(lm, P.QUADRIL_E, P.QUADRIL_D);
+  const o  = meio(lm, P.OMBRO_E,   P.OMBRO_D);
+  const pe = meio(lm, P.TORN_E,    P.TORN_D);
+
+  /* A altura do corpo é a régua que normaliza tudo o que vem depois, e ela tem
+     que ser MEDIDA, nunca chutada.
+
+     O modelo devolve os 33 pontos sempre, inclusive os que estão fora do
+     quadro: num close ele INVENTA os tornozelos. Uma régua inventada e curta
+     demais faz toda velocidade normalizada explodir, e era isso que enchia a
+     camada 4 de corrida e agitação com uma pessoa só, parada. Então medimos com
+     o que dá para ver, e descemos para a proporção anatômica quando não dá. */
+  const tronco = Math.abs(o.y - q.y);
+  const joelho = meio(lm, P.JOELHO_E, P.JOELHO_D);
+  let altura;
+  if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN)
+    altura = Math.abs(pe.y - o.y) * 1.25;      // ombro ao tornozelo é ~80% do corpo
+  else if(vis(lm[P.JOELHO_E]) > VIS_MIN || vis(lm[P.JOELHO_D]) > VIS_MIN)
+    altura = Math.abs(joelho.y - o.y) * 1.9;
+  else
+    altura = tronco * 3.2;                      // o tronco é ~1/3 da altura
+  altura = Math.max(0.08, altura);
+  const ang = Math.abs(Math.atan2(o.x - q.x, q.y - o.y) * 180 / Math.PI);
+
+  if(!t.hist) t.hist = [];
+  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang,
+                px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
+                pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
+  t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
+  t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang;
+
+  /* --- queda ---
+     Em dois tempos, e a ordem importa. O TOMBO arma o relógio: o quadril
+     despencou dentro da janela curta e o tronco está deitado. Depois disso o
+     que se cobra é só continuar deitado, porque o tombo já saiu da janela e
+     cobrar as duas coisas ao mesmo tempo faria o alerta nunca disparar. */
+  const jan = t.hist.filter(h => agora - h.t < 900);
+  const maisAlto = Math.min.apply(null, jan.map(h => h.qy));
+  const deitado = ang > QUEDA_ANG;
+  if(deitado && (q.y - maisAlto) > QUEDA_CAI && !t.quedaDesde) t.quedaDesde = agora;
+  if(!deitado) t.quedaDesde = 0;                       // levantou, cancela
+  if(t.quedaDesde && agora - t.quedaDesde > QUEDA_SEG)
+    registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
+      (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana');
+
+  /* --- corrida e energia dos punhos --- */
+  const ant = t.hist.find(h => agora - h.t < 320 && agora - h.t > 80);
+  if(ant){
+    const dt = (agora - ant.t) / 1000;
+    t.vel = Math.abs(q.x - ant.qx) / altura / dt;
+    if(t.vel > CORRE_VEL){
+      if(!t.correDesde) t.correDesde = agora;
+      else if(agora - t.correDesde > CORRE_SEG)
+        registrarAnomalia('corrida', t, 'Corrida detectada no corpo #' + t.id +
+          (t.nome ? ', ' + t.nome : ''));
+    } else t.correDesde = 0;
+
+  }
+
+  /* Energia dos punhos: média da janela, e não um par de amostras solto. Um
+     braço que sobe e volta entre as duas amostras daria energia zero, que é
+     justamente o movimento que a gente quer pegar. */
+  let soma = 0, n = 0;
+  for(let i = 1; i < t.hist.length; i++){
+    const h0 = t.hist[i-1], h1 = t.hist[i];
+    const dt2 = (h1.t - h0.t) / 1000;
+    if(dt2 <= 0 || agora - h1.t > 500) continue;
+    soma += (Math.hypot(h1.px.x - h0.px.x, h1.px.y - h0.px.y) +
+             Math.hypot(h1.pd.x - h0.pd.x, h1.pd.y - h0.pd.y)) / 2 / altura / dt2;
+    n++;
+  }
+  if(n) t.energia = soma / n;
+
+  /* --- mapa de calor: onde os pés pisaram --- */
+  if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
+    const cx = Math.min(GX-1, Math.max(0, Math.floor(pe.x * GX)));
+    const cy = Math.min(GY-1, Math.max(0, Math.floor(pe.y * GY)));
+    mapaCalor[cy*GX + cx] += 1;
+  }
+}
+
+/* Agitação é propriedade de PAR, não de pessoa: precisa de duas pessoas perto
+   uma da outra, as duas com energia alta ao mesmo tempo. */
+function verAgitacao(agora){
+  for(let i = 0; i < trilhas.length; i++)
+  for(let j = i+1; j < trilhas.length; j++){
+    const a = trilhas[i], b = trilhas[j];
+    if(!a.firme || !b.firme) continue;
+    if(a.qx == null || b.qx == null || !a.energia || !b.energia) continue;
+    /* Duas caixas muito grudadas quase sempre são a MESMA pessoa detectada duas
+       vezes, e aí a "agitação" é a pessoa brigando com o próprio fantasma. */
+    if(ios(a.box, b.box) > 0.35) continue;
+    const escala = (a.altura + b.altura) / 2;
+    const perto = Math.hypot(a.qx - b.qx, a.qy - b.qy) < AGITA_PERTO * escala;
+    const bravo = a.energia > AGITA_ENER && b.energia > AGITA_ENER;
+    const chave = Math.min(a.id, b.id) + '-' + Math.max(a.id, b.id);
+    if(perto && bravo){
+      if(!agitacao[chave]) agitacao[chave] = agora;
+      else if(agora - agitacao[chave] > AGITA_SEG)
+        registrarAnomalia('agitacao', a, 'Agitação entre os corpos #' + a.id +
+          ' e #' + b.id + ', conferir na hora. O sistema não afirma que é briga.');
+    } else delete agitacao[chave];
+  }
+}
+
+/* ---------------------------------------------------------- mapa de calor -- */
+function pintarMapa(){
+  const c = el('calor'), x = c.getContext('2d');
+  x.clearRect(0, 0, c.width, c.height);
+  if(!mostrarMapa) return;
+  const teto = Math.max(1, Math.max.apply(null, mapaCalor));
+  const cw = c.width/GX, ch = c.height/GY;
+  for(let i = 0; i < mapaCalor.length; i++){
+    const v = mapaCalor[i] / teto;
+    if(v < 0.02) continue;
+    const gx = i % GX, gy = (i / GX) | 0;
+    const cor = v < 0.34 ? [63,158,139] : v < 0.67 ? [223,169,78] : [190,70,90];
+    x.fillStyle = 'rgba(' + cor.join(',') + ',' + (0.12 + v*0.55).toFixed(3) + ')';
+    x.fillRect(gx*cw, gy*ch, cw+1, ch+1);
+  }
+}
+
+/* ------------------------------------ camadas 1 e 2: corpos com identidade --
+   Dois detectores rodando em ritmos diferentes.
+
+   O detector de CORPO é o rápido. Ele devolve a caixa de cada pessoa, e as
+   caixas novas são casadas com as trilhas do quadro anterior por sobreposição
+   de área. É esse casamento que mantém o mesmo ID grudado na mesma pessoa.
+
+   O detector de ROSTO é o lento, e serve só para dar NOME a uma trilha. Quando
+   um rosto é reconhecido, olhamos dentro de qual caixa de corpo ele está e
+   amarramos o nome àquela trilha. Feito isso, o aluno pode virar para a frente
+   da sala: o rosto some da câmera, mas a trilha continua e o nome vai junto. */
+
+const IOU_MIN    = 0.30;    // sobreposição mínima para dizer "é a mesma pessoa"
+const PERTO_MAX  = 0.55;    // e, se a área falhar, distância entre centros em alturas-de-caixa
+const VISTAS_MIN = 5;       // quadros seguidos para uma trilha virar PESSOA de verdade
+const SUMIU_MS   = 1500;    // sem ser vista por mais que isso, a trilha morre
+const FRESCO_MS  = 6000;    // rosto conferido há pouco, o nome é afirmado
+const MORNO_MS   = 25000;   // passado isso, o nome cai para "provavelmente"
+
+let trilhas = [], proxId = 1;
+let ocupadoCorpo = false, ocupadoRosto = false, ultimoRosto = null;
+
+function iou(a, b){
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = x2 - x1, h = y2 - y1;
+  if(w <= 0 || h <= 0) return 0;
+  const inter = w * h;
+  return inter / (a.w*a.h + b.w*b.h - inter);
+}
+
+/* A caixa que um rosto sozinho projeta, quando não há corpo detectado. Não é o
+   corpo da pessoa: é só uma região com folga em volta do rosto, grande o
+   bastante para o mesmo rosto cair dentro dela no quadro seguinte. */
+const caixaDoRosto = b => ({
+  x: b.x - b.width * 0.35,  y: b.y - b.height * 0.30,
+  w: b.width * 1.70,        h: b.height * 1.85
+});
+
+/* Casamento guloso: monta todos os pares possíveis, ordena do mais sobreposto
+   para o menos, e cada trilha e cada caixa só podem ser usadas uma vez. */
+function confirmar(t, det, agora){
+  t.box = det.box; t.det = det; t.visto = agora;
+  t.deRosto = false;              // achou corpo de verdade, promove a trilha
+  t.vistas = (t.vistas || 0) + 1;
+  if(t.vistas >= VISTAS_MIN) t.firme = true;
+}
+
+function casar(dets, agora){
+  const pares = [];
+  trilhas.forEach((t, ti) => dets.forEach((c, ci) => {
+    const v = iou(t.box, c.box);
+    if(v >= IOU_MIN) pares.push({ ti, ci, v });
+  }));
+  pares.sort((a, b) => b.v - a.v);
+
+  const tUsada = new Set(), cUsada = new Set();
+  for(const p of pares){
+    if(tUsada.has(p.ti) || cUsada.has(p.ci)) continue;
+    tUsada.add(p.ti); cUsada.add(p.ci);
+    confirmar(trilhas[p.ti], dets[p.ci], agora);
+  }
+  /* Segunda tentativa, agora por proximidade de centro. A sobreposição de área
+     falha justamente quando mais importa: quem cai muda a caixa de alta e
+     estreita para baixa e larga, e a área em comum desaba. Sem este segundo
+     passe a trilha morreria no tombo, a trilha nova nasceria sem história, e a
+     queda nunca seria vista, que é o pior jeito de errar. */
+  const centro = b => ({ x:b.x + b.w/2, y:b.y + b.h/2 });
+  const perto = [];
+  trilhas.forEach((tr, ti) => { if(tUsada.has(ti)) return;
+    dets.forEach((c, ci) => {
+      if(cUsada.has(ci)) return;
+      const p = centro(tr.box), q = centro(c.box);
+      const escala = Math.max(tr.box.h, c.box.h, 1);
+      const d = Math.hypot(p.x - q.x, p.y - q.y) / escala;
+      if(d < PERTO_MAX) perto.push({ ti, ci, d });
+    });
+  });
+  perto.sort((a, b) => a.d - b.d);
+  for(const p of perto){
+    if(tUsada.has(p.ti) || cUsada.has(p.ci)) continue;
+    tUsada.add(p.ti); cUsada.add(p.ci);
+    confirmar(trilhas[p.ti], dets[p.ci], agora);
+  }
+
+  dets.forEach((c, ci) => {
+    if(cUsada.has(ci)) return;
+    /* Nasce PROVISÓRIA. Uma detecção que pisca por um quadro não pode virar
+       pessoa na lista nem queimar um ID: era assim que os números saíam
+       correndo de #19 para #41 com uma pessoa só na sala. */
+    trilhas.push({ id:proxId++, box:c.box, det:c, nome:null, turma:'', dist:0,
+                   confirmado:-Infinity, visto:agora, nasceu:agora,
+                   vistas:1, firme:false });
+  });
+  trilhas = trilhas.filter(t => {
+    if(agora - t.visto <= SUMIU_MS) return true;
+    if(t.nome && t.firme){
+      /* o nome não morre com a trilha: vai para o limbo com a assinatura de
+         corpo, e volta sozinho se a pessoa reaparecer em até 30 segundos */
+      paraLimbo(t, agora);
+      anotar('', t.nome + ' saiu do enquadramento, assinatura guardada por 30s');
+    }
+    return false;
+  });
+}
+
+let tsPose = 0;
+async function laco(){
+  if(!rodando) return;
+  const v = el('cam');
+  if(v.videoWidth && redePose && !ocupadoCorpo){
+    ocupadoCorpo = true;
+    try{
+      /* o modo VIDEO do MediaPipe exige carimbo de tempo sempre crescente */
+      tsPose = Math.max(tsPose + 1, Math.round(performance.now()));
+      const r = redePose.detectForVideo(v, tsPose);
+      const agora = performance.now();
+
+      const brutos = [];
+      (r.landmarks || []).forEach((lm, i) => {
+        const box = caixaDe(lm, v.videoWidth, v.videoHeight);
+        if(box) brutos.push({ box, lm, world:(r.worldLandmarks || [])[i] });
+      });
+      casar(podar(brutos), agora);
+
+      trilhas.forEach(tr => {
+        if(!tr.det) return;
+        analisar(tr, tr.det.lm, agora);
+        /* A assinatura de corpo é feita de razões entre segmentos, e metade
+           deles depende do quadril. Com o quadril fora do quadro sairia uma
+           assinatura inventada, que recolaria nome na pessoa errada. */
+        const lm = tr.det.lm;
+        if(vis(lm[P.QUADRIL_E]) >= VIS_MIN && vis(lm[P.QUADRIL_D]) >= VIS_MIN){
+          guardarAssin(tr, assinaturaCorpo(tr.det.world));
+          tentarRecolar(tr, agora);
+        }
+      });
+      verAgitacao(agora);
+      resumir();
+    }catch(e){}
+    ocupadoCorpo = false;
+  }
+  desenhar(); pintarMapa();
+  requestAnimationFrame(laco);
+}
+
+/* O rosto é a parte cara, e de propósito não roda em todo quadro: ele só
+   precisa acontecer de vez em quando, para batizar ou reconfirmar uma trilha. */
+async function lacoRosto(){
+  if(!rodando) return;
+  const v = el('cam');
+  if(v.videoWidth && !ocupadoRosto){
+    ocupadoRosto = true;
+    try{
+      const achados = await faceapi
+        .detectAllFaces(v, new faceapi.TinyFaceDetectorOptions({ inputSize:320, scoreThreshold:.5 }))
+        .withFaceLandmarks().withFaceDescriptors();
+      amarrar(achados);
+      resumir();
+    }catch(e){}
+    ocupadoRosto = false;
+  }
+  /* Durante a prova de vida o rosto é lido muito mais rápido: um piscar dura
+     uns 200ms, e a 2 quadros por segundo ele passaria despercebido entre uma
+     leitura e outra. Fora do cadastro, 500ms basta e poupa CPU. */
+  setTimeout(lacoRosto, vivo ? 110 : 500);
+}
+
+function amarrar(achados){
+  const agora = performance.now();
+
+  /* A maior detecção é quem está mais perto da câmera, que é quem se cadastra.
+     achados[0] era a ordem que o detector devolveu, não a pessoa da frente. */
+  let maior = null, maiorArea = 0;
+  achados.forEach(f => {
+    const a = f.detection.box.width * f.detection.box.height;
+    if(a > maiorArea){ maiorArea = a; maior = f; }
+  });
+  ultimoRosto = maior ? maior.descriptor : null;
+
+  /* Enquanto a prova de vida está aberta, é ela que conduz o cadastro e junta
+     as amostras. O reconhecimento normal continua rodando embaixo. */
+  if(vivo && maior && vivo.fase !== 'pronto') passoVivo(maior);
+
+  achados.forEach(f => {
+    const b = f.detection.box;
+    const cx = b.x + b.width/2, cy = b.y + b.height/2;
+
+    /* Em qual corpo este rosto está? O menor que contém o centro do rosto,
+       para não amarrar o nome ao corpo de quem está atrás. */
+    let alvo = null;
+    trilhas.forEach(t => {
+      const d = t.box;
+      if(cx < d.x || cx > d.x + d.w || cy < d.y || cy > d.y + d.h) return;
+      if(!alvo || d.w*d.h < alvo.box.w*alvo.box.h) alvo = t;
+    });
+
+    /* Nenhum corpo contém este rosto. Antes isso era um `return` e o rosto
+       reconhecido morria aqui sem virar nada. Agora o próprio rosto sustenta
+       uma trilha: um rosto reconhecido já é evidência suficiente de que tem
+       gente ali, e é o caso normal de webcam de perto. */
+    if(!alvo){
+      const cxr = caixaDoRosto(b);
+      /* Antes de inventar uma trilha nova, tenta encaixar numa que já existe e
+         só não continha o CENTRO do rosto (cabeça na borda da caixa do corpo).
+         Sem este passo a mesma pessoa apareceria duas vezes na lista. */
+      let melhor_ios = 0.25;
+      trilhas.forEach(t => {
+        const v = ios(t.box, cxr);
+        if(v > melhor_ios){ melhor_ios = v; alvo = t; }
+      });
+      if(!alvo){
+        alvo = { id:proxId++, box:cxr, det:null, nome:null, turma:'', dist:0,
+                 confirmado:-Infinity, visto:agora, nasceu:agora,
+                 vistas:VISTAS_MIN, firme:true, deRosto:true };
+        trilhas.push(alvo);
+      }else if(alvo.deRosto){
+        alvo.box = cxr;             // só mexe na caixa se ela veio do rosto
+      }
+      alvo.visto = agora;
+    }
+
+    let melhor = null, dist = Infinity;
+    pessoas.forEach(p => {
+      const d = distDe(f.descriptor, p);
+      if(d < dist){ dist = d; melhor = p; }
+    });
+    if(!melhor || dist >= LIMIAR_ROSTO) return;
+
+    if(alvo.nome !== melhor.nome){
+      /* Uma pessoa não pode estar em dois corpos ao mesmo tempo. Se este nome
+         estava em outra trilha, ele muda de dono e a antiga volta a ser anônima. */
+      trilhas.forEach(t => {
+        if(t !== alvo && t.nome === melhor.nome){ t.nome = null; t.confirmado = -Infinity; }
+      });
+      anotar('', melhor.nome + ' reconhecido no corpo #' + alvo.id);
+      mandarEvento('reconhecido', 'corpo-' + alvo.id);
+    }
+    alvo.nome = melhor.nome; alvo.turma = melhor.turma || '';
+    alvo.dist = dist; alvo.confirmado = agora;
+    alvo.porAssinatura = false;   // agora quem afirma é o rosto, não a assinatura
+  });
+}
+
+/* O rótulo enfraquece sozinho conforme o rosto deixa de ser reconfirmado. É o
+   sistema dizendo em voz alta o quanto ainda confia no que está afirmando. */
+function rotuloDe(t, agora){
+  if(!t.nome) return { txt:'Corpo #' + t.id, ok:false, s:(agora - t.nasceu)/1000 };
+  const s = (agora - t.confirmado) / 1000;
+  if(s * 1000 < FRESCO_MS) return { txt:t.nome, ok:true, s };
+  if(s * 1000 < MORNO_MS)  return { txt:'provavelmente ' + t.nome, ok:true, s };
+  return { txt:t.nome + '?', ok:false, s };
+}
+const idadeTxt = s => s < 2 ? 'agora' : 'há ' + Math.round(s) + 's';
+
+function resumir(){
+  const agora = performance.now();
+  presentes = []; naoIdent = [];
+  trilhas.forEach(t => {
+    if(!t.firme) return;          // provisória não conta como pessoa na sala
+    const r = rotuloDe(t, agora);
+    if(t.nome) presentes.push({ id:t.id, nome:t.nome, turma:t.turma,
+                                firme:r.ok && !t.porAssinatura,
+                                porAssin:!!t.porAssinatura, idade:idadeTxt(r.s) });
+    else naoIdent.push({ id:t.id, idade:idadeTxt(r.s) });
+  });
+  presentes.sort((a, b) => a.id - b.id);
+  const naSala = presentes.length + naoIdent.length;
+  el('faixatxt').textContent = naSala
+    ? naSala + ' pessoa' + (naSala > 1 ? 's' : '') + ' na sala · ' +
+      presentes.length + ' com nome, ' + naoIdent.length + ' sem'
+    : 'Sala vazia';
+  pintarTudo();
+}
+
+function desenhar(){
+  const v = el('cam'), x = el('over').getContext('2d'), agora = performance.now();
+  x.clearRect(0, 0, x.canvas.width, x.canvas.height);
+  const alt = Math.max(13, v.videoWidth/44);
+  x.font = '500 ' + alt + 'px system-ui';
+  trilhas.forEach(t => {
+    if(!t.firme) return;
+    const r = rotuloDe(t, agora), cor = r.ok ? '#3E9E8B' : '#DFA94E';
+    x.strokeStyle = cor; x.lineWidth = Math.max(2, v.videoWidth/380);
+    x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
+
+    const rot = '#' + t.id + '  ' + r.txt + '  ' + idadeTxt(r.s);
+    const topo = Math.max(0, t.box.y - alt*1.7);
+    x.fillStyle = cor;
+    x.fillRect(t.box.x, topo, x.measureText(rot).width + 16, alt*1.6);
+    x.fillStyle = '#06100F';
+    x.fillText(rot, t.box.x + 8, topo + alt*1.15);
+  });
+}
+
+/* ========================================================= prova de vida ====
+   Cadastro no estilo dos bancos: encaixa o rosto no óvalo, fecha os olhos, vira
+   a cabeça. Serve para duas coisas ao mesmo tempo.
+
+   A primeira é vivacidade: uma foto impressa não fecha os olhos nem vira. Isso
+   não é à prova de vídeo gravado, e a tela diz isso em vez de fingir que é.
+
+   A segunda é qualidade do cadastro, que era o buraco real. Ao pedir que a
+   pessoa vire a cabeça, colhemos amostras DE FRENTE E DE LADO da mesma pessoa.
+   É exatamente disso que o reconhecimento precisa para o nome grudar rápido
+   quando o aluno está de perfil na sala, que é o caso que interessa aqui.
+
+   Tudo local: os pontos do rosto vêm do face-api que já está carregado, e
+   nenhuma imagem nem descritor sai desta máquina. */
+
+/* O desafio de vivacidade é ABRIR A BOCA, e não piscar.
+
+   Piscar parecia a escolha óbvia e estava errada: o modelo de 68 pontos do
+   face-api prevê um formato de olho mais ou menos genérico e quase não o fecha
+   quando a pessoa pisca de verdade. O sinal é pequeno demais para esse modelo.
+   Abrir a boca desloca os pontos muito mais, e aí a medida é inequívoca.
+
+   E o limiar não é chutado: durante o enquadramento medimos a boca FECHADA
+   desta pessoa e exigimos um desvio grande em relação a ela. Mesma ideia do
+   limiar por espalhamento que a portaria já usa. Rosto que tem boca naturalmente
+   mais aberta não fica mais fácil de enganar, e ninguém fica de fora por ter a
+   boca diferente da minha quando eu escolhi o número. */
+const ABRIU_FATOR = 1.7;    // quantas vezes a boca fechada dela mesma
+const ABRIU_MIN   = 0.12;   // e um piso absoluto, contra ruído de medida
+const FECHOU_OLHO = 0.72;   // olho abaixo desta fração do próprio normal
+const YAW_VIRADO  = 0.13;   // cabeça virada, em frações da largura do rosto
+const YAW_FRENTE  = 0.07;   // e de volta para a frente
+const ROSTO_MIN   = 0.15;   // largura do rosto / largura do vídeo
+
+const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const mediana = a => {
+  if(!a.length) return 0;
+  const s = a.slice().sort((x, y) => x - y);
+  return s[s.length >> 1];
+};
+
+/* EAR, razão entre altura e largura do olho. Continua aqui porque um olho
+   fechado TAMBÉM vale como prova de vida, para quem não quiser abrir a boca.
+   Só não é mais a única forma de passar. */
+function ear(p){
+  if(!p || p.length < 6) return 1;
+  return (dist2(p[1],p[5]) + dist2(p[2],p[4])) / (2 * dist2(p[0],p[3]) + 1e-6);
+}
+
+/* MAR: abertura da boca dividida pela largura dela. Boca fechada fica perto de
+   0,3 e aberta passa de 0,7 com folga. getMouth() devolve os pontos 48 a 67, em
+   que 0 e 6 são os cantos, e 3 e 9 o meio do lábio de cima e o de baixo. */
+function mar(p){
+  if(!p || p.length < 10) return 0;
+  const larg = dist2(p[0], p[6]);
+  if(larg < 1e-6) return 0;
+  return dist2(p[3], p[9]) / larg;
+}
+
+/* Quanto a cabeça está virada: o nariz sai do centro do rosto. Normalizado
+   pela largura do próprio rosto, de novo para não depender da distância. */
+function yawDe(lm){
+  const j = lm.getJawOutline(), n = lm.getNose();
+  if(!j || j.length < 17 || !n || n.length < 4) return 0;
+  const larg = dist2(j[0], j[16]);
+  if(larg < 1e-6) return 0;
+  return (n[3].x - (j[0].x + j[16].x) / 2) / larg;
+}
+
+let vivo = null;
+
+const TEXTOS = {
+  enquadrar: ['Encaixe o rosto no óvalo', 'Fique de frente, o rosto preenchendo o contorno'],
+  desafio:   ['Abra bem a boca', 'Como se fosse dizer "A". Fechar os olhos também vale'],
+  virar:     ['Vire a cabeça devagar para o lado', 'Para qualquer um dos dois lados'],
+  voltar:    ['Volte a olhar para a câmera', 'Quase lá'],
+  pronto:    ['Prova de vida concluída', 'Agora diga quem é esta pessoa']
+};
+
+function pintarVivo(){
+  if(!vivo) return;
+  const [t, d] = TEXTOS[vivo.fase] || TEXTOS.enquadrar;
+  el('vivo-titulo').textContent = t;
+  el('vivo-dica').textContent = d + '  ·  ' + vivo.amostras.length + ' amostras';
+  const ordem = ['enquadrar', 'desafio', 'virar', 'voltar', 'pronto'];
+  const i = ordem.indexOf(vivo.fase);
+  const marcar = (id, meu) => {
+    const e = el(id);
+    e.classList.toggle('ok', i > meu);
+    e.classList.toggle('on', i === meu);
+  };
+  marcar('vp1', 0); marcar('vp2', 1);
+  el('vp3').classList.toggle('on', i === 2 || i === 3);
+  el('vp3').classList.toggle('ok', i > 3);
+}
+
+function iniciarVivo(){
+  vivo = { fase:'enquadrar', amostras:[], baseMar:[], baseEar:[],
+           mar0:0, ear0:0, desde:performance.now() };
+  bufferRosto = [];
+  el('vivo').hidden = false;
+  el('vivo-oval').className = 'vivo-oval';
+  pintarVivo();
+}
+
+function fecharVivo(){
+  vivo = null;
+  el('vivo').hidden = true;
+}
+
+function colher(f){
+  if(vivo.amostras.length >= AMOSTRAS_CAD) return;
+  vivo.amostras.push(Array.from(f.descriptor));
+  pintarVivo();
+}
+
+/* Um passo por quadro de rosto. Recebe a maior detecção, que é quem está mais
+   perto da câmera. */
+function passoVivo(f){
+  const v = el('cam');
+  if(!v.videoWidth) return;
+  const b = f.detection.box, lm = f.landmarks;
+
+  const cx = (b.x + b.width / 2) / v.videoWidth;
+  const cy = (b.y + b.height / 2) / v.videoHeight;
+  // 0.48 é o mesmo centro do óvalo no CSS. Se um mudar, o outro tem que mudar.
+  const dentro = Math.abs(cx - 0.5) < 0.17 && Math.abs(cy - 0.48) < 0.19;
+  const perto  = b.width / v.videoWidth >= ROSTO_MIN;
+  const enquadrado = dentro && perto;
+
+  const y = yawDe(lm);
+  const e = (ear(lm.getLeftEye()) + ear(lm.getRightEye())) / 2;
+  const m = mar(lm.getMouth());
+
+  el('vivo-oval').classList.toggle('ok', enquadrado);
+
+  if(vivo.fase === 'enquadrar'){
+    if(!enquadrado){
+      el('vivo-dica').textContent = perto
+        ? 'Centralize o rosto no óvalo'
+        : 'Aproxime-se mais da câmera';
+      return;
+    }
+    if(Math.abs(y) > YAW_FRENTE){ el('vivo-dica').textContent = 'Olhe reto para a câmera'; return; }
+    // Aqui a pessoa está parada, de frente e de boca fechada: é a hora certa de
+    // medir o normal DELA, que vira o limiar do desafio logo abaixo.
+    vivo.baseMar.push(m); vivo.baseEar.push(e);
+    colher(f);
+    if(vivo.amostras.length >= 2 && vivo.baseMar.length >= 3){
+      vivo.mar0 = mediana(vivo.baseMar);
+      vivo.ear0 = mediana(vivo.baseEar);
+      vivo.fase = 'desafio';
+      pintarVivo();
+    }
+    return;
+  }
+
+  if(vivo.fase === 'desafio'){
+    const abriu  = m > vivo.mar0 * ABRIU_FATOR && m > vivo.mar0 + ABRIU_MIN;
+    const fechou = e < vivo.ear0 * FECHOU_OLHO;
+    if(abriu || fechou){
+      colher(f);                       // amostra com a expressão mudada, ajuda
+      vivo.fase = 'virar';
+      pintarVivo();
+      return;
+    }
+    /* Mostra o quanto falta em vez de só repetir a ordem. Se travar de novo,
+       este número diz na hora se é a medida que não sobe ou o limiar que está
+       alto demais, em vez de virar adivinhação. */
+    const alvo = Math.max(vivo.mar0 * ABRIU_FATOR, vivo.mar0 + ABRIU_MIN);
+    const pct = Math.min(99, Math.round(m / (alvo || 1) * 100));
+    el('vivo-dica').textContent = 'Abra mais a boca  ·  ' + pct + '%';
+    return;
+  }
+
+  if(vivo.fase === 'virar'){
+    /* As amostras de perfil são colhidas aqui, e são justamente as que fazem o
+       reconhecimento funcionar quando o aluno não está de frente. */
+    if(Math.abs(y) > YAW_VIRADO){ colher(f); vivo.fase = 'voltar'; pintarVivo(); }
+    return;
+  }
+
+  if(vivo.fase === 'voltar'){
+    if(Math.abs(y) > YAW_VIRADO){ colher(f); return; }
+    if(Math.abs(y) < YAW_FRENTE && enquadrado){
+      colher(f);
+      if(vivo.amostras.length >= AMOSTRAS_MIN){
+        vivo.fase = 'pronto';
+        el('vivo-oval').className = 'vivo-oval feito';
+        pintarVivo();
+        bufferRosto = vivo.amostras.slice();
+        setTimeout(() => {
+          if(!vivo || vivo.fase !== 'pronto') return;
+          fecharVivo();
+          el('pe-qtd').textContent = bufferRosto.length;
+          el('dlg-pes').showModal();
+        }, 650);
+      }
+    }
+  }
+}
+
+el('vivo-cancelar').addEventListener('click', fecharVivo);
+
+/* ------------------------------------------------------- cadastrar pessoa -- */
+el('btn-cad').addEventListener('click', () => {
+  if(!rodando){ alert('Abra a sala primeiro.'); return; }
+  iniciarVivo();
+});
+el('pe-cancelar').addEventListener('click', () => el('dlg-pes').close());
+el('pe-salvar').addEventListener('click', () => {
+  const nome = el('pe-nome').value.trim();
+  if(!nome || bufferRosto.length < AMOSTRAS_MIN) return;
+  // Recadastrar a mesma pessoa substitui, em vez de acumular dois cadastros
+  // concorrentes com o mesmo nome disputando a mesma trilha.
+  pessoas = pessoas.filter(p => p.nome !== nome);
+  pessoas.push({ nome, turma: el('pe-turma').value.trim(), descs: bufferRosto.slice() });
+  gravar();
+  anotar('', nome + ' cadastrado com ' + bufferRosto.length + ' amostras de rosto');
+  el('dlg-pes').close(); el('pe-nome').value = ''; el('pe-turma').value = '';
+});
+
+el('btn-mapa').addEventListener('click', () => {
+  mostrarMapa = !mostrarMapa;
+  el('btn-mapa').setAttribute('aria-pressed', String(mostrarMapa));
+  pintarMapa();
+});
+el('btn-apagar').addEventListener('click', () => {
+  if(!pessoas.length){ alert('Não há nenhum rosto cadastrado.'); return; }
+  const lista = pessoas.map(p => '· ' + p.nome).join('\n');
+  if(!confirm('Apagar os ' + pessoas.length + ' cadastros de rosto?\n\n' + lista +
+              '\n\nIsso não tem volta.')) return;
+  pessoas = []; gravar();
+  trilhas.forEach(t => { t.nome = null; t.confirmado = -Infinity; });
+  limbo = [];
+  anotar('', 'Cadastros de rosto apagados');
+  resumir();
+});
+el('desligar').addEventListener('click', desligar);
+el('ligar').addEventListener('click', ligar);
+el('limpar').addEventListener('click', () => { eventos = []; pintarTudo(); });
+
+/* ------------------------------------------------ ligação com o servidor --
+   A página só fala com o banco quando ela VEM do servidor. Aberta como arquivo
+   solto, ou publicada como artifact, ela continua funcionando inteira, só sem
+   persistir: as camadas de visão não dependem de rede nenhuma. */
+
+const LOCAL_CAMERA = 'sala-12';
+let servidorVivo = false;
+
+async function acharServidor(){
+  if(!location.protocol.startsWith('http')) return;
+  try{
+    const r = await fetch('/api/verificar');
+    if(!r.ok) return;
+    servidorVivo = true;
+    el('p-trilha').hidden = false;
+    pintarTrilha(await r.json());
+  }catch(e){}
+}
+
+function pintarTrilha(j){
+  const cai = el('trilha-estado');
+  el('trilha-n').textContent = j.integra ? j.total + ' elos' : 'linha ' + j.quebrou_em;
+  el('trilha-txt').innerHTML = j.integra
+    ? 'Cadeia <b>íntegra</b>. Cada um dos ' + j.total + ' registros confere com o hash ' +
+      'da linha anterior. Alterar qualquer um deles quebraria a corrente daqui para a frente.'
+    : '<b>Cadeia quebrada na linha ' + j.quebrou_em + '</b>: ' + j.motivo + '. ' +
+      'Os registros seguintes também deixam de fechar, porque cada um depende do anterior. ' +
+      'É assim que a adulteração aparece sozinha.';
+  cai.style.background = j.integra ? 'var(--verde-luz)' : 'var(--rubi-luz)';
+  cai.style.borderColor = j.integra ? 'var(--verde-linha)' : 'var(--rubi-linha)';
+  el('trilha-n').style.color = j.integra ? 'var(--verde)' : 'var(--rubi)';
+  el('trilha-banco').textContent = 'Gravando em ' +
+    (j.banco === 'postgres' ? 'PostgreSQL na AWS' : 'SQLite local, o Postgres não respondeu');
+}
+
+/* Só metadado sai daqui: id do corpo, tipo do evento e sala. Nenhum quadro,
+   nenhum descritor de rosto, nenhuma assinatura de corpo vai para a rede. */
+function mandarEvento(tipo, aluno){
+  if(!servidorVivo) return;
+  fetch('/api/evento', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ aluno_id:String(aluno).slice(0,50), tipo_evento:tipo,
+                           localizacao:LOCAL_CAMERA }) })
+    .then(r => r.ok && fetch('/api/verificar').then(x => x.json()).then(pintarTrilha))
+    .catch(() => {});
+}
+
+/* O mapa vai agregado e de vez em quando, não quadro a quadro: são contagens
+   por célula, dá para ver onde a sala aperta sem saber quem passou por onde. */
+let calorEnviado = null;
+function mandarCalor(){
+  if(!servidorVivo || !rodando) return;
+  const celulas = [];
+  for(let i = 0; i < mapaCalor.length; i++){
+    const antes = calorEnviado ? calorEnviado[i] : 0;
+    const delta = Math.round(mapaCalor[i] - antes);
+    if(delta > 0) celulas.push({ x:i % GX, y:(i / GX) | 0, n:delta });
+  }
+  if(!celulas.length) return;
+  calorEnviado = Float32Array.from(mapaCalor);
+  fetch('/api/calor', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ camera:LOCAL_CAMERA, celulas }) }).catch(() => {});
+}
+setInterval(mandarCalor, 20000);
+
+el('btn-verificar').addEventListener('click', () => {
+  fetch('/api/verificar').then(r => r.json()).then(pintarTrilha).catch(() => {});
+});
+
+/* -------------------------------------------------------------- exemplo --- */
+el('btn-exemplo').addEventListener('click', () => {
+  presentes = [ { id:1, nome:'Enzo Renato Cunha', turma:'2ECR', firme:true,  idade:'agora' },
+                { id:2, nome:'Luan Ferreira',     turma:'2ECR', firme:true,  idade:'há 9s' },
+                { id:3, nome:'Marina Alves',      turma:'2ECR', firme:false, idade:'há 41s' } ];
+  naoIdent = [ { id:5, idade:'há 22s' } ];
+  presentes[2].porAssin = true;   // a Marina voltou pela assinatura, sem rosto ainda
+  anomalias = [
+    { tipo:'corrida', corpo:5, texto:'Corrida detectada no corpo #5', h:'14:09' },
+    { tipo:'agitacao', corpo:2, texto:'Agitação entre os corpos #2 e #5, conferir na hora. ' +
+      'O sistema não afirma que é briga.', h:'14:08' }
+  ];
+  eventos = [
+    { p:'duv', t:'Corpo #5 está na sala e o rosto ainda não foi lido, pendente de validação humana', h:'14:11' },
+    { p:'',    t:'Marina Alves reconhecida no corpo #3', h:'14:03' },
+    { p:'',    t:'Aula iniciada, 3 de 3 alunos presentes', h:'14:00' }
+  ];
+  el('desltxt').innerHTML = '<b>Dados de exemplo</b>, com nomes fictícios, só para ver a tela. ' +
+    'Para valer, abra o arquivo no Chrome do computador.';
+  pintarTudo();
+});
+
+/* -------------------------------------------------------------- abertura -- */
+(function(){
+  try{ if(window.self !== window.top){
+    el('desltxt').innerHTML = 'Esta é uma <b>prévia visual</b>. Por link o navegador não libera ' +
+      'câmera nem o download dos modelos. Use <b>Ver com exemplo</b>, ou abra o arquivo no Chrome.';
+  } }catch(e){}
+  pintarTudo();
+  acharServidor();
+})();
+</script>
