@@ -12,6 +12,10 @@ Como usar:
 
 Boa pratica do roteiro: capture mais de uma amostra autorizada por pessoa;
 nao salve fotos desnecessarias.
+
+O cadastro tem PRAZO (LGPD Art. 14): vence pelo consentimento
+(config.RETENCAO_DIAS) ou por inatividade (config.INATIVIDADE_DIAS), e some
+sozinho quando vence. Veja app/retencao.py.
 """
 
 import sys
@@ -52,7 +56,10 @@ def main() -> int:
             if img is None:
                 print(f"  [erro] nao abriu {photo.name}")
                 continue
-            faces = engine.detect(img)
+            # Cadastro roda em resolucao CHEIA: foto parada nao tem pressa, e
+            # landmark melhor gera embedding melhor. O frame-skip e a reducao
+            # de largura sao otimizacao de video ao vivo, nao de cadastro.
+            faces = engine.detect(img, full_res=True)
             if len(faces) == 0:
                 print(f"  [aviso] nenhum rosto em {photo.name}")
                 continue
@@ -79,6 +86,9 @@ def main() -> int:
     )
     print(f"\nCadastro salvo em {config.EMBEDDINGS_PATH} "
           f"({len(embeddings)} amostras de {len(set(ids))} pessoa(s)).")
+    print(f"Prazo de consentimento: {config.RETENCAO_DIAS} dias. "
+          f"Some sozinho apos {config.INATIVIDADE_DIAS} dias sem ser visto.")
+    print("Conferir a qualquer momento: python -m app.retencao --ver")
     return 0
 
 

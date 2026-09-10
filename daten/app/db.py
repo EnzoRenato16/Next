@@ -2,11 +2,17 @@
 
 Tabelas: students, attendance, camera_status, security_events.
 Eventos precisam sobreviver ao reinicio do processo.
+
+Retencao (LGPD Art. 14): students carrega created_at e last_seen. Os dois
+juntos respondem "esta biometria ainda pode existir?" — o prazo do
+consentimento conta de created_at, e a inatividade conta de last_seen.
+Quem apaga de verdade e app/retencao.py, porque apagar so a linha aqui
+deixaria o embedding vivo em data/embeddings.npz.
 """
 
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from . import config
 
@@ -31,7 +37,8 @@ def init_db() -> None:
                 student_id TEXT PRIMARY KEY,   -- ex.: RM ou apelido
                 name       TEXT NOT NULL,
                 turma      TEXT,
-                created_at TEXT
+                created_at TEXT,               -- inicio do prazo de consentimento
+                last_seen  TEXT                -- ultima vez reconhecido (inatividade)
             );
 
             CREATE TABLE IF NOT EXISTS attendance (
@@ -65,6 +72,11 @@ def init_db() -> None:
             );
             """
         )
+        # Bancos criados antes da retencao nao tem last_seen. Adiciona sem
+        # perder o que ja esta gravado.
+        colunas = {r["name"] for r in _con.execute("PRAGMA table_info(students)")}
+        if "last_seen" not in colunas:
+            _con.execute("ALTER TABLE students ADD COLUMN last_seen TEXT")
         _con.commit()
 
 
@@ -73,12 +85,27 @@ def _now() -> str:
 
 
 def upsert_student(student_id: str, name: str, turma: str = "") -> None:
+    """Cadastra ou recadastra. Recadastrar REINICIA o prazo de consentimento,
+    que e o comportamento certo: houve autorizacao nova."""
+    agora = _now()
     with _lock:
         _con.execute(
-            "INSERT INTO students(student_id,name,turma,created_at) VALUES(?,?,?,?) "
-            "ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, turma=excluded.turma",
-            (student_id, name, turma, _now()),
+            "INSERT INTO students(student_id,name,turma,created_at,last_seen) "
+            "VALUES(?,?,?,?,?) "
+            "ON CONFLICT(student_id) DO UPDATE SET name=excluded.name, "
+            "turma=excluded.turma, created_at=excluded.created_at, "
+            "last_seen=excluded.last_seen",
+            (student_id, name, turma, agora, agora),
         )
+        _con.commit()
+
+
+def touch_student(student_id: str) -> None:
+    """Marca que a pessoa foi vista agora. E o que segura o relogio da
+    inatividade: quem frequenta a escola nunca vence por esse lado."""
+    with _lock:
+        _con.execute("UPDATE students SET last_seen=? WHERE student_id=?",
+                     (_now(), student_id))
         _con.commit()
 
 
@@ -114,3 +141,60 @@ def today_attendance() -> list:
             (today + "%",),
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---- Retencao de biometria -------------------------------------------------
+
+def _dias_desde(iso: str) -> float:
+    """Dias decorridos desde um timestamp ISO. Valor ausente ou ilegivel conta
+    como 0: na duvida NAO apaga biometria, so avisa."""
+    if not iso:
+        return 0.0
+    try:
+        return (datetime.now() - datetime.fromisoformat(iso)).total_seconds() / 86400
+    except ValueError:
+        return 0.0
+
+
+def students_status() -> list:
+    """Todo mundo cadastrado, com quantos dias faltam em cada relogio.
+
+    `expira_em` e o menor dos dois prazos: e o que realmente vale.
+    """
+    with _lock:
+        rows = _con.execute(
+            "SELECT student_id, name, turma, created_at, last_seen "
+            "FROM students ORDER BY name"
+        ).fetchall()
+
+    saida = []
+    for r in rows:
+        d = dict(r)
+        # Sem last_seen (cadastro antigo), a inatividade conta do cadastro.
+        visto = d["last_seen"] or d["created_at"]
+        resta_consent = config.RETENCAO_DIAS - _dias_desde(d["created_at"])
+        resta_inativ = config.INATIVIDADE_DIAS - _dias_desde(visto)
+        d["dias_para_consentimento_vencer"] = round(resta_consent, 1)
+        d["dias_para_inatividade_vencer"] = round(resta_inativ, 1)
+        d["expira_em"] = round(min(resta_consent, resta_inativ), 1)
+        d["motivo"] = ("consentimento vencido" if resta_consent <= 0 else
+                       "inatividade" if resta_inativ <= 0 else "")
+        saida.append(d)
+    return saida
+
+
+def expired_students() -> list:
+    """Quem ja passou de um dos dois prazos. Nao apaga nada, so aponta."""
+    return [s for s in students_status() if s["expira_em"] <= 0]
+
+
+def delete_student(student_id: str) -> None:
+    """Apaga a pessoa da tabela students.
+
+    A presenca ja registrada em attendance NAO e apagada de proposito: ela e
+    registro escolar (fulano esteve na aula tal), nao dado biometrico. O que a
+    LGPD manda descartar e a biometria, e essa mora em students + embeddings.npz.
+    """
+    with _lock:
+        _con.execute("DELETE FROM students WHERE student_id=?", (student_id,))
+        _con.commit()

@@ -21,6 +21,9 @@ Faz três coisas:
 
 3. Guarda o mapa de calor agregado e entrega as visões para o Power BI.
 
+4. Serve o painel de leitura em /painel, que consome estes mesmos endpoints.
+   A página da sala GRAVA; o painel só LÊ.
+
 Sobre o banco: leia DATABASE_URL do arquivo .env ao lado deste. Se não houver,
 ou se o Postgres não responder, cai para SQLite local sozinho. Isso é de
 propósito: demonstração que morre porque a nuvem caiu é demonstração perdida.
@@ -32,7 +35,7 @@ import os
 import sqlite3
 import sys
 from contextlib import asynccontextmanager, contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -41,6 +44,7 @@ from pydantic import BaseModel, Field
 
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
+PAINEL = AQUI / "auditix-painel.html"
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
@@ -338,6 +342,72 @@ def mapa(camera: str = "sala-12") -> dict:
         celulas = [{"x": r[0], "y": r[1], "n": int(r[2])} for r in cur.fetchall()]
     return {"camera": camera, "celulas": celulas,
             "pico": max((c["n"] for c in celulas), default=0)}
+
+
+@app.get("/api/serie")
+def serie(dias: int = 30) -> dict:
+    """A dimensão de TEMPO, que faltava para o painel.
+
+    As views do Power BI já respondem isto em SQL (vw_eventos_dia,
+    vw_pico_horario), mas o navegador não fala com o banco. Aqui a agregação
+    sai em Python de propósito: TIMESTAMP no Postgres e TEXT no SQLite se
+    agrupam com sintaxe diferente, e uma consulta que só funciona num dos dois
+    quebra justamente no fallback, que é quando ninguém pode parar para
+    consertar.
+    """
+    dias = max(1, min(dias, 365))
+    with cursor() as (cur, m):
+        cur.execute(
+            """SELECT timestamp, tipo_evento FROM logs_seguranca_escola
+               ORDER BY id"""
+        )
+        linhas = cur.fetchall()
+
+    corte = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=dias)
+    por_dia: dict[str, dict] = {}
+    por_hora = [0] * 24
+    total = graves = 0
+
+    for ts, tipo in linhas:
+        momento = ts if not isinstance(ts, str) else _ler_momento(ts)
+        if momento is None or momento < corte:
+            continue
+        dia = momento.date().isoformat()
+        alvo_dia = por_dia.setdefault(dia, {"dia": dia, "total": 0, "graves": 0})
+        alvo_dia["total"] += 1
+        por_hora[momento.hour] += 1
+        total += 1
+        if tipo in GRAVES:
+            alvo_dia["graves"] += 1
+            graves += 1
+
+    return {
+        "dias": dias,
+        "total": total,
+        "graves": graves,
+        "por_dia": sorted(por_dia.values(), key=lambda d: d["dia"]),
+        "por_hora": [{"hora": h, "n": n} for h, n in enumerate(por_hora)],
+    }
+
+
+def _ler_momento(texto: str):
+    """SQLite devolve texto. Aceita o formato que gravamos e o que o
+    CURRENT_TIMESTAMP do SQLite escreve, sem estourar numa linha estranha."""
+    texto = texto.strip().replace("T", " ")
+    if "." in texto:
+        texto = texto.split(".", 1)[0]
+    try:
+        return datetime.fromisoformat(texto)
+    except ValueError:
+        return None
+
+
+@app.get("/painel")
+def pagina_painel() -> FileResponse:
+    """O painel de leitura. A página da sala grava; esta aqui só lê."""
+    if not PAINEL.exists():
+        raise HTTPException(404, f"não achei {PAINEL.name} ao lado do servidor")
+    return FileResponse(PAINEL, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.get("/api/painel")

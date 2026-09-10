@@ -50,6 +50,61 @@ ROOM_ID = os.environ.get("ROOM_ID", "SALA_01")
 CAMERA_ID = os.environ.get("CAMERA_ID", "CAM_01")
 GROUP_ID = os.environ.get("GROUP_ID", "grupo11")
 
+# ----- Largura de deteccao (o maior ganho de FPS no AIBOX) ------------------
+# O YuNet roda no frame REDUZIDO; o recorte do rosto continua saindo do frame
+# em resolucao cheia, entao a qualidade do embedding nao cai junto com o custo.
+#
+# Medido neste projeto (frame 1280x720, 4 threads, OpenCV 4.10):
+#     1280 -> 36.9 ms     960 -> 20.4 ms     640 -> 8.7 ms     320 -> 3.8 ms
+#
+# O limite e o TAMANHO DO ROSTO depois de reduzir: abaixo de ~40 px o YuNet
+# simplesmente nao acha. Medido com a mesma cara em varios tamanhos:
+#     rosto de  67 px no frame cheio -> so aparece a partir de W=960
+#     rosto de  90 px                -> so aparece a partir de W=640
+#     rosto de 117 px                -> so aparece a partir de W=480
+# Numa sala com gente sentada o rosto costuma dar 60-120 px em 720p, por isso o
+# padrao aqui e 640 e NAO os 320 do SVATech_Health.md: 320 serve para uma caixa
+# de OPME a um metro da camera, nao para uma sala inteira.
+#
+# Regra pratica para calibrar: rosto_em_pixels * (DETECT_WIDTH / largura_do_frame)
+# tem que dar mais de 40. Rode `python -m app.bench` no AIBOX para conferir.
+DETECT_WIDTH = int(os.environ.get("DETECT_WIDTH", "640"))
+
+# Tamanho minimo de rosto (em px, ja reduzido) que o YuNet ainda enxerga.
+# Usado so para avisar quando DETECT_WIDTH esta agressivo demais.
+MIN_FACE_PX = int(os.environ.get("MIN_FACE_PX", "40"))
+
+# ----- Backend de inferencia do SFace ---------------------------------------
+# "opencv" (padrao), "ort" (ONNX Runtime) ou "auto".
+#
+# O guia de reconhecimento facial sugere trocar para ONNX Runtime. Medimos, e
+# em x86 o ORT ficou MAIS LENTO que o proprio OpenCV DNN:
+#     OpenCV 4.10, 4 threads: OpenCV 11.6 ms/rosto  vs  ORT 18.2 ms/rosto
+#     OpenCV 5.00, 4 threads: OpenCV  7.5 ms/rosto  vs  ORT 20.3 ms/rosto
+# Em ARM64 pode inverter, e por isso o backend existe e e trocavel sem editar
+# codigo. Mas o padrao e o que esta medido: opencv. Antes de mudar, rode
+# `python -m app.bench` no AIBOX e decida com numero, nao com suposicao.
+SFACE_BACKEND = os.environ.get("SFACE_BACKEND", "opencv").strip().lower()
+
+# Threads do ONNX Runtime. 0 = deixa o ORT escolher.
+ORT_THREADS = int(os.environ.get("ORT_THREADS", "0"))
+
+# ----- Retencao de biometria (LGPD Art. 14) ---------------------------------
+# Biometria de crianca e adolescente nao pode ficar guardada para sempre. Duas
+# tranchas independentes, e a que vencer primeiro apaga:
+#
+#   RETENCAO_DIAS    prazo do consentimento. Vence, apaga, tem que recadastrar
+#                    com autorizacao nova. Padrao: 1 ano letivo.
+#   INATIVIDADE_DIAS quem nao e visto ha muito tempo saiu da escola. Este e o
+#                    unico jeito automatico de cumprir "apagar quando o aluno
+#                    sai": ninguem vai lembrar de avisar o sistema.
+#
+# Apagar aqui significa apagar o EMBEDDING (data/embeddings.npz) e a linha em
+# students. A presenca ja registrada continua, sem biometria, porque e registro
+# escolar e nao dado biometrico.
+RETENCAO_DIAS = int(os.environ.get("RETENCAO_DIAS", "365"))
+INATIVIDADE_DIAS = int(os.environ.get("INATIVIDADE_DIAS", "90"))
+
 # ----- Parametros de reconhecimento -----------------------------------------
 # SFace usa distancia de cosseno. Acima do limiar = mesma pessoa.
 # 0.363 (cosseno) e o valor recomendado pela OpenCV para SFace.

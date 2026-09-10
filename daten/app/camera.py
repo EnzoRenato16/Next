@@ -145,6 +145,9 @@ class Pipeline:
                             "since": time.strftime("%H:%M:%S"),
                         }
                     db.log_attendance(student_id, name, score)
+                    # Segura o relogio da inatividade: quem aparece na aula
+                    # nunca vence por falta de uso (ver app/retencao.py).
+                    db.touch_student(student_id)
                     db.log_security_event("reconhecido", f"{name} presente", score)
                     print(f"[PRESENCA] {name} confirmado ({score:.2f})")
             else:

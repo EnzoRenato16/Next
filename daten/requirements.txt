@@ -13,3 +13,9 @@ opencv-contrib-python>=4.7,<4.11
 numpy>=1.21,<2.0
 fastapi>=0.100
 uvicorn>=0.22
+
+# OPCIONAL. Backend alternativo para o SFace (SFACE_BACKEND=ort).
+# Nao instale por instalar: aqui o ONNX Runtime saiu MAIS LENTO que o proprio
+# OpenCV DNN (11.6 ms contra 18.2 ms por rosto). No ARM64 pode inverter, entao
+# meca antes no aparelho:  python -m app.bench
+# onnxruntime>=1.15
