@@ -94,6 +94,42 @@ Ultralytics só para ler um tensor.
 bem. Para virar produto fechado, não serve: aí é treinar um modelo próprio ou
 usar um com licença permissiva.
 
+## Velocidade — o que foi medido
+
+Uma inferência, neste container, com 4 núcleos:
+
+| | |
+|---|---|
+| 1 thread | **453 ms** |
+| 2 threads | 244 ms |
+| **4 threads** | **152 ms** |
+
+Três vezes mais rápido, e é a diferença entre "demora" e "aparece". Só funciona
+com `SharedArrayBuffer`, que o navegador libera quando o servidor manda
+`Cross-Origin-Opener-Policy` e `Cross-Origin-Embedder-Policy` — o `servidor.py`
+agora manda. A Sala lê `crossOriginIsolated` do próprio navegador em vez de
+supor: pedir várias threads sem isolamento MATA o carregamento, com um número
+cru de exceção e nenhuma mensagem.
+
+`credentialless` foi escolhido de propósito. Com `require-corp`, os arquivos de
+CDN (MediaPipe, face-api, fontes) precisariam de um cabeçalho que não
+controlamos, e a página inteira quebraria.
+
+> **Se algo de CDN parar de carregar por causa disso**, suba com
+> `SEM_ISOLAMENTO=1 uv run servidor.py`. A camada volta a uma thread e continua
+> funcionando, só mais devagar. Perder a Sala inteira por causa dela seria um
+> mau negócio. Este é o único ponto que não consegui verificar em ambiente com
+> CDN acessível.
+
+A inferência roda num **worker**, e continua rodando: custava 500 ms de vídeo
+travado antes, custa 16 ms agora, e é o que mantém a câmera fluida.
+
+**WebGPU foi testado e não entrou.** Deu 2870 ms contra 468 ms do wasm — mas a
+GPU do ambiente de teste é emulada por software, então esse número não vale
+para uma máquina com GPU de verdade. Ficou de fora porque são mais 21 MB de
+download e um ganho que ninguém mediu. É o caminho óbvio se um dia a velocidade
+voltar a incomodar.
+
 ## Medido, não estimado
 
 Numa CPU de container, uma inferência levou **46 ms**. Com 8400 caixas de ruído

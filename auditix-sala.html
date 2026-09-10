@@ -454,10 +454,15 @@ function pintarTudo(){
 
   el('c-anom').textContent = anomalias.length;
   el('q4').textContent = anomalias.length;
-  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
+  /* O rótulo curto de cada tipo. objeto_suspeito faltava aqui e a lista
+     escrevia "undefined" na frente do alerta — logo no alerta mais grave.
+     O `|| 'Alerta'` existe para que o próximo tipo novo apareça feio, e não
+     quebrado. */
+  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação',
+                  objeto_suspeito:'Objeto' };
   el('l-anomalias').innerHTML = anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
-        '<span class="nm">' + ICONE[a.tipo] + ' <em>' + a.texto + '</em></span>' +
+        '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em></span>' +
         '<span class="hr">' + a.h + '</span></div>').join('')
     : '<div class="vazio">' + (rodando
         ? 'Nada fora do padrão na sala.'
@@ -896,8 +901,26 @@ function tentarRecolar(t, agora){
 }
 
 /* ------------------------------------------------------------- anomalias --- */
+/* Antes de acusar QUALQUER coisa, a trilha precisa de idade.
+
+   Isto vem de um print: a sala aparecia VAZIA e a lista tinha seis anomalias,
+   com quedas nos corpos #32, #42 e #47 — números que subiram em segundos. Eram
+   trilhas curtas, nascidas de esqueletos que o detector monta em cima de uma
+   mão e desfaz logo depois.
+
+   E o argumento não é estatístico, é físico: não se observa uma QUEDA sem ter
+   visto o antes. Uma trilha que existe há meio segundo não tem "antes" — o que
+   ela mede é o próprio nascimento dela. O mesmo vale para corrida e agitação,
+   que são medidas de movimento ao longo do tempo.
+
+   O preço é honesto: uma queda de verdade nos primeiros 2s de quem acabou de
+   entrar no quadro não é acusada. Em troca, não se acusa queda em quem não
+   existe — e alerta falso é o que faz uma escola parar de olhar para o alerta. */
+const ANOM_IDADE = 2000;
+
 function registrarAnomalia(tipo, t, texto){
   if(!t.firme) return;   // trilha provisória não acusa nada
+  if(performance.now() - t.nasceu < ANOM_IDADE) return;
   const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
   if(ja){ ja.visto = Date.now(); return; }
   anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, h:hora(), visto:Date.now() });
@@ -1417,7 +1440,8 @@ function resumir(){
        que o modelo não reconhece aquilo — nenhum ajuste de limiar resolve. */
     'ligada':      'objeto suspeito: ativo · maior ' + armaMaior.toFixed(3) +
                    (armaMaior > 0.02 ? ' (' + armaMaiorClasse + ')' : '') +
-                   ' · ' + armaLeituras + ' leituras',
+                   ' · ' + armaLeituras + ' leituras' +
+                   (armaThreads > 1 ? ' · ' + armaThreads + ' threads' : ''),
     'carregando':  'objeto suspeito: carregando…',
     'sem modelo':  'objeto suspeito: modelo não instalado',
     'sem runtime': 'objeto suspeito: runtime não instalado',
@@ -1508,7 +1532,7 @@ const ARMA_INTERESSE = {
 
 let sessaoArma = null, armaOcupada = false, quadroArma = 0, armaErro = '';
 let armaMaior = 0, armaMaiorClasse = '', armaLeituras = 0;
-let armaTipo = 'float32', armaEntrada = 'images';
+let armaTipo = 'float32', armaEntrada = 'images', armaThreads = 0;
 let achadosArma = [], armaEstado = 'desligada';
 const armaSeguidas = {}, armaAvisado = {};
 let telaArma = null;          // canvas 640x640 reaproveitado, sem realocar por quadro
@@ -1550,7 +1574,20 @@ async function ligarArmas(){
 
          Uma thread é mais devagar, e tudo bem: esta camada roda 1x a cada 6
          quadros e não está no caminho do vídeo. */
-      window.ort.env.wasm.numThreads = 1;
+      /* QUANTAS THREADS DER. Foi o maior ganho de velocidade desta camada:
+         medido em 453ms numa thread contra 152ms em quatro — três vezes.
+
+         Só funciona com SharedArrayBuffer, que o navegador só libera quando o
+         servidor manda os cabeçalhos COOP/COEP. Se ele não mandar (por exemplo
+         com SEM_ISOLAMENTO=1), crossOriginIsolated vem falso — e pedir mais de
+         uma thread AÍ faz o carregamento morrer com um número cru de exceção,
+         que foi exatamente o "falhou — 33574040" do começo desta história.
+
+         Por isso a conta é lida do navegador, nunca suposta. Teto de 4: acima
+         disso o ganho some e cada thread come memória. */
+      window.ort.env.wasm.numThreads = self.crossOriginIsolated
+        ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1))
+        : 1;
 
       /* EM WORKER, e isto não é otimização: é o que impede o vídeo de travar.
          Uma inferência leva centenas de milissegundos de WebAssembly, e na
@@ -1564,6 +1601,7 @@ async function ligarArmas(){
          fica inutilizável depois. Por isso encaixarArma() monta um Float32Array
          novo a cada leitura, em vez de reaproveitar um. */
       window.ort.env.wasm.proxy = true;
+      armaThreads = window.ort.env.wasm.numThreads;
     }
     sessaoArma = await window.ort.InferenceSession.create(
       '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });

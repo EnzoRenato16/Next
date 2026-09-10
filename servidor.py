@@ -423,6 +423,32 @@ ORT_ARQUIVOS = {
 }
 
 
+# Isolamento de origem. Sem ele o navegador nao libera SharedArrayBuffer, e sem
+# SharedArrayBuffer o WebAssembly roda numa thread so. Medido nesta maquina, com
+# 4 nucleos: 453ms numa thread contra 152ms em quatro. Tres vezes mais rapido, e
+# e a diferenca entre "demora" e "aparece".
+#
+# "credentialless" e escolhido de proposito: com "require-corp" os arquivos de
+# CDN (MediaPipe, face-api, fontes) precisariam mandar um cabecalho que nao
+# controlamos e a pagina quebraria inteira. Credentialless os deixa carregar,
+# sem credenciais.
+#
+# VALVULA DE ESCAPE: se algo de CDN parar de carregar por causa disto, suba com
+#   SEM_ISOLAMENTO=1 uv run servidor.py
+# A camada de objeto suspeito volta a uma thread e continua funcionando, so mais
+# devagar. Perder a Sala inteira por causa dela seria um mau negocio.
+ISOLAR = os.environ.get("SEM_ISOLAMENTO", "").strip().lower() not in ("1", "true", "sim")
+
+
+@app.middleware("http")
+async def isolar_origem(request, call_next):
+    r = await call_next(request)
+    if ISOLAR:
+        r.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+        r.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
+    return r
+
+
 @app.get("/ort/{arquivo}")
 def ort_web(arquivo: str) -> FileResponse:
     """O ONNX Runtime Web, servido daqui e nao de CDN.
