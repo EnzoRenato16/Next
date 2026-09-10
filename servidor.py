@@ -49,7 +49,8 @@ SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
 # eventos que merecem acordar alguém na hora
-GRAVES = {"queda", "agitacao", "objeto_perigoso", "patrimonio_sumiu"}
+GRAVES = {"queda", "agitacao", "objeto_perigoso", "objeto_suspeito",
+          "patrimonio_sumiu"}
 
 
 def carregar_env() -> None:

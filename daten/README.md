@@ -196,6 +196,8 @@ daten/
 │   ├── capture_once.py  # teste do Passo 6 (1 frame)
 │   ├── db.py            # SQLite: students, attendance, camera_status, security_events
 │   ├── retencao.py      # descarte automático de biometria vencida (LGPD)
+│   ├── armas.py         # objeto suspeito (YOLOv8 ONNX) — desligado por padrão
+│   ├── ponte.py         # envia evento para a cadeia de hash do Auditix
 │   ├── bench.py         # mede DETECT_WIDTH e SFACE_BACKEND no próprio aparelho
 │   └── main.py          # FastAPI + dashboard
 ├── config/
@@ -215,4 +217,6 @@ daten/
   e evento **pendente de validação humana**, nunca acusação.
 - Retenção (Art. 14): biometria **vence e some sozinha**, e a presença já
   registrada sobrevive ao descarte. Ver seção 8.
+- Objeto suspeito: desligado por padrão, limiar alto, exige persistência e
+  **nunca leva nome de aluno**. Ver `models/README.md`.
 ```

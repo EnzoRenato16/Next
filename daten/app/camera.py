@@ -12,7 +12,7 @@ from collections import defaultdict
 
 import cv2
 
-from . import config, db
+from . import config, db, ponte
 from .recognizer import FaceEngine
 
 
@@ -33,6 +33,10 @@ class Pipeline:
         # estado de reconhecimento
         self.engine = None
         self.enrolled = 0
+        # objeto suspeito (desligado por padrao; ver config.ARMAS_ATIVO)
+        self.armas = None
+        self.confirmador = None
+        self._ultimas_armas = []
         self._hits = defaultdict(int)     # student_id -> frames confirmando
         self._present = {}                 # student_id -> {name, confidence, since}
         self._present_lock = threading.Lock()
@@ -48,6 +52,18 @@ class Pipeline:
         except Exception as e:  # sem modelos ou sem cadastro: segue so com video
             self.last_error = f"FaceEngine off: {e}"
             print("[AVISO]", self.last_error)
+
+        # Camada de objeto suspeito. Falhar aqui NAO pode derrubar a presenca:
+        # e uma camada a mais, nao a razao de o sistema existir.
+        if config.ARMAS_ATIVO:
+            try:
+                from .armas import DetectorArmas, Confirmador
+                self.armas = DetectorArmas()
+                self.confirmador = Confirmador()
+                print(f"[OK] Objeto suspeito ligado ({self.armas.backend}, "
+                      f"limiar {config.ARMA_CONF}, {config.ARMA_HITS} leituras).")
+            except Exception as e:
+                print(f"[AVISO] Objeto suspeito off: {e}")
         self._thread.start()
 
     def stop(self):
@@ -71,6 +87,12 @@ class Pipeline:
             "cadastrados": self.enrolled,
             "presentes": len(self._present),
             "model_status": "ok" if self.engine else "sem_modelo",
+            "objeto_suspeito": {
+                "ativo": self.armas is not None,
+                "backend": self.armas.backend if self.armas else None,
+                "limiar": config.ARMA_CONF,
+                "na_tela": len(self._ultimas_armas),
+            },
             "last_error": self.last_error,
             "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
         }
@@ -114,6 +136,11 @@ class Pipeline:
             # Reconhecimento com frame-skip
             if self.engine and (n % config.DETECT_EVERY == 0):
                 self._process_faces(frame)
+
+            # Objeto suspeito: mais caro que o rosto, roda mais espacado
+            if self.armas and (n % config.ARMA_CADA == 0):
+                self._process_armas(frame)
+            self._desenhar_armas(frame)
 
             self._draw_hud(frame)
             with self.lock:
@@ -162,6 +189,36 @@ class Pipeline:
         for sid in list(self._hits):
             if sid not in seen_now:
                 self._hits[sid] = max(0, self._hits[sid] - 1)
+
+    # ---- objeto suspeito ---------------------------------------------------
+    def _process_armas(self, frame):
+        try:
+            achados = self.armas.detectar(frame)
+        except Exception as e:
+            self.last_error = f"armas: {e}"
+            return
+        self._ultimas_armas = achados
+
+        for a in self.confirmador.passo(achados, time.time()):
+            texto = f"{a['rotulo']} ({a['conf']:.0%})"
+            print(f"[OBJETO SUSPEITO] {texto} — pendente de validacao humana")
+            db.log_security_event("objeto_suspeito", texto, a["conf"])
+            # Sem aluno_id de proposito: ver o comentario em ponte.enviar_evento.
+            ponte.enviar_evento("objeto_suspeito", config.ROOM_ID)
+
+    def _desenhar_armas(self, frame):
+        """Desenha o que a ULTIMA leitura achou, em todos os quadros.
+
+        A deteccao roda espacada; sem repintar entre uma e outra a caixa
+        piscaria e daria a impressao de que o sistema esta incerto quando ele
+        so esta economizando CPU.
+        """
+        for a in self._ultimas_armas:
+            x, y, w, h = a["box"]
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (61, 83, 222), 2)
+            cv2.putText(frame, f"{a['rotulo']} {a['conf']:.2f}",
+                        (x, max(20, y - 8)), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.55, (61, 83, 222), 2)
 
     def _draw_hud(self, frame):
         txt = (f"EduVision | {config.GROUP_ID} | {self.width}x{self.height} | "
