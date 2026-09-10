@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel Auditix</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+/* ===========================================================================
+   Painel Auditix — leitura do banco da escola.
+   Mesma família visual da Sala e da Portaria. A diferença de papel é a regra
+   que organiza a página: aquelas duas GRAVAM, esta só LÊ. Nada aqui escreve
+   no banco, e é por isso que ela pode ficar aberta na sala da coordenação.
+
+   Sobre as cores dos gráficos, porque a escolha não foi de gosto:
+   verde/âmbar/rubi/azul da marca REPROVARAM como paleta categórica (o par
+   rubi↔âmbar fica a ΔE 14,1 para quem enxerga cor normalmente, abaixo do piso
+   de 15). Isso não é defeito das cores: elas foram feitas para dizer ESTADO,
+   não identidade de série. Então cada uso ficou com o que lhe cabe:
+
+     · magnitude (por tipo, por local, por hora, mapa de calor)
+       -> rampa sequencial de um matiz só, tirada do verde da marca,
+          com luminosidade monótona. Mais forte = mais eventos (no claro isso
+          é o tom mais escuro; no escuro, o mais claro).
+     · estado (cadeia íntegra, evento grave)
+       -> as cores semânticas da marca, SEMPRE com ícone e rótulo junto,
+          nunca cor sozinha.
+
+   As duas rampas e todos os status foram conferidos contra as superfícies
+   reais desta página (#FFFFFF no claro, #16211E no escuro).
+   =========================================================================== */
+:root{
+  --paper:#F3F6F4; --card:#FFFFFF; --sunk:#E9EEEB;
+  --ink:#13221E;   --ink-2:#4C5F59; --ink-3:#7D8F89;
+  --line:#DBE3DF;  --line-2:#EAF0ED;
+
+  /* Estado. Contraste de texto conferido sobre o card: todos acima de 6:1. */
+  --verde:#1B6B55; --verde-luz:#E3F2EC; --verde-linha:#A8D6C6;
+  --ambar:#8A5309; --ambar-luz:#FBF0DC; --ambar-linha:#E6C48A;
+  --rubi:#A3374A;  --rubi-luz:#FBE9EC;  --rubi-linha:#E3AAB4;
+  --azul:#2C5D8A;  --azul-luz:#E6EFF7;
+
+  /* Rampa sequencial, fraco -> forte. Luminosidade monótona, um matiz só. */
+  --s1:#7FC3AC; --s2:#4FA087; --s3:#2A7F67; --s4:#186049; --s5:#0C4334;
+  --grade:#E4EBE8;
+
+  --disp:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;
+  --corpo:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --ease:cubic-bezier(.2,.8,.2,1);
+  --r:10px;
+  --sombra:0 1px 2px rgba(19,34,30,.05), 0 8px 24px rgba(19,34,30,.06);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+    --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+    --line:#26332F;  --line-2:#1E2A27;
+    --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+    --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+    --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+    --azul:#7FB2DE;  --azul-luz:#142634;
+    /* A rampa escura tem passos PRÓPRIOS, medidos contra #16211E. Não é a
+       clara invertida: inverter deixaria a ponta fraca invisível no escuro. */
+    --s1:#1A5F4B; --s2:#28806A; --s3:#44A188; --s4:#77C2AB; --s5:#AEDACB;
+    --grade:#22302C;
+    --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0F1614; --card:#16211E; --sunk:#1D2A26;
+  --ink:#E6EDEA;   --ink-2:#A8BAB4; --ink-3:#7A8D87;
+  --line:#26332F;  --line-2:#1E2A27;
+  --verde:#5FBFA0; --verde-luz:#16302A; --verde-linha:#2C5A4C;
+  --ambar:#DFA94E; --ambar-luz:#312512; --ambar-linha:#5C441C;
+  --rubi:#DE8797;  --rubi-luz:#31161C;  --rubi-linha:#5C2D37;
+  --azul:#7FB2DE;  --azul-luz:#142634;
+  --s1:#1A5F4B; --s2:#28806A; --s3:#44A188; --s4:#77C2AB; --s5:#AEDACB;
+  --grade:#22302C;
+  --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+}
+
+*{ box-sizing:border-box; min-width:0; }
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:var(--corpo); font-size:14px; line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+.env{ max-width:1240px; margin:0 auto; padding-block:22px; padding-left:20px; padding-right:20px; }
+
+/* ---------------------------------------------------------------- topo --- */
+header{ display:flex; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:20px; }
+header .marca h1{
+  font-family:var(--disp); font-size:26px; font-weight:700; margin:0;
+  letter-spacing:-.02em;
+}
+header .marca p{ margin:3px 0 0; color:var(--ink-2); font-size:13.5px; }
+.selos{ margin-left:auto; display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.selo{
+  display:inline-flex; align-items:center; gap:6px; padding:5px 11px;
+  border-radius:999px; font-size:12px; font-weight:500;
+  background:var(--sunk); color:var(--ink-2); border:1px solid var(--line);
+  white-space:nowrap;
+}
+.selo.ok{ background:var(--verde-luz); color:var(--verde); border-color:var(--verde-linha); }
+.selo.mal{ background:var(--rubi-luz); color:var(--rubi); border-color:var(--rubi-linha); }
+.selo b{ font-family:var(--mono); font-weight:500; }
+.pisca{ width:7px; height:7px; border-radius:50%; background:currentColor; }
+.pisca.vivo{ animation:pulso 2s var(--ease) infinite; }
+@keyframes pulso{ 0%,100%{opacity:1} 50%{opacity:.32} }
+.btn{
+  font:inherit; font-size:12.5px; padding:5px 11px; border-radius:8px; cursor:pointer;
+  background:var(--card); color:var(--ink-2); border:1px solid var(--line);
+  transition:background .15s var(--ease), color .15s var(--ease);
+}
+.btn:hover{ background:var(--sunk); color:var(--ink); }
+.btn[aria-pressed="true"]{ background:var(--ink); color:var(--card); border-color:var(--ink); }
+
+/* --------------------------------------------------------------- cards --- */
+.cartao{
+  background:var(--card); border:1px solid var(--line); border-radius:var(--r);
+  box-shadow:var(--sombra);
+}
+.cartao-topo{
+  display:flex; align-items:baseline; gap:10px; padding:14px 18px 0; flex-wrap:wrap;
+}
+.cartao-topo h2{
+  font-family:var(--disp); font-size:14.5px; font-weight:600; margin:0; letter-spacing:-.01em;
+}
+.cartao-topo .sub{ font-size:12px; color:var(--ink-3); }
+.cartao-topo .dir{ margin-left:auto; display:flex; gap:6px; align-items:center; }
+.corpo{ padding:12px 18px 18px; }
+
+.grade{ display:grid; gap:14px; }
+.g2{ grid-template-columns:1fr 1fr; }
+@media (max-width:860px){ .g2{ grid-template-columns:1fr; } }
+
+/* ----------------------------------------------------------- cabeçalho --- */
+/* A integridade é a AFIRMAÇÃO do projeto, então ela é o número herói da
+   página, não um cartãozinho no meio dos outros. */
+.faixa{ display:grid; grid-template-columns:minmax(280px,1.15fr) 2fr; gap:14px; margin-bottom:14px; }
+@media (max-width:900px){ .faixa{ grid-template-columns:1fr; } }
+
+.heroi{ padding:20px 22px; display:flex; flex-direction:column; justify-content:center; }
+.heroi .rot{ font-size:12px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; }
+.heroi .valor{
+  font-family:var(--disp); font-size:40px; line-height:1.08; font-weight:700;
+  margin:8px 0 2px; letter-spacing:-.03em; display:flex; align-items:center; gap:10px;
+}
+.heroi .valor svg{ flex:none; }
+.heroi.bom .valor{ color:var(--verde); }
+.heroi.ruim .valor{ color:var(--rubi); }
+.heroi .nota{ font-size:12.5px; color:var(--ink-2); margin-top:6px; }
+.heroi .nota code{ font-family:var(--mono); font-size:11.5px; }
+
+.kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:14px; }
+@media (max-width:760px){ .kpis{ grid-template-columns:repeat(2,1fr); } }
+.kpi{ padding:16px 18px; display:flex; flex-direction:column; gap:2px; }
+.kpi .rot{ font-size:11.5px; color:var(--ink-3); text-transform:uppercase; letter-spacing:.06em; }
+.kpi .n{ font-family:var(--disp); font-size:27px; font-weight:700; letter-spacing:-.02em; }
+.kpi .pe{ font-size:12px; color:var(--ink-2); }
+.kpi.aviso .n{ color:var(--ambar); }
+
+/* -------------------------------------------------------------- legenda -- */
+.legenda{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--ink-2); }
+.legenda span{ display:inline-flex; align-items:center; gap:6px; }
+.legenda i{ width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
+.legenda i.linha{ height:3px; border-radius:2px; }
+
+/* -------------------------------------------------------------- gráfico -- */
+.plot{ width:100%; display:block; }
+.plot text{ font-family:var(--corpo); }
+.vazio{
+  padding:34px 16px; text-align:center; color:var(--ink-3); font-size:13px;
+  background:var(--sunk); border-radius:8px;
+}
+
+/* dica flutuante, uma só para a página inteira */
+#dica{
+  position:fixed; z-index:60; pointer-events:none; opacity:0;
+  transition:opacity .12s var(--ease);
+  background:var(--ink); color:var(--paper); border-radius:8px;
+  padding:8px 11px; font-size:12.5px; line-height:1.45; max-width:230px;
+  box-shadow:0 6px 20px rgba(0,0,0,.22);
+}
+#dica.on{ opacity:1; }
+#dica b{ font-family:var(--mono); font-weight:500; }
+#dica .t{ display:block; font-weight:600; margin-bottom:2px; }
+
+/* --------------------------------------------------------------- tabela -- */
+.rolagem{ overflow-x:auto; }
+table{ width:100%; border-collapse:collapse; font-size:13px; }
+th{
+  text-align:left; font-size:11.5px; text-transform:uppercase; letter-spacing:.05em;
+  color:var(--ink-3); font-weight:600; padding:8px 10px; border-bottom:1px solid var(--line);
+  white-space:nowrap;
+}
+td{ padding:8px 10px; border-bottom:1px solid var(--line-2); vertical-align:middle; }
+tbody tr:last-child td{ border-bottom:0; }
+td.num{ text-align:right; font-family:var(--mono); }
+td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
+.marca-grave{
+  display:inline-flex; align-items:center; gap:5px; padding:2px 8px; border-radius:999px;
+  background:var(--rubi-luz); color:var(--rubi); border:1px solid var(--rubi-linha);
+  font-size:11.5px; font-weight:500; white-space:nowrap;
+}
+.marca-comum{ color:var(--ink-2); font-size:12.5px; }
+
+.rodape{ margin-top:18px; font-size:12px; color:var(--ink-3); line-height:1.6; }
+.rodape b{ color:var(--ink-2); font-weight:600; }
+</style>
+</head>
+<body>
+<div id="dica" role="tooltip"></div>
+
+<div class="env">
+
+<header>
+  <div class="marca">
+    <h1>Painel Auditix</h1>
+    <p>Leitura do banco da escola · esta página <b>não grava nada</b></p>
+  </div>
+  <div class="selos">
+    <span class="selo" id="s-banco"><span class="pisca"></span>conectando…</span>
+    <span class="selo" id="s-atual">—</span>
+    <button class="btn" id="b-tema" title="Alternar tema">Tema</button>
+  </div>
+</header>
+
+<!-- ===================== integridade + KPIs ===================== -->
+<div class="faixa">
+  <div class="cartao heroi" id="heroi">
+    <span class="rot">Cadeia de hash</span>
+    <span class="valor" id="h-valor">—</span>
+    <span class="nota" id="h-nota">conferindo a corrente desde a gênese…</span>
+  </div>
+
+  <div class="kpis">
+    <div class="cartao kpi">
+      <span class="rot">Eventos</span>
+      <span class="n" id="k-total">—</span>
+      <span class="pe" id="k-total-pe">na janela</span>
+    </div>
+    <div class="cartao kpi aviso">
+      <span class="rot">Graves</span>
+      <span class="n" id="k-graves">—</span>
+      <span class="pe" id="k-graves-pe">queda · agitação · objeto · patrimônio</span>
+    </div>
+    <div class="cartao kpi">
+      <span class="rot">Dia mais cheio</span>
+      <span class="n" id="k-pico">—</span>
+      <span class="pe" id="k-pico-pe">—</span>
+    </div>
+    <div class="cartao kpi">
+      <span class="rot">Horário de pico</span>
+      <span class="n" id="k-hora">—</span>
+      <span class="pe" id="k-hora-pe">—</span>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== série por dia ===================== -->
+<div class="cartao" style="margin-bottom:14px">
+  <div class="cartao-topo">
+    <h2>Eventos por dia</h2>
+    <span class="sub" id="t-serie">últimos 30 dias</span>
+    <div class="dir">
+      <button class="btn" data-dias="7">7d</button>
+      <button class="btn" data-dias="30" aria-pressed="true">30d</button>
+      <button class="btn" data-dias="90">90d</button>
+      <button class="btn" id="b-tabela" aria-pressed="false" title="Mesmos dados em tabela">Tabela</button>
+    </div>
+  </div>
+  <div class="corpo">
+    <div class="legenda" style="margin-bottom:10px">
+      <span><i style="background:var(--s3)"></i>todos os eventos</span>
+      <span><i class="linha" style="background:var(--rubi)"></i>graves</span>
+    </div>
+    <div id="serie-plot"></div>
+    <div id="serie-tabela" hidden class="rolagem" style="margin-top:8px"></div>
+  </div>
+</div>
+
+<!-- ===================== hora + tipo ===================== -->
+<div class="grade g2" style="margin-bottom:14px">
+  <div class="cartao">
+    <div class="cartao-topo">
+      <h2>Onde o dia aperta</h2>
+      <span class="sub">eventos por hora, somando a janela</span>
+    </div>
+    <div class="corpo"><div id="hora-plot"></div></div>
+  </div>
+
+  <div class="cartao">
+    <div class="cartao-topo">
+      <h2>Por tipo de evento</h2>
+      <span class="sub">base inteira</span>
+    </div>
+    <div class="corpo"><div id="tipo-plot"></div></div>
+  </div>
+</div>
+
+<!-- ===================== local + mapa ===================== -->
+<div class="grade g2" style="margin-bottom:14px">
+  <div class="cartao">
+    <div class="cartao-topo">
+      <h2>Por local</h2>
+      <span class="sub">base inteira</span>
+    </div>
+    <div class="corpo"><div id="local-plot"></div></div>
+  </div>
+
+  <div class="cartao">
+    <div class="cartao-topo">
+      <h2>Mapa de calor</h2>
+      <span class="sub" id="t-mapa">câmera sala-12</span>
+    </div>
+    <div class="corpo">
+      <div id="mapa-plot"></div>
+      <p class="sub" style="margin:10px 0 0; color:var(--ink-3); font-size:12px;">
+        Cada célula é uma passagem contada pela grade, não uma pessoa. Dá para ver
+        onde a sala engarrafa sem saber quem passou por ali.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== últimos eventos ===================== -->
+<div class="cartao">
+  <div class="cartao-topo">
+    <h2>Últimos eventos</h2>
+    <span class="sub">com o hash que fecha cada elo</span>
+  </div>
+  <div class="corpo"><div class="rolagem"><div id="tabela"></div></div></div>
+</div>
+
+<p class="rodape">
+  <b>Como ler esta página.</b> A intensidade da cor mede quantidade: quanto mais
+  forte o tom, mais eventos — no tema claro isso é o verde mais escuro, no tema
+  escuro é o mais claro, porque o contraste é contra o fundo de cada um.
+  As cores de estado (verde, âmbar, rubi) nunca aparecem
+  sozinhas — vêm sempre com ícone e texto, porque cor sozinha não é informação
+  para quem não a distingue.<br>
+  <b>Alerta não é acusação.</b> Um evento aqui é registro para conferência humana.
+  A tabela mostra o identificador do aluno porque esta tela é da coordenação; as
+  visões do Power BI (<code>views_powerbi.sql</code>) são agregadas de propósito e
+  não expõem linha a linha.
+</p>
+
+</div>
+
+<script>
+/* ===========================================================================
+   Sem biblioteca de gráfico, e não por teimosia: o projeto inteiro é
+   offline-first (o servidor cai de Postgres para SQLite sozinho), e um painel
+   que só desenha se um CDN responder contradiz isso na hora exata em que a
+   demonstração precisa funcionar. SVG na mão não depende de nada.
+   =========================================================================== */
+const el = id => document.getElementById(id);
+const NS = 'http://www.w3.org/2000/svg';
+const GRAVES = new Set(['queda','agitacao','objeto_perigoso','patrimonio_sumiu']);
+const ROTULO = {
+  queda:'queda', agitacao:'agitação', objeto_perigoso:'objeto perigoso',
+  patrimonio_sumiu:'patrimônio sumiu', entrada:'entrada', saida:'saída',
+  reconhecido:'reconhecido', desconhecido:'desconhecido'
+};
+const nome = t => ROTULO[t] || String(t).replace(/_/g,' ');
+const num = n => Number(n).toLocaleString('pt-BR');
+
+let estado = { serie:null, painel:null, mapa:null, eventos:null, dias:30, tabela:false };
+
+/* ------------------------------------------------------------- desenho --- */
+const cria = (tag, attrs={}) => {
+  const n = document.createElementNS(NS, tag);
+  for(const k in attrs) n.setAttribute(k, attrs[k]);
+  return n;
+};
+
+/* Barra com a ponta do dado arredondada e a base encostada na linha zero.
+   Arredondar os quatro cantos faria a barra flutuar; arredondar só a ponta é o
+   que deixa ela ancorada e ainda assim macia. */
+function barraV(x, y, w, h, r=4){
+  if(h <= 0.5) return `M${x} ${y+h} h${w}`;
+  const k = Math.min(r, w/2, h);
+  return `M${x} ${y+h} V${y+k} Q${x} ${y} ${x+k} ${y} H${x+w-k} Q${x+w} ${y} ${x+w} ${y+k} V${y+h} Z`;
+}
+function barraH(x, y, w, h, r=4){
+  if(w <= 0.5) return `M${x} ${y} v${h}`;
+  const k = Math.min(r, h/2, w);
+  return `M${x} ${y} H${x+w-k} Q${x+w} ${y} ${x+w} ${y+k} V${y+h-k} Q${x+w} ${y+h} ${x+w-k} ${y+h} H${x} Z`;
+}
+
+/* Escala com números que uma pessoa lê. Dividir o máximo em quatro dá 3,5 e
+   10,5; arredondar isso gera 4, 7, 11 — degraus irregulares que fazem o leitor
+   parar para conferir. Um passo "redondo" (1, 2, 5, 10, 20, 25, 50…) resolve. */
+function escalaBonita(max, alvoLinhas = 4){
+  if(max <= 0) return {topo:1, marcas:[0,1]};
+  const cru = max / alvoLinhas;
+  const mag = Math.pow(10, Math.floor(Math.log10(cru)));
+  const passo = [1, 2, 2.5, 5, 10].map(f => f*mag).find(v => v >= cru) || 10*mag;
+  const topo = Math.ceil(max / passo) * passo;
+  const marcas = [];
+  for(let v = 0; v <= topo + 1e-9; v += passo) marcas.push(Math.round(v*100)/100);
+  return {topo, marcas};
+}
+
+/* Passo da rampa por magnitude. Cinco degraus, sempre relativos ao maior valor
+   do próprio gráfico — assim a leitura não muda de significado entre painéis. */
+function degrau(v, max){
+  if(max <= 0) return 'var(--s1)';
+  const f = v / max;
+  return f > .8 ? 'var(--s5)' : f > .6 ? 'var(--s4)'
+       : f > .4 ? 'var(--s3)' : f > .2 ? 'var(--s2)' : 'var(--s1)';
+}
+
+/* --------------------------------------------------------------- dica ---- */
+const dica = el('dica');
+function mostrarDica(ev, titulo, linhas){
+  dica.innerHTML = '<span class="t">' + titulo + '</span>' + linhas;
+  dica.classList.add('on');
+  const r = dica.getBoundingClientRect();
+  let x = ev.clientX + 14, y = ev.clientY - r.height - 12;
+  if(x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+  if(y < 8) y = ev.clientY + 18;
+  dica.style.left = x + 'px'; dica.style.top = y + 'px';
+}
+const sumirDica = () => dica.classList.remove('on');
+addEventListener('scroll', sumirDica, {passive:true});
+
+/* Alvo de toque maior que a marca: a faixa invisível cobre a coluna inteira,
+   então não é preciso acertar uma barra de 3px de altura. */
+function alvo(g, x, y, w, h, titulo, linhas){
+  const a = cria('rect', {x, y, width:Math.max(w,1), height:Math.max(h,1), fill:'transparent'});
+  a.style.cursor = 'crosshair';
+  a.addEventListener('mousemove', e => mostrarDica(e, titulo, linhas));
+  a.addEventListener('mouseleave', sumirDica);
+  g.appendChild(a);
+}
+
+function vazio(alvoEl, txt){
+  alvoEl.innerHTML = '<div class="vazio">' + txt + '</div>';
+}
+
+/* ================================================== eventos por dia ====== */
+function pintarSerie(){
+  const cx = el('serie-plot');
+  const d = estado.serie;
+  if(!d) return;
+  if(!d.por_dia.length){ vazio(cx, 'Nenhum evento nesta janela.'); return; }
+
+  const larg = Math.max(cx.clientWidth || 640, 320);
+  const alt = 250;
+  const m = {t:14, d:16, b:30, e:44};
+  const pw = larg - m.e - m.d, ph = alt - m.t - m.b;
+  const dados = d.por_dia;
+  const esc = escalaBonita(Math.max(1, ...dados.map(p => p.total)));
+  const max = esc.topo;
+  const passo = pw / Math.max(dados.length - 1, 1);
+  const X = i => m.e + i * passo;
+  const Y = v => m.t + ph - (v / max) * ph;
+
+  const svg = cria('svg', {viewBox:`0 0 ${larg} ${alt}`, width:larg, height:alt, class:'plot'});
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label',`Eventos por dia: ${d.total} no total, ${d.graves} graves`);
+
+  /* Grade recessiva: atrás de tudo, no tom mais fraco. */
+  esc.marcas.forEach(v => {
+    svg.appendChild(cria('line', {x1:m.e, x2:larg-m.d, y1:Y(v), y2:Y(v),
+      stroke:'var(--grade)', 'stroke-width':1}));
+    const t = cria('text', {x:m.e-9, y:Y(v)+4, 'text-anchor':'end',
+      'font-size':11, fill:'var(--ink-3)'});
+    t.textContent = num(v); svg.appendChild(t);
+  });
+
+  /* Área de "todos os eventos": uma série só, então um matiz só. */
+  let linha = '', area = '';
+  dados.forEach((p,i) => {
+    linha += (i ? 'L' : 'M') + X(i) + ' ' + Y(p.total);
+  });
+  area = linha + `L${X(dados.length-1)} ${m.t+ph}L${X(0)} ${m.t+ph}Z`;
+  svg.appendChild(cria('path', {d:area, fill:'var(--s3)', opacity:.16}));
+  svg.appendChild(cria('path', {d:linha, fill:'none', stroke:'var(--s3)',
+    'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'}));
+
+  /* Graves por cima, na cor de estado. Vem com legenda e com o rótulo na dica:
+     nunca é só a cor dizendo o que é. */
+  let lg = '';
+  dados.forEach((p,i) => { lg += (i ? 'L' : 'M') + X(i) + ' ' + Y(p.graves); });
+  svg.appendChild(cria('path', {d:lg, fill:'none', stroke:'var(--rubi)',
+    'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'}));
+
+  /* Datas: quantas COUBEREM, não um número fixo. Cada rótulo "12/08" ocupa uns
+     52px com folga; num celular isso dá 4 ou 5, e não os 8 de um monitor. A
+     última data só entra se não for encostar na anterior. */
+  const cabem = Math.max(2, Math.floor(pw / 52));
+  const salto = Math.ceil(dados.length / cabem);
+  const marcarDia = i => {
+    const t = cria('text', {x:X(i), y:alt-10, 'text-anchor':'middle',
+      'font-size':11, fill:'var(--ink-3)'});
+    t.textContent = dados[i].dia.slice(8) + '/' + dados[i].dia.slice(5,7);
+    svg.appendChild(t);
+  };
+  let ultimo = -1;
+  for(let i=0; i<dados.length; i+=salto){ marcarDia(i); ultimo = i; }
+  const fim = dados.length - 1;
+  if(fim > ultimo && (fim - ultimo) * passo >= 52) marcarDia(fim);
+
+  /* Fio-guia + marcador, um por coluna. */
+  const guia = cria('line', {y1:m.t, y2:m.t+ph, stroke:'var(--ink-3)',
+    'stroke-width':1, 'stroke-dasharray':'3 3', opacity:0});
+  svg.appendChild(guia);
+  const pt = cria('circle', {r:5, fill:'var(--s3)', stroke:'var(--card)',
+    'stroke-width':2, opacity:0});
+  const ptg = cria('circle', {r:5, fill:'var(--rubi)', stroke:'var(--card)',
+    'stroke-width':2, opacity:0});
+  svg.appendChild(pt); svg.appendChild(ptg);
+
+  const capa = cria('rect', {x:m.e, y:m.t, width:pw, height:ph, fill:'transparent'});
+  capa.style.cursor = 'crosshair';
+  capa.addEventListener('mousemove', e => {
+    const cxr = svg.getBoundingClientRect();
+    const rel = (e.clientX - cxr.left) * (larg / cxr.width);
+    const i = Math.max(0, Math.min(dados.length-1, Math.round((rel - m.e) / passo)));
+    const p = dados[i];
+    guia.setAttribute('x1', X(i)); guia.setAttribute('x2', X(i)); guia.setAttribute('opacity', 1);
+    pt.setAttribute('cx', X(i)); pt.setAttribute('cy', Y(p.total)); pt.setAttribute('opacity',1);
+    ptg.setAttribute('cx', X(i)); ptg.setAttribute('cy', Y(p.graves)); ptg.setAttribute('opacity',1);
+    const dt = new Date(p.dia + 'T12:00:00');
+    mostrarDica(e, dt.toLocaleDateString('pt-BR', {day:'2-digit', month:'short'}),
+      'todos <b>' + num(p.total) + '</b><br>graves <b>' + num(p.graves) + '</b>');
+  });
+  capa.addEventListener('mouseleave', () => {
+    sumirDica(); guia.setAttribute('opacity',0);
+    pt.setAttribute('opacity',0); ptg.setAttribute('opacity',0);
+  });
+  svg.appendChild(capa);
+
+  cx.replaceChildren(svg);
+
+  /* A tabela é a via de acesso para quem não lê o gráfico. */
+  const tb = el('serie-tabela');
+  tb.innerHTML = '<table><thead><tr><th>Dia</th><th style="text-align:right">Todos</th>' +
+    '<th style="text-align:right">Graves</th></tr></thead><tbody>' +
+    dados.slice().reverse().map(p => '<tr><td>' +
+      new Date(p.dia+'T12:00:00').toLocaleDateString('pt-BR') +
+      '</td><td class="num">' + num(p.total) + '</td><td class="num">' +
+      num(p.graves) + '</td></tr>').join('') + '</tbody></table>';
+}
+
+/* ================================================== eventos por hora ===== */
+function pintarHora(){
+  const cx = el('hora-plot');
+  const d = estado.serie;
+  if(!d) return;
+  const dados = d.por_hora;
+  if(!dados.some(h => h.n)){ vazio(cx, 'Sem eventos na janela.'); return; }
+
+  const larg = Math.max(cx.clientWidth || 480, 280);
+  const alt = 218, m = {t:12, d:8, b:26, e:34};
+  const pw = larg - m.e - m.d, ph = alt - m.t - m.b;
+  const esc = escalaBonita(Math.max(...dados.map(h => h.n)), 2);
+  const max = esc.topo;
+  const bw = pw / 24;
+
+  const svg = cria('svg', {viewBox:`0 0 ${larg} ${alt}`, width:larg, height:alt, class:'plot'});
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label','Eventos por hora do dia');
+
+  esc.marcas.forEach(v => {
+    const y = m.t + ph - (v/max)*ph;
+    svg.appendChild(cria('line', {x1:m.e, x2:larg-m.d, y1:y, y2:y, stroke:'var(--grade)', 'stroke-width':1}));
+    const t = cria('text', {x:m.e-8, y:y+4, 'text-anchor':'end', 'font-size':11, fill:'var(--ink-3)'});
+    t.textContent = num(v); svg.appendChild(t);
+  });
+
+  dados.forEach(h => {
+    const bh = (h.n/max)*ph, x = m.e + h.hora*bw, y = m.t + ph - bh;
+    /* 2px de folga entre barras vizinhas: o vão é o que separa, não uma borda. */
+    svg.appendChild(cria('path', {d:barraV(x+1, y, Math.max(bw-2,1), bh),
+      fill:degrau(h.n, max)}));
+    if(h.hora % 3 === 0){
+      const t = cria('text', {x:x+bw/2, y:alt-9, 'text-anchor':'middle',
+        'font-size':10.5, fill:'var(--ink-3)'});
+      t.textContent = String(h.hora).padStart(2,'0') + 'h';
+      svg.appendChild(t);
+    }
+    alvo(svg, x, m.t, bw, ph, String(h.hora).padStart(2,'0') + 'h às ' +
+      String((h.hora+1)%24).padStart(2,'0') + 'h', '<b>' + num(h.n) + '</b> eventos');
+  });
+  cx.replaceChildren(svg);
+}
+
+/* ============================================ barras horizontais ========= */
+/* Nome comprido cabe melhor deitado. Vale para tipo e para local. */
+function barrasH(alvoEl, itens, rotulo, valor, aria){
+  if(!itens.length){ vazio(alvoEl, 'Nada registrado ainda.'); return; }
+  const larg = Math.max(alvoEl.clientWidth || 480, 280);
+  const rotL = Math.min(132, Math.max(88, Math.round(larg * .3)));
+  const linhaH = 27, m = {t:6, d:46, b:6};
+  const alt = m.t + itens.length*linhaH + m.b;
+  const pw = larg - rotL - m.d;
+  const max = Math.max(...itens.map(valor));
+
+  const svg = cria('svg', {viewBox:`0 0 ${larg} ${alt}`, width:larg, height:alt, class:'plot'});
+  svg.setAttribute('role','img'); svg.setAttribute('aria-label', aria);
+  const rotulos = [];
+
+  itens.forEach((it,i) => {
+    const v = valor(it), y = m.t + i*linhaH;
+    const bh = 15, by = y + (linhaH-bh)/2;
+    const bw = max ? (v/max)*pw : 0;
+
+    const r = cria('text', {x:rotL-10, y:by+11.5, 'text-anchor':'end',
+      'font-size':12.5, fill:'var(--ink-2)'});
+    r.textContent = rotulo(it);
+    svg.appendChild(r);
+    rotulos.push(r);
+
+    svg.appendChild(cria('path', {d:barraH(rotL, by, Math.max(bw,2), bh), fill:degrau(v, max)}));
+
+    /* Rótulo direto no fim da barra: o número não precisa de eixo para ser lido. */
+    const n = cria('text', {x:rotL+bw+8, y:by+11.5, 'font-size':12,
+      fill:'var(--ink-2)', 'font-family':'var(--mono)'});
+    n.textContent = num(v);
+    svg.appendChild(n);
+
+    alvo(svg, 0, y, larg, linhaH, rotulo(it), '<b>' + num(v) + '</b> eventos');
+  });
+  alvoEl.replaceChildren(svg);
+  /* A aparagem vem DEPOIS de inserir: getComputedTextLength devolve 0 enquanto
+     o nó não está no documento, e aí a medida passa por qualquer largura e o
+     rótulo continua cortado. O nome inteiro fica na dica ao passar o mouse. */
+  rotulos.forEach(r => encurtar(r, rotL - 14));
+}
+
+/* Apara um <text> até caber na largura dada, terminando em reticências. Usa
+   getComputedTextLength, que é a medida real do que foi desenhado: estimar por
+   número de caracteres erra feio com fonte proporcional. */
+function encurtar(nodo, maxLargura){
+  if(maxLargura <= 0 || nodo.getComputedTextLength() <= maxLargura) return;
+  const cheio = nodo.textContent;
+  let lo = 1, hi = cheio.length;
+  while(lo < hi){
+    const meio = Math.ceil((lo + hi) / 2);
+    nodo.textContent = cheio.slice(0, meio) + '…';
+    if(nodo.getComputedTextLength() <= maxLargura) lo = meio; else hi = meio - 1;
+  }
+  nodo.textContent = cheio.slice(0, lo) + '…';
+}
+
+function pintarTipo(){
+  const p = estado.painel; if(!p) return;
+  /* O ▲ vem ANTES do nome de propósito: numa tela estreita o rótulo é aparado
+     pelo fim, e um marcador no fim seria o primeiro a sumir — justo o de
+     "objeto perigoso", que é onde ele importa. Aqui a magnitude é dita pela
+     rampa e a gravidade só por este símbolo, então ele não pode cair. */
+  barrasH(el('tipo-plot'), p.por_tipo,
+    it => (GRAVES.has(it.tipo) ? '▲ ' : '') + nome(it.tipo),
+    it => it.n, 'Eventos por tipo');
+}
+function pintarLocal(){
+  const p = estado.painel; if(!p) return;
+  barrasH(el('local-plot'), p.por_local, it => it.local, it => it.n, 'Eventos por local');
+}
+
+/* ================================================== mapa de calor ======== */
+function pintarMapa(){
+  const cx = el('mapa-plot');
+  const d = estado.mapa; if(!d) return;
+  if(!d.celulas.length){ vazio(cx, 'A sala ainda não mandou grade de passagem.'); return; }
+
+  const mx = Math.max(...d.celulas.map(c => c.x)) + 1;
+  const my = Math.max(...d.celulas.map(c => c.y)) + 1;
+  const larg = Math.max(cx.clientWidth || 420, 260);
+  const cel = Math.floor(larg / mx);
+  const alt = cel * my;
+
+  const svg = cria('svg', {viewBox:`0 0 ${cel*mx} ${alt}`, width:cel*mx, height:alt, class:'plot'});
+  svg.setAttribute('role','img');
+  svg.setAttribute('aria-label', `Mapa de calor da câmera ${d.camera}, pico ${d.pico}`);
+
+  const mapa = new Map(d.celulas.map(c => [c.x+','+c.y, c.n]));
+  for(let y=0; y<my; y++) for(let x=0; x<mx; x++){
+    const n = mapa.get(x+','+y) || 0;
+    /* 2px de folga: células coladas viram uma mancha só. */
+    const r = cria('rect', {x:x*cel+1, y:y*cel+1, width:cel-2, height:cel-2, rx:3,
+      fill: n ? degrau(n, d.pico) : 'var(--sunk)'});
+    svg.appendChild(r);
+    const a = cria('rect', {x:x*cel, y:y*cel, width:cel, height:cel, fill:'transparent'});
+    a.style.cursor='crosshair';
+    a.addEventListener('mousemove', e => mostrarDica(e, `célula ${x}, ${y}`,
+      n ? '<b>' + num(n) + '</b> passagens' : 'nenhuma passagem'));
+    a.addEventListener('mouseleave', sumirDica);
+    svg.appendChild(a);
+  }
+  cx.replaceChildren(svg);
+  el('t-mapa').textContent = 'câmera ' + d.camera + ' · pico ' + num(d.pico);
+}
+
+/* ================================================== tabela de eventos ==== */
+function pintarTabela(){
+  const evs = estado.eventos; if(!evs) return;
+  if(!evs.length){ vazio(el('tabela'), 'Nenhum evento gravado ainda.'); return; }
+  el('tabela').innerHTML =
+    '<table><thead><tr><th>#</th><th>Quando</th><th>Tipo</th><th>Local</th>' +
+    '<th>Aluno</th><th>Hash</th></tr></thead><tbody>' +
+    evs.map(e => {
+      const grave = GRAVES.has(e.tipo_evento);
+      const q = new Date(e.timestamp.replace(' ','T') + 'Z');
+      const quando = isNaN(q) ? e.timestamp
+        : q.toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+      return '<tr><td class="num" style="color:var(--ink-3)">' + e.id + '</td>' +
+        '<td>' + quando + '</td>' +
+        '<td>' + (grave
+          ? '<span class="marca-grave">▲ ' + nome(e.tipo_evento) + '</span>'
+          : '<span class="marca-comum">' + nome(e.tipo_evento) + '</span>') + '</td>' +
+        '<td>' + e.localizacao + '</td>' +
+        '<td class="hash">' + e.aluno_id + '</td>' +
+        '<td><span class="hash">' + e.hash_atual.slice(0,12) + '…</span></td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+/* ================================================== cabeçalho ============ */
+function pintarTopo(){
+  const p = estado.painel, s = estado.serie;
+  if(p && p.integridade){
+    const g = p.integridade;
+    const h = el('heroi');
+    h.className = 'cartao heroi ' + (g.integra ? 'bom' : 'ruim');
+    el('h-valor').innerHTML = (g.integra
+      ? '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>íntegra'
+      : '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>quebrada');
+    el('h-nota').innerHTML = g.integra
+      ? num(g.total) + ' elos recalculados desde a gênese, todos fechando. ' +
+        'Mexer numa linha antiga quebraria a corrente daqui para a frente.'
+      : 'Quebrou na linha <code>#' + g.quebrou_em + '</code> — ' + g.motivo +
+        '. As linhas anteriores continuam válidas.';
+    const b = el('s-banco');
+    b.className = 'selo ' + (g.integra ? 'ok' : 'mal');
+    b.innerHTML = '<span class="pisca vivo"></span>' +
+      (g.banco === 'postgres' ? 'Postgres' : 'SQLite local');
+  }
+  if(s){
+    el('k-total').textContent = num(s.total);
+    el('k-total-pe').textContent = 'nos últimos ' + s.dias + ' dias';
+    el('k-graves').textContent = num(s.graves);
+    const pct = s.total ? Math.round(s.graves / s.total * 100) : 0;
+    el('k-graves-pe').textContent = pct + '% do período · pendentes de conferência';
+
+    const pico = s.por_dia.reduce((a,b) => b.total > (a?.total ?? -1) ? b : a, null);
+    if(pico){
+      el('k-pico').textContent = num(pico.total);
+      el('k-pico-pe').textContent = new Date(pico.dia+'T12:00:00')
+        .toLocaleDateString('pt-BR', {day:'2-digit', month:'short'});
+    }
+    const hp = s.por_hora.reduce((a,b) => b.n > a.n ? b : a, {hora:0,n:0});
+    el('k-hora').textContent = String(hp.hora).padStart(2,'0') + 'h';
+    el('k-hora-pe').textContent = num(hp.n) + ' eventos nessa faixa';
+  }
+  el('s-atual').textContent = 'atualizado ' +
+    new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'});
+}
+
+/* ================================================== dados ================ */
+async function pegar(url){
+  const r = await fetch(url, {cache:'no-store'});
+  if(!r.ok) throw new Error(url + ' respondeu ' + r.status);
+  return r.json();
+}
+
+async function carregar(){
+  try{
+    const [serie, painel, mapa, eventos] = await Promise.all([
+      pegar('/api/serie?dias=' + estado.dias),
+      pegar('/api/painel'),
+      pegar('/api/mapa'),
+      pegar('/api/eventos?limite=25'),
+    ]);
+    Object.assign(estado, {serie, painel, mapa, eventos});
+    pintarTudo();
+  }catch(e){
+    /* A página é servida pelo servidor.py. Aberta como arquivo solto ela não
+       tem de onde ler, e dizer isso é mais útil que um painel vazio. */
+    const b = el('s-banco');
+    b.className = 'selo mal';
+    b.innerHTML = '<span class="pisca"></span>sem servidor';
+    el('h-valor').textContent = '—';
+    el('h-nota').innerHTML = 'Não consegui falar com a API (<code>' + e.message +
+      '</code>). Esta página precisa ser servida pelo <code>servidor.py</code>: ' +
+      'rode <code>uv run servidor.py</code> e abra <code>/painel</code>.';
+  }
+}
+
+function pintarTudo(){
+  pintarTopo(); pintarSerie(); pintarHora();
+  pintarTipo(); pintarLocal(); pintarMapa(); pintarTabela();
+}
+
+/* Redesenha no tamanho real em vez de esticar o SVG: texto esticado fica
+   borrado e os rótulos passam a colidir em telas estreitas. */
+let quandoParar;
+addEventListener('resize', () => {
+  clearTimeout(quandoParar);
+  quandoParar = setTimeout(() => {
+    if(estado.serie){ pintarSerie(); pintarHora(); pintarTipo(); pintarLocal(); pintarMapa(); }
+  }, 140);
+});
+
+/* ------------------------------------------------------------ controles -- */
+document.querySelectorAll('[data-dias]').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('[data-dias]').forEach(o =>
+      o.setAttribute('aria-pressed', String(o === b)));
+    estado.dias = Number(b.dataset.dias);
+    el('t-serie').textContent = 'últimos ' + estado.dias + ' dias';
+    carregar();
+  });
+});
+
+el('b-tabela').addEventListener('click', () => {
+  estado.tabela = !estado.tabela;
+  el('b-tabela').setAttribute('aria-pressed', String(estado.tabela));
+  el('serie-tabela').hidden = !estado.tabela;
+  el('serie-plot').hidden = estado.tabela;
+});
+
+el('b-tema').addEventListener('click', () => {
+  const atual = document.documentElement.getAttribute('data-theme');
+  const escuro = atual ? atual === 'dark'
+    : matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', escuro ? 'light' : 'dark');
+  try{ localStorage.setItem('auditix.tema', escuro ? 'light' : 'dark'); }catch(e){}
+});
+try{
+  const t = localStorage.getItem('auditix.tema');
+  if(t) document.documentElement.setAttribute('data-theme', t);
+}catch(e){}
+
+carregar();
+setInterval(carregar, 15000);
+</script>
+</body>
+</html>
