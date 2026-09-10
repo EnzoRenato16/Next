@@ -45,14 +45,11 @@ from pydantic import BaseModel, Field
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
 PAINEL = AQUI / "auditix-painel.html"
-MODELOS_DIR  = AQUI / "modelos"
-MODELO_ARMAS = MODELOS_DIR / "objeto_suspeito_yolov8.onnx"
-ORT_DIR      = MODELOS_DIR / "ort"
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
 # eventos que merecem acordar alguém na hora
-GRAVES = {"queda", "agitacao", "objeto_perigoso", "objeto_suspeito",
+GRAVES = {"queda", "agitacao", "objeto_perigoso",
           "patrimonio_sumiu"}
 
 
@@ -412,96 +409,6 @@ def pagina_painel() -> FileResponse:
     if not PAINEL.exists():
         raise HTTPException(404, f"não achei {PAINEL.name} ao lado do servidor")
     return FileResponse(PAINEL, headers={"Cache-Control": "no-store, must-revalidate"})
-
-
-# So estes arquivos, e por nome exato. A pasta e servida ao navegador, entao um
-# caminho vindo da URL nunca pode escolher o que ler daqui.
-ORT_ARQUIVOS = {
-    "ort.wasm.min.js": "text/javascript",
-    "ort-wasm-simd-threaded.mjs": "text/javascript",
-    "ort-wasm-simd-threaded.wasm": "application/wasm",
-}
-
-
-# Isolamento de origem. Sem ele o navegador nao libera SharedArrayBuffer, e sem
-# SharedArrayBuffer o WebAssembly roda numa thread so. Medido nesta maquina, com
-# 4 nucleos: 453ms numa thread contra 152ms em quatro. Tres vezes mais rapido, e
-# e a diferenca entre "demora" e "aparece".
-#
-# "credentialless" e escolhido de proposito: com "require-corp" os arquivos de
-# CDN (MediaPipe, face-api, fontes) precisariam mandar um cabecalho que nao
-# controlamos e a pagina quebraria inteira. Credentialless os deixa carregar,
-# sem credenciais.
-#
-# VALVULA DE ESCAPE: se algo de CDN parar de carregar por causa disto, suba com
-#   SEM_ISOLAMENTO=1 uv run servidor.py
-# A camada de objeto suspeito volta a uma thread e continua funcionando, so mais
-# devagar. Perder a Sala inteira por causa dela seria um mau negocio.
-ISOLAR = os.environ.get("SEM_ISOLAMENTO", "").strip().lower() not in ("1", "true", "sim")
-
-
-@app.middleware("http")
-async def isolar_origem(request, call_next):
-    r = await call_next(request)
-    if ISOLAR:
-        r.headers["Cross-Origin-Opener-Policy"] = "same-origin"
-        r.headers["Cross-Origin-Embedder-Policy"] = "credentialless"
-    return r
-
-
-@app.get("/ort/{arquivo}")
-def ort_web(arquivo: str) -> FileResponse:
-    """O ONNX Runtime Web, servido daqui e nao de CDN.
-
-    Duas razoes, e a segunda e tecnica, nao so principio:
-
-    1. A demonstracao nao pode depender da internet da escola.
-    2. A inferencia roda num WORKER, para nao travar o video. Um worker criado
-       a partir de outra origem (o CDN) e bloqueado pelo navegador. Servindo da
-       mesma origem, ele funciona.
-    """
-    tipo = ORT_ARQUIVOS.get(arquivo)
-    if tipo is None:
-        raise HTTPException(404, "arquivo nao faz parte do runtime")
-    caminho = ORT_DIR / arquivo
-    if not caminho.exists():
-        raise HTTPException(404, f"{arquivo} nao instalado. Veja modelos/README.md")
-    return FileResponse(caminho, media_type=tipo,
-                        headers={"Cache-Control": "public, max-age=86400"})
-
-
-@app.get("/api/modelo/objeto-suspeito")
-def status_modelo_armas() -> dict:
-    """A Sala pergunta AQUI se vale a pena baixar 12 MB.
-
-    Era um HEAD na propria rota do modelo, e o teste pegou: o FastAPI responde
-    405 a HEAD numa rota GET, entao a Sala concluia "modelo nao instalado" com o
-    modelo instalado e a camada nunca ligava. Uma consulta barata e explicita
-    nao tem essa ambiguidade.
-    """
-    modelo = MODELO_ARMAS.exists()
-    runtime = all((ORT_DIR / a).exists() for a in ORT_ARQUIVOS)
-    return {"instalado": modelo and runtime,
-            "modelo": modelo, "runtime": runtime,
-            "bytes": MODELO_ARMAS.stat().st_size if modelo else 0}
-
-
-@app.get("/modelo/objeto-suspeito.onnx")
-def modelo_armas() -> FileResponse:
-    """O modelo de objeto suspeito, servido da máquina — nunca de CDN.
-
-    O navegador nao pode ler um arquivo do disco sozinho, entao quem entrega e
-    o servidor. E o mesmo principio do resto do projeto: a demonstracao nao
-    pode depender da internet da escola no dia da apresentacao. Baixa-se uma
-    vez (veja modelos/README.md) e acabou.
-
-    Ausente, o 404 aqui e a resposta certa e a Sala trata: ela simplesmente nao
-    liga a camada e diz isso na tela, em vez de quebrar.
-    """
-    if not MODELO_ARMAS.exists():
-        raise HTTPException(404, "modelo de objeto suspeito nao instalado")
-    return FileResponse(MODELO_ARMAS, media_type="application/octet-stream",
-                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/painel")

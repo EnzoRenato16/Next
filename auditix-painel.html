@@ -342,9 +342,6 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   As cores de estado (verde, âmbar, rubi) nunca aparecem
   sozinhas — vêm sempre com ícone e texto, porque cor sozinha não é informação
   para quem não a distingue.<br>
-  <b>Objeto suspeito.</b> O detector aponta um objeto que <i>parece</i> arma ou lâmina —
-  ele erra, e por isso o alerta nunca vem com nome de aluno e nunca dispara nada
-  sozinho. Serve para alguém ir olhar, não para concluir.<br>
   <b>Alerta não é acusação.</b> Um evento aqui é registro para conferência humana.
   A tabela mostra o identificador do aluno porque esta tela é da coordenação; as
   visões do Power BI (<code>views_powerbi.sql</code>) são agregadas de propósito e
@@ -362,14 +359,10 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
    =========================================================================== */
 const el = id => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
-const GRAVES = new Set(['queda','agitacao','objeto_perigoso','objeto_suspeito',
-                       'patrimonio_sumiu']);
-/* "objeto suspeito" e não "arma": o detector aponta, quem decide é uma pessoa.
-   O nome na tela é a única parte do sistema que o jurado e a coordenação leem,
-   então é onde a postura precisa aparecer. */
+const GRAVES = new Set(['queda','agitacao','objeto_perigoso','patrimonio_sumiu']);
 const ROTULO = {
   queda:'queda', agitacao:'agitação', objeto_perigoso:'objeto perigoso',
-  objeto_suspeito:'objeto suspeito', patrimonio_sumiu:'patrimônio sumiu',
+  patrimonio_sumiu:'patrimônio sumiu',
   entrada:'entrada', saida:'saída',
   reconhecido:'reconhecido', desconhecido:'desconhecido'
 };

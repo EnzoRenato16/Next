@@ -238,7 +238,7 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
           <button class="btn" id="vivo-cancelar">Cancelar</button>
         </div>
       </div>
-      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span><span id="faixa-arma" style="margin-left:auto; opacity:.85"></span></div>
+      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span></div>
       <div class="desl" id="desl">
         <button class="grandao" id="ligar">Abrir a sala</button>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
@@ -454,12 +454,10 @@ function pintarTudo(){
 
   el('c-anom').textContent = anomalias.length;
   el('q4').textContent = anomalias.length;
-  /* O rótulo curto de cada tipo. objeto_suspeito faltava aqui e a lista
-     escrevia "undefined" na frente do alerta — logo no alerta mais grave.
-     O `|| 'Alerta'` existe para que o próximo tipo novo apareça feio, e não
-     quebrado. */
-  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação',
-                  objeto_suspeito:'Objeto' };
+  /* O rótulo curto de cada tipo. O `|| 'Alerta'` existe para que um tipo novo
+     apareça feio, e não quebrado — foi assim que a lista chegou a escrever
+     "undefined" na frente de um alerta. */
+  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
   el('l-anomalias').innerHTML = anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em></span>' +
@@ -521,7 +519,6 @@ async function ligar(){
     el('faixa').className = 'faixa on';
     el('desligar').disabled = false;
     el('btn-cad').disabled = false; el('btn-mapa').disabled = false;
-    ligarArmas();   // sem modelo instalado ela nao liga, e diz isso na tela
     mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
     rodando = true;
     trilhas = []; proxId = 1;
@@ -1280,7 +1277,6 @@ async function laco(){
         }
       });
       verAgitacao(agora);
-      verArmas(v);          // não bloqueia: é async e tem trava própria
       resumir();
     }catch(e){}
     ocupadoCorpo = false;
@@ -1431,23 +1427,6 @@ function resumir(){
     ? naSala + ' pessoa' + (naSala > 1 ? 's' : '') + ' na sala · ' +
       presentes.length + ' com nome, ' + naoIdent.length + ' sem'
     : 'Sala vazia';
-  /* O estado da camada de objeto suspeito fica À VISTA. Uma camada de segurança
-     que falhou calada é pior que camada nenhuma: a escola acha que está coberta
-     e não está. */
-  el('faixa-arma').textContent = {
-    /* Com o número do lado. Enquanto ninguém tiver medido o modelo na sala de
-       vocês, este é o instrumento: aponte o objeto e leia. Perto de 0 significa
-       que o modelo não reconhece aquilo — nenhum ajuste de limiar resolve. */
-    'ligada':      'objeto suspeito: ativo · maior ' + armaMaior.toFixed(3) +
-                   (armaMaior > 0.02 ? ' (' + armaMaiorClasse + ')' : '') +
-                   ' · ' + armaLeituras + ' leituras' +
-                   (armaThreads > 1 ? ' · ' + armaThreads + ' threads' : ''),
-    'carregando':  'objeto suspeito: carregando…',
-    'sem modelo':  'objeto suspeito: modelo não instalado',
-    'sem runtime': 'objeto suspeito: runtime não instalado',
-    'sem servidor':'objeto suspeito: servidor fora',
-    'falhou':      'objeto suspeito: falhou — ' + armaErro
-  }[armaEstado] || '';
   pintarTudo();
 }
 
@@ -1469,392 +1448,8 @@ function desenhar(){
     x.fillStyle = '#06100F';
     x.fillText(rot, t.box.x + 8, topo + alt*1.15);
   });
-  desenharArmas(x, v.videoWidth);
 }
 
-
-/* ===================================================== objeto suspeito ======
-   Detecção de objeto que PARECE arma de fogo ou lâmina, rodando no navegador
-   com ONNX Runtime Web. Mesmo modelo e mesmas travas do EduVision
-   (daten/app/armas.py) — se mudar a regra lá, mude aqui.
-
-   O NOME IMPORTA, e não é preciosismo. Isto não é um "detector de armas": é um
-   detector de OBJETO SUSPEITO, que pede conferência humana. A literatura de
-   campo é dura com esta tecnologia: sistemas em produção já confundiram uma
-   clarineta e um saco de salgadinho com arma de fogo, e em 2023 a SOMBRA DO
-   BRAÇO de um aluno colocou um colégio no Texas em lockdown. Faca é o caso que
-   funciona PIOR, e é justamente o mais pedido numa escola.
-
-   Por isso três travas, e nenhuma delas é enfeite:
-     1. LIMIAR ALTO (ARMA_CONF). Calibrado como detector de gato, enche a escola
-        de alarme e a escola aprende a ignorar — o pior desfecho possível.
-     2. PERSISTÊNCIA (ARMA_HITS). Reflexo e sombra piscam; objeto fica.
-     3. SILÊNCIO (ARMA_SILENCIO). Um objeto parado na mesa não alerta a cada
-        quadro.
-
-   E uma regra que não é de precisão, é de dano: o evento NUNCA leva id de
-   aluno. Amarrar um alerta de arma a um nome, com a taxa de erro que esta
-   tecnologia tem, é dano que não se desfaz com um pedido de desculpas. */
-
-const ARMA_LADO      = 640;   // entrada do modelo, conferida no arquivo .onnx
-const ARMA_CONF      = 0.60;  // confiança mínima
-const ARMA_NMS       = 0.45;  // sobreposição para fundir caixas do mesmo objeto
-/* 3 aqui, contra 4 no EduVision, e não é afrouxar a trava — é o contrário. Lá
-   cada leitura custa ~0,2s, então 4 leituras são 0,8s de evidência. Aqui cada
-   leitura custa ~1s, então 3 já são ~3s de objeto presente e contínuo. O que a
-   regra protege é TEMPO de permanência, não número de quadros. */
-const ARMA_HITS      = 3;     // leituras seguidas antes de virar evento
-const ARMA_SILENCIO  = 30000; // ms entre dois alertas da mesma classe
-const ARMA_CADA      = 6;     // roda 1x a cada N quadros; é a camada mais cara
-
-const ARMA_ROTULO = { pistol:'objeto tipo arma de fogo', knife:'objeto tipo lâmina' };
-
-/* QUAIS ÍNDICES INTERESSAM, por modelo. O modelo é escolhido por quem instala,
-   e a Sala descobre qual é pelo número de classes da saída — não há por que
-   fixar dois no código.
-
-   Dois caminhos, e a diferença é de PROCEDÊNCIA, não de gosto:
-
-   · 2 classes — o modelo de arma do Hugging Face. Detecta pistola E faca, mas
-     é obra de um treino de Colab: sem model card, sem métrica publicada, sem
-     adoção. Não dá para saber o que ele acerta sem medir.
-   · 80 classes — YOLOv8 do COCO, com 'knife' no índice 43. Não tem classe de
-     arma de fogo nenhuma, e em troca é treinado em 118 mil imagens revisadas,
-     com desempenho publicado. Para lâmina, é a aposta mais segura.
-
-   Do COCO usamos SÓ a faca. Tesoura (76) e taco de beisebol (34) também estão
-   lá e também são objetos de escola — ficam de fora de propósito: cada classe a
-   mais é uma fonte a mais de alarme falso, e essa conta a escola paga. */
-const ARMA_INTERESSE = {
-  2:  { 0:'pistol', 1:'knife' },
-  80: { 43:'knife' }
-};
-
-let sessaoArma = null, armaOcupada = false, quadroArma = 0, armaErro = '';
-let armaMaior = 0, armaMaiorClasse = '', armaLeituras = 0;
-let armaTipo = 'float32', armaEntrada = 'images', armaThreads = 0;
-let achadosArma = [], armaEstado = 'desligada';
-const armaSeguidas = {}, armaAvisado = {};
-let telaArma = null;          // canvas 640x640 reaproveitado, sem realocar por quadro
-
-/* Carrega sob demanda e FALHA EM SILÊNCIO na tela, nunca no meio do vídeo.
-   Sem o modelo instalado a Sala continua inteira — só esta camada não liga. */
-async function ligarArmas(){
-  try{
-    /* Pergunta antes de baixar 12 MB. E pergunta num endpoint próprio: um HEAD
-       na rota do modelo devolve 405 (o FastAPI só declarou GET), e com isso a
-       Sala concluía "não instalado" com o modelo instalado. O teste pegou. */
-    const r = await fetch('/api/modelo/objeto-suspeito');
-    if(!r.ok){ armaEstado = 'sem servidor'; pintarTudo(); return; }
-    const j = await r.json();
-    if(!j.instalado){
-      armaEstado = j.modelo ? 'sem runtime' : 'sem modelo';
-      pintarTudo(); return;
-    }
-  }catch(e){ armaEstado = 'sem servidor'; pintarTudo(); return; }
-
-  armaEstado = 'carregando';  pintarTudo();
-  try{
-    if(!window.ort){
-      /* Servido daqui, não de CDN. Duas razões, e a segunda é a que obriga: a
-         inferência roda num WORKER (proxy abaixo), e o navegador bloqueia
-         worker criado a partir de outra origem. */
-      await new Promise((ok, erro) => {
-        const s = document.createElement('script');
-        s.src = '/ort/ort.wasm.min.js';
-        s.onload = ok; s.onerror = () => erro(new Error('runtime não instalado'));
-        document.head.appendChild(s);
-      });
-      window.ort.env.wasm.wasmPaths = '/ort/';
-      /* UMA THREAD, de propósito. O padrão do ONNX Runtime é usar várias, e
-         para isso ele precisa de SharedArrayBuffer — que o navegador só libera
-         com os cabeçalhos COOP/COEP de isolamento de origem. O nosso servidor
-         não os manda, e não pode mandar: eles bloqueariam o MediaPipe e o
-         face-api, que vêm de CDN. Sem isso o carregamento morre.
-
-         Uma thread é mais devagar, e tudo bem: esta camada roda 1x a cada 6
-         quadros e não está no caminho do vídeo. */
-      /* QUANTAS THREADS DER. Foi o maior ganho de velocidade desta camada:
-         medido em 453ms numa thread contra 152ms em quatro — três vezes.
-
-         Só funciona com SharedArrayBuffer, que o navegador só libera quando o
-         servidor manda os cabeçalhos COOP/COEP. Se ele não mandar (por exemplo
-         com SEM_ISOLAMENTO=1), crossOriginIsolated vem falso — e pedir mais de
-         uma thread AÍ faz o carregamento morrer com um número cru de exceção,
-         que foi exatamente o "falhou — 33574040" do começo desta história.
-
-         Por isso a conta é lida do navegador, nunca suposta. Teto de 4: acima
-         disso o ganho some e cada thread come memória. */
-      window.ort.env.wasm.numThreads = self.crossOriginIsolated
-        ? Math.max(1, Math.min(4, navigator.hardwareConcurrency || 1))
-        : 1;
-
-      /* EM WORKER, e isto não é otimização: é o que impede o vídeo de travar.
-         Uma inferência leva centenas de milissegundos de WebAssembly, e na
-         thread principal isso congela a câmera, os contornos e a interface a
-         cada leitura. Medido nesta máquina: 456ms na thread principal contra
-         979ms no worker. O worker é MAIS LENTO e ainda assim é a escolha certa
-         — numa página de câmera ao vivo, vídeo travado é bug visível; meio
-         segundo a mais para confirmar um objeto, não.
-
-         Consequência prática: o buffer do tensor é TRANSFERIDO para o worker e
-         fica inutilizável depois. Por isso encaixarArma() monta um Float32Array
-         novo a cada leitura, em vez de reaproveitar um. */
-      window.ort.env.wasm.proxy = true;
-      armaThreads = window.ort.env.wasm.numThreads;
-    }
-    sessaoArma = await window.ort.InferenceSession.create(
-      '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });
-    /* O modelo diz de que tipo quer a entrada. Perguntar é mais barato que
-       exigir um formato de quem instala — e o erro, quando não bate, é
-       "Unexpected input data type", que não diz o que fazer a respeito. */
-    const meta = sessaoArma.inputMetadata && sessaoArma.inputMetadata[0];
-    armaTipo = (meta && (meta.type || meta.dataType)) || 'float32';
-    armaEntrada = sessaoArma.inputNames[0];
-    telaArma = document.createElement('canvas');
-    telaArma.width = telaArma.height = ARMA_LADO;
-    armaEstado = 'ligada';
-    anotar('', 'Camada de objeto suspeito ligada');
-  }catch(e){
-    /* O erro VAI PARA A TELA. Antes ele morria num console.warn e a faixa só
-       dizia "falhou ao carregar", o que não diz nada a quem está na sala com o
-       problema na frente. Camada de segurança que falha calada é pior que
-       camada nenhuma. */
-    armaEstado = 'falhou';
-    armaErro = (e && (e.message || e.name)) || String(e);
-    console.warn('[objeto suspeito] não carregou:', e);
-  }
-  pintarTudo();
-}
-
-
-/* ---- float16 ---------------------------------------------------------
-   Alguns modelos são exportados em MEIA PRECISÃO e recusam entrada float32 com
-   "Unexpected input data type". O YOLOv8 do COCO é um deles. Em vez de exigir
-   um export específico de quem instala, a Sala converte.
-
-   Este par foi conferido contra o numpy em 8012 valores — os dois sentidos,
-   idênticos bit a bit. Três erros meus só apareceram por causa dessa
-   conferência, e cada um está comentado onde aconteceu. Escrever conversão de
-   ponto flutuante "no olho" não funciona.
-
-   Custa uma passada a mais sobre 1,2 milhão de números por leitura. Como a
-   inferência roda em worker, isso não aparece no vídeo. */
-/* float32 <-> float16, o mesmo par que vai para a Sala. */
-const _b = new ArrayBuffer(4), _f = new Float32Array(_b), _i = new Uint32Array(_b);
-
-function paraMeio(v){
-  _f[0] = v; const x = _i[0];
-  const sinal = (x >>> 16) & 0x8000;
-  const bruto = (x >>> 23) & 0xff;
-  let man = x & 0x7fffff;
-  /* Infinito ou NaN DE ORIGEM: só quando o expoente do float32 está saturado.
-     Antes eu tratava junto com "grande demais para caber", e por isso 1e5 (que
-     é finito) virava NaN em vez de infinito. */
-  if(bruto === 0xff) return sinal | 0x7c00 | (man ? 0x200 : 0);
-  let exp = bruto - 112;                    // 127 - 15
-  if(exp >= 0x1f) return sinal | 0x7c00;    // finito, mas maior que 65504
-  if(exp <= 0){                                                // subnormal
-    if(exp < -10) return sinal;
-    man |= 0x800000;
-    const desloca = 14 - exp;
-    return sinal | arredondar(man, desloca);
-  }
-  /* SOMA, não OR: quando o arredondamento da mantissa estoura, o carry precisa
-     SUBIR para o expoente. Com OR ele era engolido e -1,9998 virava -1,0. */
-  return sinal | ((exp << 10) + arredondar(man, 13));
-}
-
-/* Arredonda para o PAR nos empates, que é o que o IEEE-754 manda e o que o
-   numpy faz. Arredondar sempre para cima diverge nos valores exatamente no
-   meio — pouco, mas o teste contra o numpy não fecha, e um teste que não fecha
-   deixa de servir para pegar o próximo erro de verdade. */
-function arredondar(man, desloca){
-  const meio = 1 << (desloca - 1);
-  const resto = man & ((1 << desloca) - 1);
-  let alto = man >>> desloca;
-  if(resto > meio || (resto === meio && (alto & 1))) alto++;
-  return alto;
-}
-
-function deMeio(h){
-  const sinal = (h & 0x8000) ? -1 : 1;
-  const exp = (h >>> 10) & 0x1f, man = h & 0x3ff;
-  if(exp === 0)    return sinal * man * 5.9604644775390625e-8;   // 2^-24
-  if(exp === 0x1f) return man ? NaN : sinal * Infinity;
-  return sinal * Math.pow(2, exp - 15) * (1 + man / 1024);
-}
-
-/* Letterbox: encolhe mantendo a proporção e preenche o resto de cinza. Esticar
-   para o quadrado deformaria o objeto, e um cano de arma achatado deixa de
-   parecer um cano de arma. Devolve escala e deslocamento para as caixas
-   voltarem à escala do vídeo depois. */
-function encaixarArma(v){
-  const g = telaArma.getContext('2d', { willReadFrequently:true });
-  const escala = Math.min(ARMA_LADO / v.videoWidth, ARMA_LADO / v.videoHeight);
-  const nw = Math.round(v.videoWidth * escala), nh = Math.round(v.videoHeight * escala);
-  const dx = (ARMA_LADO - nw) >> 1, dy = (ARMA_LADO - nh) >> 1;
-  g.fillStyle = '#727272';                    // o mesmo 114 do letterbox do YOLO
-  g.fillRect(0, 0, ARMA_LADO, ARMA_LADO);
-  g.drawImage(v, dx, dy, nw, nh);
-
-  /* NCHW, RGB, normalizado em 0..1 — é o que o modelo espera. O canvas entrega
-     RGBA intercalado, então a transposição é feita aqui na mão. */
-  const px = g.getImageData(0, 0, ARMA_LADO, ARMA_LADO).data;
-  const n = ARMA_LADO * ARMA_LADO;
-  const dados = new Float32Array(n * 3);
-  for(let i = 0; i < n; i++){
-    dados[i]         = px[i*4    ] / 255;
-    dados[i + n]     = px[i*4 + 1] / 255;
-    dados[i + 2*n]   = px[i*4 + 2] / 255;
-  }
-  return { dados, escala, dx, dy };
-}
-
-/* Supressão de não-máximos. Sem isto, um objeto vira cinco alertas. */
-function nmsArma(caixas, scores, limiar){
-  const ordem = scores.map((s, i) => i).sort((a, b) => scores[b] - scores[a]);
-  const ficam = [];
-  while(ordem.length){
-    const i = ordem.shift();
-    ficam.push(i);
-    for(let k = ordem.length - 1; k >= 0; k--){
-      const a = caixas[i], b = caixas[ordem[k]];
-      const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
-      const x2 = Math.min(a[0]+a[2], b[0]+b[2]), y2 = Math.min(a[1]+a[3], b[1]+b[3]);
-      const w = x2 - x1, h = y2 - y1;
-      if(w <= 0 || h <= 0) continue;
-      const inter = w * h;
-      if(inter / (a[2]*a[3] + b[2]*b[3] - inter) > limiar) ordem.splice(k, 1);
-    }
-  }
-  return ficam;
-}
-
-async function verArmas(v){
-  if(!sessaoArma || armaOcupada) return;
-  if(++quadroArma % ARMA_CADA) return;
-  armaOcupada = true;
-  try{
-    const { dados, escala, dx, dy } = encaixarArma(v);
-    let t;
-    if(armaTipo === 'float16'){
-      /* Se o navegador já tem Float16Array (Chrome recente), usa-se ele: os
-         valores entram como número mesmo, sem conversão de bits. Só quando não
-         existe é que caímos no par paraMeio/deMeio escrito aqui. */
-      const meio = typeof Float16Array !== 'undefined'
-        ? Float16Array.from(dados)
-        : Uint16Array.from(dados, paraMeio);
-      t = new window.ort.Tensor('float16', meio, [1, 3, ARMA_LADO, ARMA_LADO]);
-    }else{
-      t = new window.ort.Tensor('float32', dados, [1, 3, ARMA_LADO, ARMA_LADO]);
-    }
-    const saida = await sessaoArma.run({ [armaEntrada]: t });
-    const bruto = saida[Object.keys(saida)[0]];
-    /* A saída em meia precisão chega de DUAS formas, e confundi-las custou um
-       teste: num navegador com Float16Array ela vem como Float16Array, com os
-       valores JÁ decodificados; sem ele, vem como Uint16Array de padrões de
-       bits. Rodar deMeio() no primeiro caso trata número como bit e devolve
-       zeros — sem erro nenhum, que é o pior jeito de errar.
-
-       Por isso a decisão é pelo TIPO DO ARRAY, não pelo tipo do tensor. */
-    const y = { dims: bruto.dims, data: bruto.data };
-    if(bruto.data instanceof Uint16Array)
-      y.data = Float32Array.from(bruto.data, deMeio);
-    /* (1, 4+nc, 8400): o tensor vem por LINHA, não por caixa. cx,cy,w,h estão
-       na escala 640 do letterbox, não na do vídeo. */
-    const nc = y.dims[1] - 4, n = y.dims[2], d = y.data;
-    const caixas = [], scores = [], classes = [];
-    const interessa = ARMA_INTERESSE[nc];
-    if(!interessa){
-      armaEstado = 'falhou';
-      armaErro = 'modelo com ' + nc + ' classes, não sei ler';
-      armaOcupada = false; pintarTudo(); return;
-    }
-    const indices = Object.keys(interessa).map(Number);
-    let maior = 0, maiorClasse = indices[0];
-    for(let i = 0; i < n; i++){
-      /* Só as classes que interessam. Num modelo de 80 classes, procurar o
-         máximo entre todas faria uma pessoa (classe 0) ou uma cadeira ganhar da
-         faca, e o número na tela mediria a coisa errada. */
-      let melhor = indices[0], conf = d[(4+indices[0])*n + i];
-      for(const c of indices)
-        if(d[(4+c)*n + i] > conf){ conf = d[(4+c)*n + i]; melhor = c; }
-      /* A MAIOR confiança do quadro, inclusive abaixo do limiar. Sem este
-         número não dá para distinguir dois problemas que na tela são idênticos:
-         "o modelo vê o objeto mas o limiar é alto demais" e "o modelo não vê
-         nada ali". O primeiro se resolve mexendo no ARMA_CONF; o segundo não se
-         resolve com ajuste nenhum, e sim trocando ou treinando o modelo.
-         Ficar adivinhando entre os dois custa mais do que mostrar o número. */
-      if(conf > maior){ maior = conf; maiorClasse = melhor; }
-      if(conf < ARMA_CONF) continue;
-      const cx = d[i], cy = d[n + i], w = d[2*n + i], h = d[3*n + i];
-      caixas.push([ (cx - w/2 - dx)/escala, (cy - h/2 - dy)/escala,
-                    w/escala, h/escala ]);
-      scores.push(conf); classes.push(melhor);
-    }
-    armaMaior = maior; armaMaiorClasse = interessa[maiorClasse] || '?';
-    armaLeituras++;
-    achadosArma = nmsArma(caixas, scores, ARMA_NMS).map(i => ({
-      classe: interessa[classes[i]] || '?',
-      rotulo: ARMA_ROTULO[interessa[classes[i]]] || 'objeto suspeito',
-      conf: scores[i], box: caixas[i] }));
-    confirmarArmas(achadosArma);
-  }catch(e){ console.warn('[objeto suspeito]', e); }
-  armaOcupada = false;
-}
-
-/* Exige o objeto em várias leituras seguidas antes de virar evento. É a trava
-   que separa "reflexo piscou" de "tem alguma coisa ali". */
-function confirmarArmas(achados){
-  const agora = Date.now();
-  const vistos = new Set(achados.map(a => a.classe));
-
-  vistos.forEach(classe => {
-    armaSeguidas[classe] = (armaSeguidas[classe] || 0) + 1;
-    if(armaSeguidas[classe] !== ARMA_HITS) return;
-    if(agora - (armaAvisado[classe] || -1e12) < ARMA_SILENCIO) return;
-    armaAvisado[classe] = agora;
-
-    const melhor = achados.filter(a => a.classe === classe)
-                          .sort((a, b) => b.conf - a.conf)[0];
-    const texto = melhor.rotulo.replace(/^./, c => c.toUpperCase()) +
-      ' na cena, pendente de validação humana';
-    anomalias.unshift({ tipo:'objeto_suspeito', corpo:'-', quem:null,
-                        texto, h:hora(), visto:agora });
-    anomalias = anomalias.slice(0, 20);
-    anotar('mal', texto);
-    /* Sem id de aluno, e isto é regra, não descuido. */
-    mandarEvento('objeto_suspeito', '-');
-    pintarTudo();
-  });
-
-  /* Sumiu do quadro, o contador DESCE em vez de zerar: uma leitura ruim no meio
-     de uma sequência boa não apaga a evidência acumulada. */
-  Object.keys(armaSeguidas).forEach(classe => {
-    if(!vistos.has(classe)) armaSeguidas[classe] = Math.max(0, armaSeguidas[classe] - 1);
-  });
-}
-
-function desenharArmas(x, larguraVideo){
-  if(!achadosArma.length) return;
-  const alt = Math.max(13, larguraVideo/44);
-  x.font = '500 ' + alt + 'px system-ui';
-  achadosArma.forEach(a => {
-    const [bx, by, bw, bh] = a.box;
-    x.strokeStyle = '#DE8797';
-    x.lineWidth = Math.max(2, larguraVideo/380);
-    x.setLineDash([alt*0.5, alt*0.35]);   // tracejado: é suspeita, não afirmação
-    x.strokeRect(bx, by, bw, bh);
-    x.setLineDash([]);
-    const rot = a.rotulo + '  ' + Math.round(a.conf*100) + '%';
-    const topo = Math.max(0, by - alt*1.7);
-    x.fillStyle = '#DE8797';
-    x.fillRect(bx, topo, x.measureText(rot).width + 16, alt*1.6);
-    x.fillStyle = '#31161C';
-    x.fillText(rot, bx + 8, topo + alt*1.15);
-  });
-}
 
 /* ========================================================= prova de vida ====
    Cadastro no estilo dos bancos: encaixa o rosto no óvalo, fecha os olhos, vira

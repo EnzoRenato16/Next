@@ -89,40 +89,6 @@ SFACE_BACKEND = os.environ.get("SFACE_BACKEND", "opencv").strip().lower()
 # Threads do ONNX Runtime. 0 = deixa o ORT escolher.
 ORT_THREADS = int(os.environ.get("ORT_THREADS", "0"))
 
-# ----- Objeto suspeito (arma de fogo / arma branca) -------------------------
-# YOLOv8 em ONNX, 2 classes: pistol e knife. Baixe o modelo antes; veja
-# models/README.md. Sem o arquivo, o resto do sistema roda igual.
-ARMAS_MODEL = MODELS_DIR / "objeto_suspeito_yolov8.onnx"
-
-# Liga/desliga. Padrao DESLIGADO de proposito: e a unica camada do projeto que
-# pode acusar uma pessoa de portar arma, e ligar isso tem que ser uma decisao
-# consciente de quem instala, nao um efeito colateral de atualizar o codigo.
-ARMAS_ATIVO = os.environ.get("ARMAS_ATIVO", "0").strip().lower() in ("1", "true", "sim")
-
-ARMAS_LADO = int(os.environ.get("ARMAS_LADO", "640"))    # entrada do YOLOv8
-
-# Limiar ALTO de proposito. Um detector de arma calibrado como detector de gato
-# enche a escola de alarme, e alarme que erra sempre e alarme que se aprende a
-# ignorar. Prefira deixar passar a acusar errado.
-ARMA_CONF = float(os.environ.get("ARMA_CONF", "0.60"))
-ARMA_NMS = float(os.environ.get("ARMA_NMS", "0.45"))
-
-# Leituras seguidas antes de virar evento. Sombra e reflexo piscam; objeto fica.
-ARMA_HITS = int(os.environ.get("ARMA_HITS", "4"))
-
-# Segundos de silencio depois de alertar sobre a mesma classe, para um objeto
-# parado na mesa nao gerar um evento por quadro.
-ARMA_SILENCIO = float(os.environ.get("ARMA_SILENCIO", "30"))
-
-# A deteccao e cara: roda 1x a cada N frames processados.
-ARMA_CADA = int(os.environ.get("ARMA_CADA", "5"))
-
-# ----- Ponte para a cadeia de hash do Auditix -------------------------------
-# Onde o servidor.py esta escutando. Vazio = so grava local (padrao).
-# Ex.: export AUDITIX_URL='http://192.168.50.5:8000'
-AUDITIX_URL = os.environ.get("AUDITIX_URL", "").strip()
-AUDITIX_TIMEOUT = float(os.environ.get("AUDITIX_TIMEOUT", "3"))
-
 # ----- Retencao de biometria (LGPD Art. 14) ---------------------------------
 # Biometria de crianca e adolescente nao pode ficar guardada para sempre. Duas
 # tranchas independentes, e a que vencer primeiro apaga:

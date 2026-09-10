@@ -32,5 +32,3 @@ graphify-out/cache/
 .DS_Store
 Thumbs.db
 
-modelos/*.onnx
-modelos/ort/

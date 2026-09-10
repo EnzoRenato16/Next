@@ -24,32 +24,6 @@ uv run servidor.py           # http://127.0.0.1:8000
 | `/painel` | **Painel** — leitura do banco: integridade da cadeia, séries, mapa de calor. Não grava nada. |
 | `/docs` | Swagger dos endpoints |
 
-### Objeto suspeito (arma de fogo e lâmina)
-
-A Sala roda essa camada **no navegador**, em ONNX Runtime Web, num *worker*
-para não travar o vídeo. Nem o modelo nem o runtime estão no repositório —
-são ~23 MB, e o modelo carrega AGPL-3.0. Baixe uma vez:
-
-```powershell
-powershell -ExecutionPolicy Bypass -File baixar-modelos.ps1   # Windows
-```
-```bash
-bash baixar-modelos.sh                                        # Linux / macOS
-```
-
-O padrão é o YOLOv8 do **COCO**, que detecta **lâmina** e é treinado em 118 mil
-imagens revisadas. Para tentar também **arma de fogo**, use o argumento
-`armas` — modelo que detecta as duas coisas, mas sem nenhuma métrica publicada.
-A faixa da Sala mostra a confiança medida a cada leitura, para vocês decidirem
-com número em vez de impressão.
-
-Sem esses arquivos **nada quebra**: a camada não liga e a Sala escreve isso na
-faixa de status, dizendo qual das duas partes falta. Detalhes e a questão da
-licença em [`modelos/README.md`](modelos/README.md).
-
-O evento é gravado como `objeto_suspeito`, **nunca** "arma detectada", e
-**nunca** leva id de aluno.
-
 Sem `.env`, o servidor cai sozinho para SQLite local e avisa na tela. Copie
 `.env.example` para `.env` e preencha a senha para usar o Postgres do `db-fiap`.
 
