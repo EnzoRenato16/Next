@@ -568,13 +568,25 @@ const HIST_MS = 2500;      // memória de movimento de cada pessoa
 /* Queda. Tronco deitado não basta: quem se abaixa para pegar a borracha também
    deita o tronco. O que separa é o quadril despencar E a pessoa continuar lá. */
 const QUEDA_ANG = 55;      // graus fora da vertical
-const QUEDA_CAI = 0.10;    // fração da altura do quadro que o quadril desceu
+const QUEDA_CAI = 0.35;    // queda do quadril em ALTURAS DE CORPO
 const QUEDA_SEG = 1200;    // ms deitado para virar alerta
+const QUEDA_EIXO = 0.60;   // tronco encolheu para menos disto do tamanho de antes
+
+/* O quadro não é quadrado, e isso muda as contas.
+
+   As coordenadas do MediaPipe são normalizadas SEPARADAMENTE por largura e por
+   altura: 0,1 em x e 0,1 em y não são a mesma distância na sala. Dividir um
+   deslocamento HORIZONTAL pela altura do corpo (que é VERTICAL) subestimava a
+   velocidade pelo fator do formato. Numa câmera 4:3 isso é 1,33x: uma corrida
+   real de 3 m/s aparecia como 1,33 alturas por segundo em vez de 1,77 e ficava
+   logo abaixo do limiar de 1,5 — ou seja, corrida nenhuma era detectada. */
+let aspecto = 4/3;
 
 /* Corrida, medida em alturas-de-corpo por segundo e não em pixels, senão quem
    está longe da câmera nunca corre e quem está perto está sempre correndo. */
 const CORRE_VEL = 1.5;
 const CORRE_SEG = 400;
+const CORRE_CRESC = 0.55;  // o corpo CRESCE no quadro a esta taxa por segundo
 
 /* Agitação. Não é detector de briga e não vai ser chamado disso. É gente perto
    demais mexendo os braços rápido demais, o que pede olho humano. */
@@ -961,8 +973,15 @@ function analisar(t, lm, agora){
   altura = Math.max(0.08, altura);
   const ang = Math.abs(Math.atan2(o.x - q.x, q.y - o.y) * 180 / Math.PI);
 
+  /* O tronco medido ao longo do PRÓPRIO EIXO, não só na vertical. A diferença
+     vertical entre ombro e quadril encolhe por dois motivos que não têm relação
+     um com o outro: a pessoa se afastar da câmera, e a pessoa apenas inclinar o
+     corpo. Pela diagonal, inclinar no plano da imagem não muda nada — só a
+     distância muda, que é o que interessa medir. */
+  const eixo = Math.hypot((o.x - q.x) * aspecto, o.y - q.y);
+
   if(!t.hist) t.hist = [];
-  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang,
+  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo,
                 px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
@@ -976,9 +995,35 @@ function analisar(t, lm, agora){
      cobrar as duas coisas ao mesmo tempo faria o alerta nunca disparar. */
   const jan = t.hist.filter(h => agora - h.t < 900);
   const maisAlto = Math.min.apply(null, jan.map(h => h.qy));
-  const deitado = ang > QUEDA_ANG;
-  if(deitado && (q.y - maisAlto) > QUEDA_CAI && !t.quedaDesde) t.quedaDesde = agora;
-  if(!deitado) t.quedaDesde = 0;                       // levantou, cancela
+  const caiu = (q.y - maisAlto) / altura > QUEDA_CAI;
+
+  /* DUAS formas de estar no chão, e a segunda faltava.
+
+     Caindo de lado, o tronco inclina NA IMAGEM e o ângulo vê. Caindo na direção
+     da câmera — ou de costas para ela — o tronco quase não inclina na imagem:
+     ele ENCURTA, por perspectiva. O ângulo fica perto de zero e a regra antiga
+     não via nada. A pessoa caía de frente para a lente e o sistema não
+     registrava.
+
+     Agachar não entra aqui de propósito: agachar dobra as PERNAS, e o tronco
+     continua do mesmo tamanho. */
+  const eixoMax = Math.max.apply(null, jan.map(h => h.eixo));
+
+  /* TOMBO e CONTINUAR NO CHÃO são perguntas diferentes, e misturá-las quebrava
+     a queda de frente para a câmera. Encurtar é um sinal de MUDANÇA: existe
+     enquanto a janela de 0,9s ainda lembra do tronco inteiro, e some sozinho
+     logo depois do tombo — zerando o relógio a menos de 50ms do alerta.
+
+     Por isso a referência é CONGELADA: no tombo guardamos o tamanho que o
+     tronco tinha, e daí em diante comparamos contra esse número, que não
+     envelhece junto com a janela. */
+  if((ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu && !t.quedaDesde){
+    t.quedaDesde = agora;
+    t.eixoAntes = eixoMax;
+  }
+  const noChao = t.quedaDesde &&
+    (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO);
+  if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   if(t.quedaDesde && agora - t.quedaDesde > QUEDA_SEG)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
       (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana');
@@ -987,8 +1032,21 @@ function analisar(t, lm, agora){
   const ant = t.hist.find(h => agora - h.t < 320 && agora - h.t > 80);
   if(ant){
     const dt = (agora - ant.t) / 1000;
-    t.vel = Math.abs(q.x - ant.qx) / altura / dt;
-    if(t.vel > CORRE_VEL){
+    t.vel = Math.abs(q.x - ant.qx) * aspecto / altura / dt;
+
+    /* APROXIMAÇÃO. Correr na direção da câmera não desloca ninguém de lado: o
+       corpo só CRESCE no quadro. A regra media apenas o eixo horizontal, então
+       quem vinha correndo em direção à lente nunca era detectado — e num
+       corredor de escola, a câmera na ponta é justamente o enquadramento comum.
+
+       Só o crescimento conta, nunca o encolhimento, e é deliberado: cair na
+       direção da câmera também encolhe o corpo depressa, e sem essa restrição
+       toda queda de frente seria registrada como corrida. O preço, dito aqui
+       para não virar surpresa: correr PARA LONGE da câmera não é detectado por
+       este caminho. */
+    t.cresc = (eixo - ant.eixo) / eixo / dt;
+
+    if(t.vel > CORRE_VEL || t.cresc > CORRE_CRESC){
       if(!t.correDesde) t.correDesde = agora;
       else if(agora - t.correDesde > CORRE_SEG)
         registrarAnomalia('corrida', t, 'Corrida detectada no corpo #' + t.id +
@@ -1005,8 +1063,8 @@ function analisar(t, lm, agora){
     const h0 = t.hist[i-1], h1 = t.hist[i];
     const dt2 = (h1.t - h0.t) / 1000;
     if(dt2 <= 0 || agora - h1.t > 500) continue;
-    soma += (Math.hypot(h1.px.x - h0.px.x, h1.px.y - h0.px.y) +
-             Math.hypot(h1.pd.x - h0.pd.x, h1.pd.y - h0.pd.y)) / 2 / altura / dt2;
+    soma += (Math.hypot((h1.px.x - h0.px.x) * aspecto, h1.px.y - h0.px.y) +
+             Math.hypot((h1.pd.x - h0.pd.x) * aspecto, h1.pd.y - h0.pd.y)) / 2 / altura / dt2;
     n++;
   }
   if(n) t.energia = soma / n;
@@ -1041,13 +1099,13 @@ function golpeDirigido(t, alvo, agora){
   for(const esq of [true, false]){
     for(let i = 0; i < h.length; i++){
       const p0 = esq ? h[i].px : h[i].pd;
-      const d0 = Math.hypot(tx - p0.x, ty - p0.y);
+      const d0 = Math.hypot((tx - p0.x) * aspecto, ty - p0.y);
       for(let j = i + 1; j < h.length; j++){
         const dt = (h[j].t - h[i].t) / 1000;
         if(dt < 0.09) continue;
         if(dt > 0.20) break;
         const p1 = esq ? h[j].px : h[j].pd;
-        const d1 = Math.hypot(tx - p1.x, ty - p1.y);
+        const d1 = Math.hypot((tx - p1.x) * aspecto, ty - p1.y);
         melhor = Math.max(melhor, (d0 - d1) / alt / dt);
       }
     }
@@ -1066,8 +1124,8 @@ function aproximacao(a, b, agora){
   const dt = (Math.min(a1.t, b1.t) - Math.max(a0.t, b0.t)) / 1000;
   if(dt <= 0) return 0;
   const escala = (a.altura + b.altura) / 2 || 1;
-  const d0 = Math.hypot(a0.qx - b0.qx, a0.qy - b0.qy);
-  const d1 = Math.hypot(a1.qx - b1.qx, a1.qy - b1.qy);
+  const d0 = Math.hypot((a0.qx - b0.qx) * aspecto, a0.qy - b0.qy);
+  const d1 = Math.hypot((a1.qx - b1.qx) * aspecto, a1.qy - b1.qy);
   return (d0 - d1) / escala / dt;
 }
 
@@ -1083,7 +1141,7 @@ function verAgitacao(agora){
        vezes, e aí a "agitação" é a pessoa brigando com o próprio fantasma. */
     if(ios(a.box, b.box) > 0.35) continue;
     const escala = (a.altura + b.altura) / 2;
-    const perto = Math.hypot(a.qx - b.qx, a.qy - b.qy) < AGITA_PERTO * escala;
+    const perto = Math.hypot((a.qx - b.qx) * aspecto, a.qy - b.qy) < AGITA_PERTO * escala;
     const bravo = a.energia > AGITA_ENER && b.energia > AGITA_ENER;
     const chave = Math.min(a.id, b.id) + '-' + Math.max(a.id, b.id);
 
@@ -1256,6 +1314,9 @@ async function laco(){
       tsPose = Math.max(tsPose + 1, Math.round(performance.now()));
       const r = redePose.detectForVideo(v, tsPose);
       const agora = performance.now();
+      /* Medido da câmera de verdade, não presumido 4:3: webcam de notebook
+         costuma entregar 16:9, e o fator entra em toda velocidade horizontal. */
+      aspecto = v.videoWidth / v.videoHeight;
 
       const brutos = [];
       (r.landmarks || []).forEach((lm, i) => {

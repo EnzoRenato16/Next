@@ -28,6 +28,9 @@
  */
 
 const AGITA_GOLPE = 1.0, AGITA_FECHA = 0.6, AGITA_PERTO = 0.9, AGITA_ENER = 1.1;
+/* Mesma correção de formato de quadro aplicada na Sala: x e y são
+   normalizados por lados diferentes, então x precisa do fator. */
+const aspecto = 4/3;
 
 /* O quanto o punho de `t` avança SOBRE o tronco de `alvo`, em alturas por
    segundo. Devolve o melhor dos dois punhos.
@@ -51,13 +54,13 @@ function golpeDirigido(t, alvo, agora){
   for(const esq of [true, false]){
     for(let i = 0; i < h.length; i++){
       const p0 = esq ? h[i].px : h[i].pd;
-      const d0 = Math.hypot(tx - p0.x, ty - p0.y);
+      const d0 = Math.hypot((tx - p0.x) * aspecto, ty - p0.y);
       for(let j = i + 1; j < h.length; j++){
         const dt = (h[j].t - h[i].t) / 1000;
         if(dt < 0.09) continue;
         if(dt > 0.20) break;
         const p1 = esq ? h[j].px : h[j].pd;
-        const d1 = Math.hypot(tx - p1.x, ty - p1.y);
+        const d1 = Math.hypot((tx - p1.x) * aspecto, ty - p1.y);
         melhor = Math.max(melhor, (d0 - d1) / alt / dt);
       }
     }
@@ -76,8 +79,8 @@ function aproximacao(a, b, agora){
   const dt = (Math.min(a1.t, b1.t) - Math.max(a0.t, b0.t)) / 1000;
   if(dt <= 0) return 0;
   const escala = (a.altura + b.altura) / 2 || 1;
-  const d0 = Math.hypot(a0.qx - b0.qx, a0.qy - b0.qy);
-  const d1 = Math.hypot(a1.qx - b1.qx, a1.qy - b1.qy);
+  const d0 = Math.hypot((a0.qx - b0.qx) * aspecto, a0.qy - b0.qy);
+  const d1 = Math.hypot((a1.qx - b1.qx) * aspecto, a1.qy - b1.qy);
   return (d0 - d1) / escala / dt;
 }
 
