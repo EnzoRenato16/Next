@@ -238,7 +238,7 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
           <button class="btn" id="vivo-cancelar">Cancelar</button>
         </div>
       </div>
-      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span></div>
+      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span><span id="faixa-arma" style="margin-left:auto; opacity:.85"></span></div>
       <div class="desl" id="desl">
         <button class="grandao" id="ligar">Abrir a sala</button>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
@@ -516,6 +516,7 @@ async function ligar(){
     el('faixa').className = 'faixa on';
     el('desligar').disabled = false;
     el('btn-cad').disabled = false; el('btn-mapa').disabled = false;
+    ligarArmas();   // sem modelo instalado ela nao liga, e diz isso na tela
     mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
     rodando = true;
     trilhas = []; proxId = 1;
@@ -1234,6 +1235,7 @@ async function laco(){
         }
       });
       verAgitacao(agora);
+      verArmas(v);          // não bloqueia: é async e tem trava própria
       resumir();
     }catch(e){}
     ocupadoCorpo = false;
@@ -1384,6 +1386,16 @@ function resumir(){
     ? naSala + ' pessoa' + (naSala > 1 ? 's' : '') + ' na sala · ' +
       presentes.length + ' com nome, ' + naoIdent.length + ' sem'
     : 'Sala vazia';
+  /* O estado da camada de objeto suspeito fica À VISTA. Uma camada de segurança
+     que falhou calada é pior que camada nenhuma: a escola acha que está coberta
+     e não está. */
+  el('faixa-arma').textContent = {
+    'ligada':      'objeto suspeito: ativo',
+    'carregando':  'objeto suspeito: carregando…',
+    'sem modelo':  'objeto suspeito: modelo não instalado',
+    'sem servidor':'objeto suspeito: servidor fora',
+    'falhou':      'objeto suspeito: falhou ao carregar'
+  }[armaEstado] || '';
   pintarTudo();
 }
 
@@ -1404,6 +1416,212 @@ function desenhar(){
     x.fillRect(t.box.x, topo, x.measureText(rot).width + 16, alt*1.6);
     x.fillStyle = '#06100F';
     x.fillText(rot, t.box.x + 8, topo + alt*1.15);
+  });
+  desenharArmas(x, v.videoWidth);
+}
+
+
+/* ===================================================== objeto suspeito ======
+   Detecção de objeto que PARECE arma de fogo ou lâmina, rodando no navegador
+   com ONNX Runtime Web. Mesmo modelo e mesmas travas do EduVision
+   (daten/app/armas.py) — se mudar a regra lá, mude aqui.
+
+   O NOME IMPORTA, e não é preciosismo. Isto não é um "detector de armas": é um
+   detector de OBJETO SUSPEITO, que pede conferência humana. A literatura de
+   campo é dura com esta tecnologia: sistemas em produção já confundiram uma
+   clarineta e um saco de salgadinho com arma de fogo, e em 2023 a SOMBRA DO
+   BRAÇO de um aluno colocou um colégio no Texas em lockdown. Faca é o caso que
+   funciona PIOR, e é justamente o mais pedido numa escola.
+
+   Por isso três travas, e nenhuma delas é enfeite:
+     1. LIMIAR ALTO (ARMA_CONF). Calibrado como detector de gato, enche a escola
+        de alarme e a escola aprende a ignorar — o pior desfecho possível.
+     2. PERSISTÊNCIA (ARMA_HITS). Reflexo e sombra piscam; objeto fica.
+     3. SILÊNCIO (ARMA_SILENCIO). Um objeto parado na mesa não alerta a cada
+        quadro.
+
+   E uma regra que não é de precisão, é de dano: o evento NUNCA leva id de
+   aluno. Amarrar um alerta de arma a um nome, com a taxa de erro que esta
+   tecnologia tem, é dano que não se desfaz com um pedido de desculpas. */
+
+const ARMA_LADO      = 640;   // entrada do modelo, conferida no arquivo .onnx
+const ARMA_CONF      = 0.60;  // confiança mínima
+const ARMA_NMS       = 0.45;  // sobreposição para fundir caixas do mesmo objeto
+const ARMA_HITS      = 4;     // leituras seguidas antes de virar evento
+const ARMA_SILENCIO  = 30000; // ms entre dois alertas da mesma classe
+const ARMA_CADA      = 6;     // roda 1x a cada N quadros; é a camada mais cara
+
+const ARMA_ROTULO = { pistol:'objeto tipo arma de fogo', knife:'objeto tipo lâmina' };
+const ARMA_CLASSES = ['pistol', 'knife'];   // ordem dos índices no modelo
+
+let sessaoArma = null, armaOcupada = false, quadroArma = 0;
+let achadosArma = [], armaEstado = 'desligada';
+const armaSeguidas = {}, armaAvisado = {};
+let telaArma = null;          // canvas 640x640 reaproveitado, sem realocar por quadro
+
+/* Carrega sob demanda e FALHA EM SILÊNCIO na tela, nunca no meio do vídeo.
+   Sem o modelo instalado a Sala continua inteira — só esta camada não liga. */
+async function ligarArmas(){
+  try{
+    /* Pergunta antes de baixar 12 MB. E pergunta num endpoint próprio: um HEAD
+       na rota do modelo devolve 405 (o FastAPI só declarou GET), e com isso a
+       Sala concluía "não instalado" com o modelo instalado. O teste pegou. */
+    const r = await fetch('/api/modelo/objeto-suspeito');
+    if(!r.ok){ armaEstado = 'sem servidor'; pintarTudo(); return; }
+    if(!(await r.json()).instalado){ armaEstado = 'sem modelo'; pintarTudo(); return; }
+  }catch(e){ armaEstado = 'sem servidor'; pintarTudo(); return; }
+
+  armaEstado = 'carregando';  pintarTudo();
+  try{
+    if(!window.ort){
+      await new Promise((ok, erro) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
+        s.onload = ok; s.onerror = erro; document.head.appendChild(s);
+      });
+      window.ort.env.wasm.wasmPaths =
+        'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+    }
+    sessaoArma = await window.ort.InferenceSession.create(
+      '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });
+    telaArma = document.createElement('canvas');
+    telaArma.width = telaArma.height = ARMA_LADO;
+    armaEstado = 'ligada';
+    anotar('', 'Camada de objeto suspeito ligada');
+  }catch(e){
+    armaEstado = 'falhou';
+    console.warn('[objeto suspeito] não carregou:', e);
+  }
+  pintarTudo();
+}
+
+/* Letterbox: encolhe mantendo a proporção e preenche o resto de cinza. Esticar
+   para o quadrado deformaria o objeto, e um cano de arma achatado deixa de
+   parecer um cano de arma. Devolve escala e deslocamento para as caixas
+   voltarem à escala do vídeo depois. */
+function encaixarArma(v){
+  const g = telaArma.getContext('2d', { willReadFrequently:true });
+  const escala = Math.min(ARMA_LADO / v.videoWidth, ARMA_LADO / v.videoHeight);
+  const nw = Math.round(v.videoWidth * escala), nh = Math.round(v.videoHeight * escala);
+  const dx = (ARMA_LADO - nw) >> 1, dy = (ARMA_LADO - nh) >> 1;
+  g.fillStyle = '#727272';                    // o mesmo 114 do letterbox do YOLO
+  g.fillRect(0, 0, ARMA_LADO, ARMA_LADO);
+  g.drawImage(v, dx, dy, nw, nh);
+
+  /* NCHW, RGB, normalizado em 0..1 — é o que o modelo espera. O canvas entrega
+     RGBA intercalado, então a transposição é feita aqui na mão. */
+  const px = g.getImageData(0, 0, ARMA_LADO, ARMA_LADO).data;
+  const n = ARMA_LADO * ARMA_LADO;
+  const dados = new Float32Array(n * 3);
+  for(let i = 0; i < n; i++){
+    dados[i]         = px[i*4    ] / 255;
+    dados[i + n]     = px[i*4 + 1] / 255;
+    dados[i + 2*n]   = px[i*4 + 2] / 255;
+  }
+  return { dados, escala, dx, dy };
+}
+
+/* Supressão de não-máximos. Sem isto, um objeto vira cinco alertas. */
+function nmsArma(caixas, scores, limiar){
+  const ordem = scores.map((s, i) => i).sort((a, b) => scores[b] - scores[a]);
+  const ficam = [];
+  while(ordem.length){
+    const i = ordem.shift();
+    ficam.push(i);
+    for(let k = ordem.length - 1; k >= 0; k--){
+      const a = caixas[i], b = caixas[ordem[k]];
+      const x1 = Math.max(a[0], b[0]), y1 = Math.max(a[1], b[1]);
+      const x2 = Math.min(a[0]+a[2], b[0]+b[2]), y2 = Math.min(a[1]+a[3], b[1]+b[3]);
+      const w = x2 - x1, h = y2 - y1;
+      if(w <= 0 || h <= 0) continue;
+      const inter = w * h;
+      if(inter / (a[2]*a[3] + b[2]*b[3] - inter) > limiar) ordem.splice(k, 1);
+    }
+  }
+  return ficam;
+}
+
+async function verArmas(v){
+  if(!sessaoArma || armaOcupada) return;
+  if(++quadroArma % ARMA_CADA) return;
+  armaOcupada = true;
+  try{
+    const { dados, escala, dx, dy } = encaixarArma(v);
+    const t = new window.ort.Tensor('float32', dados, [1, 3, ARMA_LADO, ARMA_LADO]);
+    const saida = await sessaoArma.run({ images: t });
+    const y = saida[Object.keys(saida)[0]];
+    /* (1, 4+nc, 8400): o tensor vem por LINHA, não por caixa. cx,cy,w,h estão
+       na escala 640 do letterbox, não na do vídeo. */
+    const nc = y.dims[1] - 4, n = y.dims[2], d = y.data;
+    const caixas = [], scores = [], classes = [];
+    for(let i = 0; i < n; i++){
+      let melhor = 0, conf = d[4*n + i];
+      for(let c = 1; c < nc; c++)
+        if(d[(4+c)*n + i] > conf){ conf = d[(4+c)*n + i]; melhor = c; }
+      if(conf < ARMA_CONF) continue;
+      const cx = d[i], cy = d[n + i], w = d[2*n + i], h = d[3*n + i];
+      caixas.push([ (cx - w/2 - dx)/escala, (cy - h/2 - dy)/escala,
+                    w/escala, h/escala ]);
+      scores.push(conf); classes.push(melhor);
+    }
+    achadosArma = nmsArma(caixas, scores, ARMA_NMS).map(i => ({
+      classe: ARMA_CLASSES[classes[i]] || '?',
+      rotulo: ARMA_ROTULO[ARMA_CLASSES[classes[i]]] || 'objeto suspeito',
+      conf: scores[i], box: caixas[i] }));
+    confirmarArmas(achadosArma);
+  }catch(e){ console.warn('[objeto suspeito]', e); }
+  armaOcupada = false;
+}
+
+/* Exige o objeto em várias leituras seguidas antes de virar evento. É a trava
+   que separa "reflexo piscou" de "tem alguma coisa ali". */
+function confirmarArmas(achados){
+  const agora = Date.now();
+  const vistos = new Set(achados.map(a => a.classe));
+
+  vistos.forEach(classe => {
+    armaSeguidas[classe] = (armaSeguidas[classe] || 0) + 1;
+    if(armaSeguidas[classe] !== ARMA_HITS) return;
+    if(agora - (armaAvisado[classe] || -1e12) < ARMA_SILENCIO) return;
+    armaAvisado[classe] = agora;
+
+    const melhor = achados.filter(a => a.classe === classe)
+                          .sort((a, b) => b.conf - a.conf)[0];
+    const texto = melhor.rotulo.replace(/^./, c => c.toUpperCase()) +
+      ' na cena, pendente de validação humana';
+    anomalias.unshift({ tipo:'objeto_suspeito', corpo:'-', quem:null,
+                        texto, h:hora(), visto:agora });
+    anomalias = anomalias.slice(0, 20);
+    anotar('mal', texto);
+    /* Sem id de aluno, e isto é regra, não descuido. */
+    mandarEvento('objeto_suspeito', '-');
+    pintarTudo();
+  });
+
+  /* Sumiu do quadro, o contador DESCE em vez de zerar: uma leitura ruim no meio
+     de uma sequência boa não apaga a evidência acumulada. */
+  Object.keys(armaSeguidas).forEach(classe => {
+    if(!vistos.has(classe)) armaSeguidas[classe] = Math.max(0, armaSeguidas[classe] - 1);
+  });
+}
+
+function desenharArmas(x, larguraVideo){
+  if(!achadosArma.length) return;
+  const alt = Math.max(13, larguraVideo/44);
+  x.font = '500 ' + alt + 'px system-ui';
+  achadosArma.forEach(a => {
+    const [bx, by, bw, bh] = a.box;
+    x.strokeStyle = '#DE8797';
+    x.lineWidth = Math.max(2, larguraVideo/380);
+    x.setLineDash([alt*0.5, alt*0.35]);   // tracejado: é suspeita, não afirmação
+    x.strokeRect(bx, by, bw, bh);
+    x.setLineDash([]);
+    const rot = a.rotulo + '  ' + Math.round(a.conf*100) + '%';
+    const topo = Math.max(0, by - alt*1.7);
+    x.fillStyle = '#DE8797';
+    x.fillRect(bx, topo, x.measureText(rot).width + 16, alt*1.6);
+    x.fillStyle = '#31161C';
+    x.fillText(rot, bx + 8, topo + alt*1.15);
   });
 }
 

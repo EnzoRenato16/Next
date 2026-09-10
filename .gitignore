@@ -31,3 +31,5 @@ graphify-out/cache/
 # Sistema operacional
 .DS_Store
 Thumbs.db
+
+modelos/*.onnx

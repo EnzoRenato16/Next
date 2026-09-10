@@ -24,6 +24,22 @@ uv run servidor.py           # http://127.0.0.1:8000
 | `/painel` | **Painel** — leitura do banco: integridade da cadeia, séries, mapa de calor. Não grava nada. |
 | `/docs` | Swagger dos endpoints |
 
+### Objeto suspeito (arma de fogo e lâmina)
+
+A Sala roda essa camada **no navegador**, com ONNX Runtime Web. O modelo não
+está no repositório (12 MB e licença AGPL-3.0) — baixe uma vez:
+
+```bash
+curl -L -o modelos/objeto_suspeito_yolov8.onnx \
+  https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx
+```
+
+Sem ele **nada quebra**: a camada não liga e a Sala escreve isso na faixa de
+status. Detalhes e a questão da licença em [`modelos/README.md`](modelos/README.md).
+
+O evento é gravado como `objeto_suspeito`, **nunca** "arma detectada", e
+**nunca** leva id de aluno.
+
 Sem `.env`, o servidor cai sozinho para SQLite local e avisa na tela. Copie
 `.env.example` para `.env` e preencha a senha para usar o Postgres do `db-fiap`.
 
@@ -46,6 +62,7 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 | `svatech-dashboard.html` | Caixa-preta cirúrgica (OPME) |
 | `svatech-scanner.html` | Leitor de patrimônio (código de barras / QR) |
 | `views_powerbi.sql` | Visões agregadas para o Power BI — nunca a tabela crua |
+| `testes/` | Testes das regras de visão — `node testes/<arquivo>.mjs` |
 | `daten/` | EduVision: reconhecimento facial em Python no AIBOX |
 | `SVATech_Health.md` | A tese do SVATech Health |
 

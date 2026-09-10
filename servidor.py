@@ -45,6 +45,7 @@ from pydantic import BaseModel, Field
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
 PAINEL = AQUI / "auditix-painel.html"
+MODELO_ARMAS = AQUI / "modelos" / "objeto_suspeito_yolov8.onnx"
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
@@ -409,6 +410,38 @@ def pagina_painel() -> FileResponse:
     if not PAINEL.exists():
         raise HTTPException(404, f"não achei {PAINEL.name} ao lado do servidor")
     return FileResponse(PAINEL, headers={"Cache-Control": "no-store, must-revalidate"})
+
+
+@app.get("/api/modelo/objeto-suspeito")
+def status_modelo_armas() -> dict:
+    """A Sala pergunta AQUI se vale a pena baixar 12 MB.
+
+    Era um HEAD na propria rota do modelo, e o teste pegou: o FastAPI responde
+    405 a HEAD numa rota GET, entao a Sala concluia "modelo nao instalado" com o
+    modelo instalado e a camada nunca ligava. Uma consulta barata e explicita
+    nao tem essa ambiguidade.
+    """
+    existe = MODELO_ARMAS.exists()
+    return {"instalado": existe,
+            "bytes": MODELO_ARMAS.stat().st_size if existe else 0}
+
+
+@app.get("/modelo/objeto-suspeito.onnx")
+def modelo_armas() -> FileResponse:
+    """O modelo de objeto suspeito, servido da máquina — nunca de CDN.
+
+    O navegador nao pode ler um arquivo do disco sozinho, entao quem entrega e
+    o servidor. E o mesmo principio do resto do projeto: a demonstracao nao
+    pode depender da internet da escola no dia da apresentacao. Baixa-se uma
+    vez (veja modelos/README.md) e acabou.
+
+    Ausente, o 404 aqui e a resposta certa e a Sala trata: ela simplesmente nao
+    liga a camada e diz isso na tela, em vez de quebrar.
+    """
+    if not MODELO_ARMAS.exists():
+        raise HTTPException(404, "modelo de objeto suspeito nao instalado")
+    return FileResponse(MODELO_ARMAS, media_type="application/octet-stream",
+                        headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/api/painel")
