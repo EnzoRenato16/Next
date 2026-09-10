@@ -46,10 +46,39 @@ const P = { NARIZ:0, OMBRO_E:11, OMBRO_D:12, COTOV_E:13, COTOV_D:14,
             JOELHO_E:25, JOELHO_D:26, TORN_E:27, TORN_D:28 };
 const VIS_MIN = 0.40;
 const vis = p => (p && p.visibility != null) ? p.visibility : 1;
+const temPontoCabeca = lm => {
+  for(let i = 0; i <= 10; i++) if(vis(lm[i]) >= VIS_MIN) return true;
+  return false;
+};
 
 function caixaDe(lm, larg, alt){
+  /* Ombros são o mínimo para dizer "isto é uma pessoa". O quadril era exigido
+     junto, e isso quebrava todo enquadramento fechado: numa webcam de notebook,
+     com a pessoa sentada, o quadril simplesmente não está no quadro. Sem caixa
+     não nasce trilha, sem trilha o rosto reconhecido não tinha onde grudar o
+     nome, e a tela vivia dizendo "sala vazia" com uma pessoa na frente dela.
+     Contra os corpos fantasmas que o quadril barrava sobram três filtros: o
+     mínimo de 6 pontos aqui embaixo, o podar() por sobreposição, e os
+     VISTAS_MIN quadros seguidos antes de virar pessoa de verdade. */
   for(const i of [P.OMBRO_E, P.OMBRO_D])
     if(vis(lm[i]) < VIS_MIN) return null;
+
+  /* E CABEÇA OU QUADRIL. Ombros sozinhos não são prova de pessoa: uma mão
+     aberta perto da câmera tem a silhueta certa para o detector montar ombros
+     em cima dela, e foi assim que "Corpo #18" nasceu numa mão que estava
+     sozinha no quadro — sem corpo nenhum a que comparar, nenhuma regra de
+     sobreposição podia salvar.
+
+     Gente de verdade mostra uma ponta ou a outra: numa webcam de perto vê-se a
+     cabeça, numa câmera de sala vê-se o quadril. Mostrar SÓ o meio, sem
+     nenhuma das duas, é o formato do pedaço, não o da pessoa.
+
+     Exigir as duas quebraria o enquadramento fechado, que foi o bug de antes.
+     Uma OU outra, não. */
+  const cabeca  = temPontoCabeca(lm);
+  const quadril = vis(lm[P.QUADRIL_E]) >= VIS_MIN || vis(lm[P.QUADRIL_D]) >= VIS_MIN;
+  if(!cabeca && !quadril) return null;
+
   let x0 = 1, y0 = 1, x1 = 0, y1 = 0, n = 0;
   for(const p of lm){
     if(vis(p) < VIS_MIN) continue;
@@ -61,6 +90,10 @@ function caixaDe(lm, larg, alt){
   return { x:(x0 - fx)*larg, y:(y0 - fy)*alt,
            w:(x1 - x0 + 2*fx)*larg, h:(y1 - y0 + 2*fy)*alt };
 }
+
+/* Interseção sobre a MENOR das duas caixas. O IoU comum não serve aqui: uma
+   caixa pequena encaixada dentro de uma grande tem IoU baixo e passa batido,
+   e é exatamente essa a forma dos fantasmas. */
 function ios(a, b){
   const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
   const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
@@ -270,6 +303,19 @@ function maoEm(lm, lado, px, py){
     { x:px/LARG, y:py/ALT, z:0, visibility:0.95 };
   return lm;
 }
+/* Ombros e braços, sem cabeça e sem quadril: o formato que o detector monta em
+   cima de uma mão aberta. */
+function soTronco(cx, cy, ombro){
+  const lm = Array.from({ length:33 }, () => ({ x:cx/LARG, y:cy/ALT, visibility:0 }));
+  const pos = (i, px, py) => lm[i] = { x:px/LARG, y:py/ALT, z:0, visibility:0.97 };
+  pos(P.OMBRO_E, cx - 0.50*ombro, cy);
+  pos(P.OMBRO_D, cx + 0.50*ombro, cy);
+  pos(P.COTOV_E, cx - 0.70*ombro, cy + 0.80*ombro);
+  pos(P.COTOV_D, cx + 0.70*ombro, cy + 0.80*ombro);
+  pos(P.PULSO_E, cx - 0.85*ombro, cy + 1.60*ombro);
+  pos(P.PULSO_D, cx + 0.85*ombro, cy + 1.60*ombro);
+  return lm;
+}
 const det = lm => ({ lm, box:caixaDe(lm, LARG, ALT) });
 
 /* ---- cenários ---------------------------------------------------------- */
@@ -340,13 +386,30 @@ const LIMITE = { nome:'fantasma na mão, punho invisível', pessoas:1, dets:[
   det(corpo(880, 520, 330)),
   det(corpo(300, 560, 80, { nitido:0.99 })) ]};
 
+/* A MÃO SOZINHA no quadro — o "Corpo #18". Quem segurava a mão estava atrás da
+   câmera, então não havia corpo nenhum a que comparar e nenhuma regra de
+   sobreposição podia ajudar. O que a rejeita é a anatomia dela mesma: ombros
+   sim, cabeça não, quadril não. */
+CENARIOS.push({ nome:'mão sozinha, sem corpo no quadro', pessoas:0, dets:[
+  det(soTronco(560, 450, 90)) ]});
+
+/* E os dois que a regra NÃO pode derrubar, porque foram bugs antes: */
+CENARIOS.push({ nome:'close cortado, só cabeça e ombros', pessoas:1, dets:[
+  det(corpo(640, 700, 430, { cabeca:true })) ]});
+CENARIOS.push({ nome:'sala: corpo de costas, com quadril', pessoas:1, dets:[
+  det(corpo(640, 400, 150, { cabeca:false, pernas:true })) ]});
+
 /* ---- execução ---------------------------------------------------------- */
 let falhas = 0;
+/* A coluna "antes" mede SÓ a regra de poda antiga — o caixaDe é o novo nos dois
+   lados, porque é copiado do arquivo vivo. Então ela não credita a regra de
+   "cabeça ou quadril": no cenário da mão sozinha os dois aparecem como 0. */
 console.log('\ncenário                              real   antes   depois');
 console.log('─'.repeat(60));
 for(const c of CENARIOS){
+  /* caixa nula = o próprio caixaDe recusou a pose. É um resultado válido, e
+     para a mão sozinha é justamente o resultado desejado. */
   const dets = c.dets.filter(d => d.box);
-  if(dets.length !== c.dets.length){ console.log('FALHA ' + c.nome + ': caixa nula'); falhas++; continue; }
   const antes  = podarAntigo(dets).length;
   const depois = podar(dets, LARG, ALT).length;
   const ok = depois === c.pessoas;

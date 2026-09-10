@@ -631,6 +631,11 @@ let mapaCalor = new Float32Array(GX*GY), mostrarMapa = false;
 let redePose = null, anomalias = [], limbo = [], agitacao = {};
 
 const vis = p => (p && p.visibility != null) ? p.visibility : 1;
+/* Nariz, olhos, orelhas e boca: os índices 0 a 10 do MediaPipe. */
+const temPontoCabeca = lm => {
+  for(let i = 0; i <= 10; i++) if(vis(lm[i]) >= VIS_MIN) return true;
+  return false;
+};
 const meio = (lm, a, b) => ({ x:(lm[a].x + lm[b].x)/2, y:(lm[a].y + lm[b].y)/2 });
 const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z||0) - (b.z||0));
 
@@ -647,6 +652,23 @@ function caixaDe(lm, larg, alt){
      VISTAS_MIN quadros seguidos antes de virar pessoa de verdade. */
   for(const i of [P.OMBRO_E, P.OMBRO_D])
     if(vis(lm[i]) < VIS_MIN) return null;
+
+  /* E CABEÇA OU QUADRIL. Ombros sozinhos não são prova de pessoa: uma mão
+     aberta perto da câmera tem a silhueta certa para o detector montar ombros
+     em cima dela, e foi assim que "Corpo #18" nasceu numa mão que estava
+     sozinha no quadro — sem corpo nenhum a que comparar, nenhuma regra de
+     sobreposição podia salvar.
+
+     Gente de verdade mostra uma ponta ou a outra: numa webcam de perto vê-se a
+     cabeça, numa câmera de sala vê-se o quadril. Mostrar SÓ o meio, sem
+     nenhuma das duas, é o formato do pedaço, não o da pessoa.
+
+     Exigir as duas quebraria o enquadramento fechado, que foi o bug de antes.
+     Uma OU outra, não. */
+  const cabeca  = temPontoCabeca(lm);
+  const quadril = vis(lm[P.QUADRIL_E]) >= VIS_MIN || vis(lm[P.QUADRIL_D]) >= VIS_MIN;
+  if(!cabeca && !quadril) return null;
+
   let x0 = 1, y0 = 1, x1 = 0, y1 = 0, n = 0;
   for(const p of lm){
     if(vis(p) < VIS_MIN) continue;
@@ -1394,7 +1416,7 @@ function resumir(){
     'carregando':  'objeto suspeito: carregando…',
     'sem modelo':  'objeto suspeito: modelo não instalado',
     'sem servidor':'objeto suspeito: servidor fora',
-    'falhou':      'objeto suspeito: falhou ao carregar'
+    'falhou':      'objeto suspeito: falhou — ' + armaErro
   }[armaEstado] || '';
   pintarTudo();
 }
@@ -1454,7 +1476,7 @@ const ARMA_CADA      = 6;     // roda 1x a cada N quadros; é a camada mais cara
 const ARMA_ROTULO = { pistol:'objeto tipo arma de fogo', knife:'objeto tipo lâmina' };
 const ARMA_CLASSES = ['pistol', 'knife'];   // ordem dos índices no modelo
 
-let sessaoArma = null, armaOcupada = false, quadroArma = 0;
+let sessaoArma = null, armaOcupada = false, quadroArma = 0, armaErro = '';
 let achadosArma = [], armaEstado = 'desligada';
 const armaSeguidas = {}, armaAvisado = {};
 let telaArma = null;          // canvas 640x640 reaproveitado, sem realocar por quadro
@@ -1481,6 +1503,16 @@ async function ligarArmas(){
       });
       window.ort.env.wasm.wasmPaths =
         'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+      /* UMA THREAD, de propósito. O padrão do ONNX Runtime é usar várias, e
+         para isso ele precisa de SharedArrayBuffer — que o navegador só libera
+         com os cabeçalhos COOP/COEP de isolamento de origem. O nosso servidor
+         não os manda, e não pode mandar: eles bloqueariam o MediaPipe e o
+         face-api, que vêm de CDN. Sem isso o carregamento morre.
+
+         Uma thread é mais devagar, e tudo bem: esta camada roda 1x a cada 6
+         quadros e não está no caminho do vídeo. */
+      window.ort.env.wasm.numThreads = 1;
+      window.ort.env.wasm.proxy = false;
     }
     sessaoArma = await window.ort.InferenceSession.create(
       '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });
@@ -1489,7 +1521,12 @@ async function ligarArmas(){
     armaEstado = 'ligada';
     anotar('', 'Camada de objeto suspeito ligada');
   }catch(e){
+    /* O erro VAI PARA A TELA. Antes ele morria num console.warn e a faixa só
+       dizia "falhou ao carregar", o que não diz nada a quem está na sala com o
+       problema na frente. Camada de segurança que falha calada é pior que
+       camada nenhuma. */
     armaEstado = 'falhou';
+    armaErro = (e && (e.message || e.name)) || String(e);
     console.warn('[objeto suspeito] não carregou:', e);
   }
   pintarTudo();
