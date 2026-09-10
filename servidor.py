@@ -433,5 +433,25 @@ if __name__ == "__main__":
     import uvicorn
 
     porta = int(os.environ.get("PORTA", "8000"))
-    print(f"[auditix] abra http://127.0.0.1:{porta}")
-    uvicorn.run(app, host="127.0.0.1", port=porta, log_level="warning")
+    # HOST=0.0.0.0 libera o acesso de outro aparelho da mesma rede (celular,
+    # o notebook da apresentacao). O padrao continua so nesta maquina.
+    host = os.environ.get("HOST", "127.0.0.1")
+
+    print(f"[auditix] sala   -> http://127.0.0.1:{porta}/")
+    print(f"[auditix] painel -> http://127.0.0.1:{porta}/painel")
+    print("[auditix] deixe esta janela ABERTA. Ctrl+C encerra.")
+
+    # log_level="info" de proposito: o uvicorn precisa dizer "estou de pe".
+    # Servidor que sobe calado nao da para diagnosticar quando cai.
+    try:
+        uvicorn.run(app, host=host, port=porta, log_level="info")
+    except OSError as e:
+        # Quase sempre e a porta ocupada: outra janela ficou aberta.
+        print(f"\n[auditix] nao consegui abrir a porta {porta}: {e}")
+        print(f"[auditix] feche a outra janela, ou rode com outra porta:")
+        print(f"[auditix]   $env:PORTA=8001; uv run servidor.py")
+        raise SystemExit(1)
+
+    # Se chegou aqui, o uvicorn PAROU. Sem esta linha o processo sai em
+    # silencio e parece que nunca subiu.
+    print("[auditix] servidor encerrado.")
