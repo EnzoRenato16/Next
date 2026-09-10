@@ -1412,7 +1412,12 @@ function resumir(){
      que falhou calada é pior que camada nenhuma: a escola acha que está coberta
      e não está. */
   el('faixa-arma').textContent = {
-    'ligada':      'objeto suspeito: ativo',
+    /* Com o número do lado. Enquanto ninguém tiver medido o modelo na sala de
+       vocês, este é o instrumento: aponte o objeto e leia. Perto de 0 significa
+       que o modelo não reconhece aquilo — nenhum ajuste de limiar resolve. */
+    'ligada':      'objeto suspeito: ativo · maior ' + armaMaior.toFixed(3) +
+                   (armaMaior > 0.02 ? ' (' + armaMaiorClasse + ')' : '') +
+                   ' · ' + armaLeituras + ' leituras',
     'carregando':  'objeto suspeito: carregando…',
     'sem modelo':  'objeto suspeito: modelo não instalado',
     'sem runtime': 'objeto suspeito: runtime não instalado',
@@ -1479,9 +1484,31 @@ const ARMA_SILENCIO  = 30000; // ms entre dois alertas da mesma classe
 const ARMA_CADA      = 6;     // roda 1x a cada N quadros; é a camada mais cara
 
 const ARMA_ROTULO = { pistol:'objeto tipo arma de fogo', knife:'objeto tipo lâmina' };
-const ARMA_CLASSES = ['pistol', 'knife'];   // ordem dos índices no modelo
+
+/* QUAIS ÍNDICES INTERESSAM, por modelo. O modelo é escolhido por quem instala,
+   e a Sala descobre qual é pelo número de classes da saída — não há por que
+   fixar dois no código.
+
+   Dois caminhos, e a diferença é de PROCEDÊNCIA, não de gosto:
+
+   · 2 classes — o modelo de arma do Hugging Face. Detecta pistola E faca, mas
+     é obra de um treino de Colab: sem model card, sem métrica publicada, sem
+     adoção. Não dá para saber o que ele acerta sem medir.
+   · 80 classes — YOLOv8 do COCO, com 'knife' no índice 43. Não tem classe de
+     arma de fogo nenhuma, e em troca é treinado em 118 mil imagens revisadas,
+     com desempenho publicado. Para lâmina, é a aposta mais segura.
+
+   Do COCO usamos SÓ a faca. Tesoura (76) e taco de beisebol (34) também estão
+   lá e também são objetos de escola — ficam de fora de propósito: cada classe a
+   mais é uma fonte a mais de alarme falso, e essa conta a escola paga. */
+const ARMA_INTERESSE = {
+  2:  { 0:'pistol', 1:'knife' },
+  80: { 43:'knife' }
+};
 
 let sessaoArma = null, armaOcupada = false, quadroArma = 0, armaErro = '';
+let armaMaior = 0, armaMaiorClasse = '', armaLeituras = 0;
+let armaTipo = 'float32', armaEntrada = 'images';
 let achadosArma = [], armaEstado = 'desligada';
 const armaSeguidas = {}, armaAvisado = {};
 let telaArma = null;          // canvas 640x640 reaproveitado, sem realocar por quadro
@@ -1540,6 +1567,12 @@ async function ligarArmas(){
     }
     sessaoArma = await window.ort.InferenceSession.create(
       '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });
+    /* O modelo diz de que tipo quer a entrada. Perguntar é mais barato que
+       exigir um formato de quem instala — e o erro, quando não bate, é
+       "Unexpected input data type", que não diz o que fazer a respeito. */
+    const meta = sessaoArma.inputMetadata && sessaoArma.inputMetadata[0];
+    armaTipo = (meta && (meta.type || meta.dataType)) || 'float32';
+    armaEntrada = sessaoArma.inputNames[0];
     telaArma = document.createElement('canvas');
     telaArma.width = telaArma.height = ARMA_LADO;
     armaEstado = 'ligada';
@@ -1554,6 +1587,64 @@ async function ligarArmas(){
     console.warn('[objeto suspeito] não carregou:', e);
   }
   pintarTudo();
+}
+
+
+/* ---- float16 ---------------------------------------------------------
+   Alguns modelos são exportados em MEIA PRECISÃO e recusam entrada float32 com
+   "Unexpected input data type". O YOLOv8 do COCO é um deles. Em vez de exigir
+   um export específico de quem instala, a Sala converte.
+
+   Este par foi conferido contra o numpy em 8012 valores — os dois sentidos,
+   idênticos bit a bit. Três erros meus só apareceram por causa dessa
+   conferência, e cada um está comentado onde aconteceu. Escrever conversão de
+   ponto flutuante "no olho" não funciona.
+
+   Custa uma passada a mais sobre 1,2 milhão de números por leitura. Como a
+   inferência roda em worker, isso não aparece no vídeo. */
+/* float32 <-> float16, o mesmo par que vai para a Sala. */
+const _b = new ArrayBuffer(4), _f = new Float32Array(_b), _i = new Uint32Array(_b);
+
+function paraMeio(v){
+  _f[0] = v; const x = _i[0];
+  const sinal = (x >>> 16) & 0x8000;
+  const bruto = (x >>> 23) & 0xff;
+  let man = x & 0x7fffff;
+  /* Infinito ou NaN DE ORIGEM: só quando o expoente do float32 está saturado.
+     Antes eu tratava junto com "grande demais para caber", e por isso 1e5 (que
+     é finito) virava NaN em vez de infinito. */
+  if(bruto === 0xff) return sinal | 0x7c00 | (man ? 0x200 : 0);
+  let exp = bruto - 112;                    // 127 - 15
+  if(exp >= 0x1f) return sinal | 0x7c00;    // finito, mas maior que 65504
+  if(exp <= 0){                                                // subnormal
+    if(exp < -10) return sinal;
+    man |= 0x800000;
+    const desloca = 14 - exp;
+    return sinal | arredondar(man, desloca);
+  }
+  /* SOMA, não OR: quando o arredondamento da mantissa estoura, o carry precisa
+     SUBIR para o expoente. Com OR ele era engolido e -1,9998 virava -1,0. */
+  return sinal | ((exp << 10) + arredondar(man, 13));
+}
+
+/* Arredonda para o PAR nos empates, que é o que o IEEE-754 manda e o que o
+   numpy faz. Arredondar sempre para cima diverge nos valores exatamente no
+   meio — pouco, mas o teste contra o numpy não fecha, e um teste que não fecha
+   deixa de servir para pegar o próximo erro de verdade. */
+function arredondar(man, desloca){
+  const meio = 1 << (desloca - 1);
+  const resto = man & ((1 << desloca) - 1);
+  let alto = man >>> desloca;
+  if(resto > meio || (resto === meio && (alto & 1))) alto++;
+  return alto;
+}
+
+function deMeio(h){
+  const sinal = (h & 0x8000) ? -1 : 1;
+  const exp = (h >>> 10) & 0x1f, man = h & 0x3ff;
+  if(exp === 0)    return sinal * man * 5.9604644775390625e-8;   // 2^-24
+  if(exp === 0x1f) return man ? NaN : sinal * Infinity;
+  return sinal * Math.pow(2, exp - 15) * (1 + man / 1024);
 }
 
 /* Letterbox: encolhe mantendo a proporção e preenche o resto de cinza. Esticar
@@ -1608,26 +1699,67 @@ async function verArmas(v){
   armaOcupada = true;
   try{
     const { dados, escala, dx, dy } = encaixarArma(v);
-    const t = new window.ort.Tensor('float32', dados, [1, 3, ARMA_LADO, ARMA_LADO]);
-    const saida = await sessaoArma.run({ images: t });
-    const y = saida[Object.keys(saida)[0]];
+    let t;
+    if(armaTipo === 'float16'){
+      /* Se o navegador já tem Float16Array (Chrome recente), usa-se ele: os
+         valores entram como número mesmo, sem conversão de bits. Só quando não
+         existe é que caímos no par paraMeio/deMeio escrito aqui. */
+      const meio = typeof Float16Array !== 'undefined'
+        ? Float16Array.from(dados)
+        : Uint16Array.from(dados, paraMeio);
+      t = new window.ort.Tensor('float16', meio, [1, 3, ARMA_LADO, ARMA_LADO]);
+    }else{
+      t = new window.ort.Tensor('float32', dados, [1, 3, ARMA_LADO, ARMA_LADO]);
+    }
+    const saida = await sessaoArma.run({ [armaEntrada]: t });
+    const bruto = saida[Object.keys(saida)[0]];
+    /* A saída em meia precisão chega de DUAS formas, e confundi-las custou um
+       teste: num navegador com Float16Array ela vem como Float16Array, com os
+       valores JÁ decodificados; sem ele, vem como Uint16Array de padrões de
+       bits. Rodar deMeio() no primeiro caso trata número como bit e devolve
+       zeros — sem erro nenhum, que é o pior jeito de errar.
+
+       Por isso a decisão é pelo TIPO DO ARRAY, não pelo tipo do tensor. */
+    const y = { dims: bruto.dims, data: bruto.data };
+    if(bruto.data instanceof Uint16Array)
+      y.data = Float32Array.from(bruto.data, deMeio);
     /* (1, 4+nc, 8400): o tensor vem por LINHA, não por caixa. cx,cy,w,h estão
        na escala 640 do letterbox, não na do vídeo. */
     const nc = y.dims[1] - 4, n = y.dims[2], d = y.data;
     const caixas = [], scores = [], classes = [];
+    const interessa = ARMA_INTERESSE[nc];
+    if(!interessa){
+      armaEstado = 'falhou';
+      armaErro = 'modelo com ' + nc + ' classes, não sei ler';
+      armaOcupada = false; pintarTudo(); return;
+    }
+    const indices = Object.keys(interessa).map(Number);
+    let maior = 0, maiorClasse = indices[0];
     for(let i = 0; i < n; i++){
-      let melhor = 0, conf = d[4*n + i];
-      for(let c = 1; c < nc; c++)
+      /* Só as classes que interessam. Num modelo de 80 classes, procurar o
+         máximo entre todas faria uma pessoa (classe 0) ou uma cadeira ganhar da
+         faca, e o número na tela mediria a coisa errada. */
+      let melhor = indices[0], conf = d[(4+indices[0])*n + i];
+      for(const c of indices)
         if(d[(4+c)*n + i] > conf){ conf = d[(4+c)*n + i]; melhor = c; }
+      /* A MAIOR confiança do quadro, inclusive abaixo do limiar. Sem este
+         número não dá para distinguir dois problemas que na tela são idênticos:
+         "o modelo vê o objeto mas o limiar é alto demais" e "o modelo não vê
+         nada ali". O primeiro se resolve mexendo no ARMA_CONF; o segundo não se
+         resolve com ajuste nenhum, e sim trocando ou treinando o modelo.
+         Ficar adivinhando entre os dois custa mais do que mostrar o número. */
+      if(conf > maior){ maior = conf; maiorClasse = melhor; }
       if(conf < ARMA_CONF) continue;
       const cx = d[i], cy = d[n + i], w = d[2*n + i], h = d[3*n + i];
       caixas.push([ (cx - w/2 - dx)/escala, (cy - h/2 - dy)/escala,
                     w/escala, h/escala ]);
       scores.push(conf); classes.push(melhor);
     }
+    armaMaior = maior; armaMaiorClasse = interessa[maiorClasse] || '?';
+    armaLeituras++;
     achadosArma = nmsArma(caixas, scores, ARMA_NMS).map(i => ({
-      classe: ARMA_CLASSES[classes[i]] || '?',
-      rotulo: ARMA_ROTULO[ARMA_CLASSES[classes[i]]] || 'objeto suspeito',
+      classe: interessa[classes[i]] || '?',
+      rotulo: ARMA_ROTULO[interessa[classes[i]]] || 'objeto suspeito',
       conf: scores[i], box: caixas[i] }));
     confirmarArmas(achadosArma);
   }catch(e){ console.warn('[objeto suspeito]', e); }

@@ -18,8 +18,19 @@ pegar(){   # url destino
   curl -fL --progress-bar -o "$2" "$1"
 }
 
-pegar https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx \
-      "$raiz/modelos/objeto_suspeito_yolov8.onnx"
+# Qual modelo. "coco" e o padrao e a aposta mais segura para LAMINA: YOLOv8 do
+# COCO, treinado em 118 mil imagens revisadas, com desempenho publicado. Nao tem
+# classe de arma de fogo.
+# "armas" traz pistola E faca, mas e um treino de Colab sem metrica publicada.
+# Trocar de um para o outro e so apagar o arquivo e rodar de novo.
+qual="${1:-coco}"
+case "$qual" in
+  coco)  url=https://huggingface.co/unity/inference-engine-yolo/resolve/main/models/yolov8n.onnx ;;
+  armas) url=https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx ;;
+  *) echo "uso: bash baixar-modelos.sh [coco|armas]"; exit 1 ;;
+esac
+echo "modelo: $qual"
+pegar "$url" "$raiz/modelos/objeto_suspeito_yolov8.onnx"
 for f in ort.wasm.min.js ort-wasm-simd-threaded.mjs ort-wasm-simd-threaded.wasm; do
   pegar "$base/$f" "$ort/$f"
 done

@@ -37,6 +37,12 @@ powershell -ExecutionPolicy Bypass -File baixar-modelos.ps1   # Windows
 bash baixar-modelos.sh                                        # Linux / macOS
 ```
 
+O padrão é o YOLOv8 do **COCO**, que detecta **lâmina** e é treinado em 118 mil
+imagens revisadas. Para tentar também **arma de fogo**, use o argumento
+`armas` — modelo que detecta as duas coisas, mas sem nenhuma métrica publicada.
+A faixa da Sala mostra a confiança medida a cada leitura, para vocês decidirem
+com número em vez de impressão.
+
 Sem esses arquivos **nada quebra**: a camada não liga e a Sala escreve isso na
 faixa de status, dizendo qual das duas partes falta. Detalhes e a questão da
 licença em [`modelos/README.md`](modelos/README.md).

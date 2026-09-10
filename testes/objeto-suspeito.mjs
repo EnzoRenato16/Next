@@ -20,10 +20,55 @@
 
 const ARMA_LADO = 640, ARMA_CONF = 0.60, ARMA_NMS = 0.45;
 const ARMA_HITS = 4, ARMA_SILENCIO = 30000;
-const ARMA_CLASSES = ['pistol', 'knife'];
 const ARMA_ROTULO = { pistol:'objeto tipo arma de fogo', knife:'objeto tipo lâmina' };
+const ARMA_INTERESSE = { 2:{0:'pistol',1:'knife'}, 80:{43:'knife'} };
+const ARMA_CLASSES = ['pistol', 'knife'];
 
 /* ===== COPIADO de auditix-sala.html ==================================== */
+const _b = new ArrayBuffer(4), _f = new Float32Array(_b), _i = new Uint32Array(_b);
+
+function paraMeio(v){
+  _f[0] = v; const x = _i[0];
+  const sinal = (x >>> 16) & 0x8000;
+  const bruto = (x >>> 23) & 0xff;
+  let man = x & 0x7fffff;
+  /* Infinito ou NaN DE ORIGEM: só quando o expoente do float32 está saturado.
+     Antes eu tratava junto com "grande demais para caber", e por isso 1e5 (que
+     é finito) virava NaN em vez de infinito. */
+  if(bruto === 0xff) return sinal | 0x7c00 | (man ? 0x200 : 0);
+  let exp = bruto - 112;                    // 127 - 15
+  if(exp >= 0x1f) return sinal | 0x7c00;    // finito, mas maior que 65504
+  if(exp <= 0){                                                // subnormal
+    if(exp < -10) return sinal;
+    man |= 0x800000;
+    const desloca = 14 - exp;
+    return sinal | arredondar(man, desloca);
+  }
+  /* SOMA, não OR: quando o arredondamento da mantissa estoura, o carry precisa
+     SUBIR para o expoente. Com OR ele era engolido e -1,9998 virava -1,0. */
+  return sinal | ((exp << 10) + arredondar(man, 13));
+}
+
+/* Arredonda para o PAR nos empates, que é o que o IEEE-754 manda e o que o
+   numpy faz. Arredondar sempre para cima diverge nos valores exatamente no
+   meio — pouco, mas o teste contra o numpy não fecha, e um teste que não fecha
+   deixa de servir para pegar o próximo erro de verdade. */
+function arredondar(man, desloca){
+  const meio = 1 << (desloca - 1);
+  const resto = man & ((1 << desloca) - 1);
+  let alto = man >>> desloca;
+  if(resto > meio || (resto === meio && (alto & 1))) alto++;
+  return alto;
+}
+
+function deMeio(h){
+  const sinal = (h & 0x8000) ? -1 : 1;
+  const exp = (h >>> 10) & 0x1f, man = h & 0x3ff;
+  if(exp === 0)    return sinal * man * 5.9604644775390625e-8;   // 2^-24
+  if(exp === 0x1f) return man ? NaN : sinal * Infinity;
+  return sinal * Math.pow(2, exp - 15) * (1 + man / 1024);
+}
+
 function nmsArma(caixas, scores, limiar){
   const ordem = scores.map((s, i) => i).sort((a, b) => scores[b] - scores[a]);
   const ficam = [];
@@ -200,6 +245,60 @@ console.log('\n— travas contra alarme falso ———————————�
   }
   for(let k = 0; k < 30; k++) passo(k % 2 ? ['knife'] : []);
   teste('reflexo que pisca nunca vira evento', alertas === 0, `${alertas} alertas`);
+}
+
+console.log('\n— meia precisão ————————————————————————————————————');
+{
+  /* Alguns modelos (o YOLOv8 do COCO entre eles) só aceitam entrada float16.
+     Este par foi conferido contra o numpy em 8012 valores, nos dois sentidos.
+     Três erros meus só apareceram por causa daquela conferência:
+
+       · usei OR onde o arredondamento da mantissa precisa TRANSBORDAR para o
+         expoente — -1,9998 virava -1,0;
+       · arredondava empates para cima, e o IEEE-754 manda arredondar para o
+         par;
+       · tratava "grande demais para caber" como infinito de origem, e 1e5
+         virava NaN.
+
+     Nenhum dos três dá erro. Os três dão número errado em silêncio. */
+  const casos = [
+    ['zero',            0,        0x0000],
+    ['um',              1,        0x3C00],
+    ['menos dois',     -2,        0xC000],
+    ['carry do arredondamento', -1.9998259544372559, 0xC000],
+    ['empate vai para o par',    0.806884765625,     0x3A74],
+    ['maior finito',    65504,    0x7BFF],
+    ['estoura -> infinito', 1e5,  0x7C00],
+    ['subnormal',       6e-8,     0x0001],
+    ['pequeno demais -> zero', 1e-8, 0x0000],
+  ];
+  for(const [nome, v, esperado] of casos)
+    teste('float16: ' + nome, paraMeio(v) === esperado,
+      '0x' + paraMeio(v).toString(16).toUpperCase().padStart(4,'0') +
+      ' (esperado 0x' + esperado.toString(16).toUpperCase().padStart(4,'0') + ')');
+
+  teste('float16: ida e volta preserva 1', deMeio(paraMeio(1)) === 1);
+  teste('float16: ida e volta preserva 0,5', deMeio(paraMeio(0.5)) === 0.5);
+  /* Pixel normalizado: o erro tem que ser menor que um passo de 1/255. */
+  let pior = 0;
+  for(let k = 0; k <= 255; k++){ const v = k/255;
+    pior = Math.max(pior, Math.abs(deMeio(paraMeio(v)) - v)); }
+  teste('float16: pixel sobrevive à conversão', pior < 1/255/4,
+    'pior erro ' + pior.toExponential(2) + ' contra passo de ' + (1/255).toFixed(5));
+}
+
+console.log('\n— dois modelos ——————————————————————————————————————');
+{
+  /* A Sala escolhe as classes pelo número de saídas do modelo. Sem isso, um
+     modelo do COCO (80 classes) seria lido como se a classe 0 fosse pistola —
+     e no COCO a classe 0 é PESSOA. Todo mundo na sala viraria arma. */
+  teste('modelo de 2 classes: pistola e faca',
+    JSON.stringify(ARMA_INTERESSE[2]) === '{"0":"pistol","1":"knife"}');
+  teste('modelo do COCO: só a faca, no índice 43',
+    JSON.stringify(ARMA_INTERESSE[80]) === '{"43":"knife"}');
+  teste('modelo desconhecido não é adivinhado', ARMA_INTERESSE[7] === undefined);
+  teste('no COCO, a classe 0 (pessoa) fica de fora',
+    !(0 in ARMA_INTERESSE[80]));
 }
 
 console.log('\n' + (falhas ? `${falhas} TESTE(S) FALHARAM\n` : 'TODOS OS TESTES PASSARAM\n'));

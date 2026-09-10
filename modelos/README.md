@@ -41,14 +41,50 @@ subir a versão, não mexer no modelo.
 Sem o arquivo, **nada quebra**: o servidor devolve 404, a Sala não liga a
 camada e escreve isso na tela. É de propósito.
 
+## Dois modelos, e a escolha é de procedência
+
+`baixar-modelos.sh coco` (padrão) ou `baixar-modelos.sh armas`. A Sala descobre
+qual está instalado pelo número de classes da saída.
+
+| | `coco` (padrão) | `armas` |
+|---|---|---|
+| O que detecta | **faca** | **pistola e faca** |
+| Treino | COCO, 118 mil imagens revisadas | dataset anônimo de Colab |
+| Desempenho publicado | sim | **nenhum** |
+| Adoção | referência da área | 0 downloads, sem model card |
+| Entrada | float16 | float32 |
+| Tamanho | 6,4 MB | 12 MB |
+
+O `armas` é o único que detecta arma de fogo — o COCO não tem essa classe. Mas
+ele é obra de um treino de Colab sem nenhuma métrica publicada: não dá para
+dizer o que ele acerta. Para **lâmina**, o COCO é a aposta mais segura.
+
+Do COCO a Sala usa **só** a faca (índice 43). Tesoura (76) e taco de beisebol
+(34) também estão lá e também são objetos de escola — ficam de fora de
+propósito: cada classe a mais é uma fonte a mais de alarme falso.
+
+> A classe 0 do COCO é **pessoa**. Ler um modelo do COCO com a tabela do modelo
+> de armas transformaria todo mundo na sala em "arma de fogo". Por isso a
+> escolha é pelo número de classes, e `testes/objeto-suspeito.mjs` trava isso.
+
+## Como medir na sua sala
+
+A faixa embaixo do vídeo mostra a **maior confiança** de cada leitura, mesmo
+abaixo do limiar. Aponte o objeto e leia:
+
+- **perto de 0,60 ou acima** — funciona; se não alerta, é o `ARMA_CONF`.
+- **entre 0,05 e 0,40** — o modelo vê algo; dá para discutir baixar o limiar,
+  sabendo que isso aumenta alarme falso.
+- **perto de 0** — o modelo não reconhece aquele objeto. Nenhum ajuste resolve.
+
 ## O que ele é, conferido no arquivo
 
 | | |
 |---|---|
 | Entrada | `images`, `[1, 3, 640, 640]`, RGB normalizado em 0..1 |
-| Saída | `output0`, `[1, 6, 8400]` — 4 de caixa + 2 de classe, **sem NMS** |
-| Classes | `0: pistol`, `1: knife` |
-| Licença | AGPL-3.0 (Ultralytics), autor não declarou licença própria |
+| Saída (`armas`) | `output0`, `[1, 6, 8400]` — 4 de caixa + 2 de classe, **sem NMS** |
+| Saída (`coco`) | `output0`, `[1, 84, 8400]` — 4 de caixa + 80 de classe, **sem NMS** |
+| Licença | AGPL-3.0 (Ultralytics) nos dois |
 
 A decodificação e a supressão de não-máximos estão escritas à mão na Sala e em
 `daten/app/armas.py` — de propósito, para não arrastar a dependência do
