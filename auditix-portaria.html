@@ -346,6 +346,9 @@ h1,h2,h3{ font-family:var(--disp); font-weight:700; letter-spacing:-.012em;
           criança e adolescente exige <b>consentimento específico e destacado, dado por pelo
           menos um dos pais ou responsável legal</b> (LGPD, Art. 14, §1º).
           Sem este registro, o cadastro não abre.
+          <br><br>A autorização vale por <b>365 dias</b>. O cadastro também é apagado
+          sozinho depois de <b>90 dias</b> sem passar na porta, que é como o sistema
+          percebe que o aluno saiu da escola sem ninguém precisar avisar.
         </div>
         <div class="dupla">
           <div class="campo"><label for="f-resp">Nome do responsável</label>
@@ -356,7 +359,8 @@ h1,h2,h3{ font-family:var(--disp); font-weight:700; letter-spacing:-.012em;
         <label class="check"><input type="checkbox" id="f-ok">
           <span>Confirmo que o responsável autorizou a coleta da biometria para controle de
             entrada e saída da escola, foi informado de que <b>nenhuma imagem é armazenada</b>,
-            e sabe que pode pedir a exclusão a qualquer momento.</span></label>
+            e sabe que pode pedir a exclusão a qualquer momento — e que ela também
+            acontece sozinha, no fim do prazo.</span></label>
         <button class="btn forte" id="autorizar" style="margin-top:14px;">Registrar autorização</button>
       </div>
 
@@ -495,6 +499,53 @@ const gravar = () => { try{
   localStorage.setItem('auditix.eventos', JSON.stringify(eventos));
 }catch(e){} };
 
+/* ------------------------------------------------------------ retenção --- *
+   Biometria de criança não pode ficar guardada para sempre (LGPD, Art. 14).
+   Dois relógios independentes, e o primeiro que vencer apaga o cadastro:
+
+     VALIDADE_DIAS    prazo do consentimento, contado do cadastro. Vencido,
+                      só volta com autorização nova do responsável.
+     INATIVIDADE_DIAS contado da última passagem pela porta. É o único jeito
+                      automático de cumprir "apagar quando o aluno sai": quem
+                      saiu da escola para de passar na porta. Ninguém vai
+                      lembrar de vir aqui avisar que fulano mudou de colégio.
+
+   O expurgo roda ao abrir a página e de hora em hora, porque uma portaria
+   fica dias ligada e a virada de prazo não pode esperar um F5. */
+const VALIDADE_DIAS = 365, INATIVIDADE_DIAS = 90;
+const DIA = 86400000;
+
+const diasDesde = iso => iso ? (Date.now() - new Date(iso).getTime()) / DIA : 0;
+
+/* Quanto falta para este cadastro vencer, pelo relógio que estiver mais perto. */
+function diasRestantes(a){
+  return Math.min(VALIDADE_DIAS - diasDesde(a.criadoEm),
+                  INATIVIDADE_DIAS - diasDesde(a.vistoEm || a.criadoEm));
+}
+
+/* Cadastros salvos antes desta regra não têm data. Apagar por causa de um campo
+   que não existia seria apagar por bug, não por política: eles adotam agora
+   como início e passam a contar daqui. */
+let precisaGravar = false;
+alunos.forEach(a => {
+  if(!a.criadoEm){ a.criadoEm = new Date().toISOString(); precisaGravar = true; }
+});
+
+function expurgar(){
+  const vencidos = alunos.filter(a => diasRestantes(a) <= 0);
+  if(!vencidos.length) return 0;
+  const ids = new Set(vencidos.map(a => a.id));
+  alunos = alunos.filter(a => !ids.has(a.id));
+  vencidos.forEach(a => {
+    const porPrazo = VALIDADE_DIAS - diasDesde(a.criadoEm) <= 0;
+    anotar('fora', 'Biometria de ' + a.nome + ' descartada · ' +
+      (porPrazo ? 'consentimento vencido' : 'sem passar na porta há ' +
+       INATIVIDADE_DIAS + ' dias'));
+  });
+  gravar(); pintarListas();
+  return vencidos.length;
+}
+
 const agora = () => new Date().toTimeString().slice(0,5);
 const iniciais = n => n.trim().split(/\s+/).slice(0,2).map(p => p[0]).join('').toUpperCase();
 
@@ -577,9 +628,17 @@ function pintarListas(){
     : '<div class="vazio">Ninguém dentro da escola agora.</div>';
 
   el('lista-cad').innerHTML = alunos.length
-    ? alunos.map(a => '<div class="linha"><span class="pino ' + (a.dentro?'':'fora') + '"></span>' +
-        '<span class="nm">' + a.nome + ' <em>' + (a.turma||'') + ' · ' + a.modo + '</em></span>' +
-        '<span class="hr">' + (a.dentro ? 'dentro' : 'fora') + '</span></div>').join('')
+    ? alunos.map(a => {
+        const d = Math.ceil(diasRestantes(a));
+        // O prazo fica visível na lista, e não escondido numa política: quem
+        // olha a tela vê por que cada biometria ainda está ali.
+        const prazo = d <= 30
+          ? '<span class="selo duv">expira em ' + d + 'd</span>'
+          : '<span class="hr">expira em ' + d + 'd</span>';
+        return '<div class="linha"><span class="pino ' + (a.dentro?'':'fora') + '"></span>' +
+          '<span class="nm">' + a.nome + ' <em>' + (a.turma||'') + ' · ' + a.modo +
+          (a.dentro ? ' · dentro' : '') + '</em></span>' + prazo + '</div>';
+      }).join('')
     : '<div class="vazio">Nenhum cadastro ainda.</div>';
 
   el('n-eventos').textContent = eventos.length;
@@ -672,6 +731,8 @@ function anotar(pino, txt){
 }
 
 function registrarPassagem(a){
+  // Passou na porta, está na escola: o relógio da inatividade volta ao zero.
+  a.vistoEm = new Date().toISOString();
   if(modoDoor === 'entrada'){
     if(a.dentro){ anotar('duv', a.nome + ' já constava dentro, entrada repetida'); return; }
     a.dentro = true; a.desde = agora();
@@ -817,6 +878,7 @@ el('salvar').addEventListener('click', () => {
     id: 'A' + Date.now().toString(36).toUpperCase(),
     nome, turma: el('f-turma').value.trim(), modo: modoBio,
     gab, esp, dentro:false, desde:null,
+    criadoEm: new Date().toISOString(), vistoEm: new Date().toISOString(),
     consent: { resp: el('f-resp').value.trim(), vinc: el('f-vinc').value.trim(),
                em: new Date().toISOString().slice(0,16).replace('T',' ') }
   });
@@ -888,6 +950,9 @@ el('exemplo').addEventListener('click', () => {
 pintarAmostras();
 pintarGabarito(null);
 pintarVeredito({ tipo:'espera' });
+if(precisaGravar) gravar();
+expurgar();
+setInterval(expurgar, 3600000);   // a portaria fica dias ligada; não espera F5
 pintarListas();
 el('n-medidas').textContent = OSSOS.length + ' medidas';
 

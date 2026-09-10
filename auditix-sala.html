@@ -250,7 +250,8 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
       <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
       <button class="btn" id="btn-exemplo">Ver com exemplo</button>
-      <button class="btn" id="btn-apagar" style="margin-left:auto">Apagar cadastros</button>
+      <button class="btn" id="btn-apagar" style="margin-left:auto"
+        title="Cadastros também se apagam sozinhos: 365 dias de prazo, ou 90 dias sem ser reconhecido.">Apagar cadastros</button>
     </div>
     <p class="aviso"><b>Como cadastrar:</b> clique em "cadastrar quem está na frente".
       A tela pede para encaixar o rosto no óvalo, <b>abrir bem a boca</b> e virar a
@@ -331,6 +332,9 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
   <p class="nota">Prova de vida concluída. Serão salvas <b id="pe-qtd">0</b> amostras
     deste rosto, de frente e de perfil, cada uma um <b>descritor de 128 números</b>.
     A foto não é guardada e não dá para reconstruir o rosto a partir deles.</p>
+  <p class="nota">O cadastro <b>se apaga sozinho</b>: vence 365 dias depois de hoje,
+    ou 90 dias sem esta pessoa ser reconhecida — o que vier primeiro. Biometria de
+    menor de idade não fica guardada para sempre (LGPD, Art. 14).</p>
   <div style="display:flex; gap:9px; margin-top:16px; justify-content:flex-end;">
     <button class="btn" id="pe-cancelar">Cancelar</button>
     <button class="btn forte" id="pe-salvar">Cadastrar</button>
@@ -370,6 +374,55 @@ try{ pessoas = JSON.parse(localStorage.getItem('auditix.pessoas')||'[]'); }catch
 const gravar = () => { try{
   localStorage.setItem('auditix.pessoas', JSON.stringify(pessoas));
 }catch(e){} };
+
+/* ------------------------------------------------------------ retenção --- *
+   Biometria de criança não pode ficar guardada para sempre (LGPD, Art. 14).
+   Mesma regra da Portaria, e de propósito: dois relógios, e o primeiro que
+   vencer apaga o cadastro.
+
+     VALIDADE_DIAS    prazo do consentimento, contado do cadastro.
+     INATIVIDADE_DIAS contado da última vez que o rosto foi reconhecido. É como
+                      o sistema percebe sozinho que a pessoa não frequenta mais
+                      a sala — ninguém vem aqui avisar que fulano saiu.
+
+   O expurgo não espera a página recarregar: uma sala fica aberta o dia todo. */
+const VALIDADE_DIAS = 365, INATIVIDADE_DIAS = 90;
+const DIA = 86400000;
+
+const diasDesde = iso => iso ? (Date.now() - new Date(iso).getTime()) / DIA : 0;
+const diasRestantes = p => Math.min(
+  VALIDADE_DIAS - diasDesde(p.criadoEm),
+  INATIVIDADE_DIAS - diasDesde(p.vistoEm || p.criadoEm));
+
+/* Cadastro salvo antes desta regra não tem data. Apagar por causa de um campo
+   que não existia seria apagar por bug, não por política: adota agora como
+   início e passa a contar daqui. */
+let precisaGravar = false;
+pessoas.forEach(p => {
+  if(!p.criadoEm){ p.criadoEm = new Date().toISOString(); precisaGravar = true; }
+});
+if(precisaGravar) gravar();
+
+function expurgar(){
+  const vencidos = pessoas.filter(p => diasRestantes(p) <= 0);
+  if(!vencidos.length) return 0;
+  const nomes = new Set(vencidos.map(p => p.nome));
+  pessoas = pessoas.filter(p => !nomes.has(p.nome));
+  gravar();
+  /* O nome não pode continuar colado num corpo depois do descritor ir embora:
+     seria reconhecimento sem cadastro. Some da trilha e do limbo junto. */
+  trilhas.forEach(t => {
+    if(nomes.has(t.nome)){ t.nome = null; t.confirmado = -Infinity; }
+  });
+  limbo = limbo.filter(l => !nomes.has(l.nome));
+  vencidos.forEach(p => {
+    const porPrazo = VALIDADE_DIAS - diasDesde(p.criadoEm) <= 0;
+    anotar('', 'Biometria de ' + p.nome + ' descartada · ' +
+      (porPrazo ? 'consentimento vencido'
+                : 'sem ser reconhecido há ' + INATIVIDADE_DIAS + ' dias'));
+  });
+  return vencidos.length;
+}
 
 let presentes = [], naoIdent = [], fluxo = null, rodando = false, prontos = false;
 
@@ -1032,6 +1085,13 @@ function amarrar(achados){
     }
     alvo.nome = melhor.nome; alvo.turma = melhor.turma || '';
     alvo.dist = dist; alvo.confirmado = agora;
+    /* Reconhecido hoje, o relógio da inatividade volta a zero. Gravar a cada
+       quadro de rosto seria escrita demais no localStorage, então só quando a
+       data realmente muda de dia. */
+    const hoje = new Date().toISOString();
+    if((melhor.vistoEm || '').slice(0,10) !== hoje.slice(0,10)){
+      melhor.vistoEm = hoje; gravar();
+    }
     alvo.porAssinatura = false;   // agora quem afirma é o rosto, não a assinatura
   });
 }
@@ -1303,7 +1363,8 @@ el('pe-salvar').addEventListener('click', () => {
   // Recadastrar a mesma pessoa substitui, em vez de acumular dois cadastros
   // concorrentes com o mesmo nome disputando a mesma trilha.
   pessoas = pessoas.filter(p => p.nome !== nome);
-  pessoas.push({ nome, turma: el('pe-turma').value.trim(), descs: bufferRosto.slice() });
+  pessoas.push({ nome, turma: el('pe-turma').value.trim(), descs: bufferRosto.slice(),
+                 criadoEm: new Date().toISOString(), vistoEm: new Date().toISOString() });
   gravar();
   anotar('', nome + ' cadastrado com ' + bufferRosto.length + ' amostras de rosto');
   el('dlg-pes').close(); el('pe-nome').value = ''; el('pe-turma').value = '';
@@ -1325,6 +1386,9 @@ el('btn-apagar').addEventListener('click', () => {
   anotar('', 'Cadastros de rosto apagados');
   resumir();
 });
+expurgar();
+setInterval(expurgar, 3600000);   // sala fica aberta o dia todo; não espera F5
+
 el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
 el('limpar').addEventListener('click', () => { eventos = []; pintarTudo(); });

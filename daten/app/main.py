@@ -13,7 +13,7 @@ import cv2
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse, StreamingResponse, JSONResponse
 
-from . import config, db
+from . import config, db, retencao
 from .camera import pipeline
 
 app = FastAPI(title="EduVision", version="1.0")
@@ -22,6 +22,11 @@ app = FastAPI(title="EduVision", version="1.0")
 @app.on_event("startup")
 def _startup():
     db.init_db()
+    # Descarte de biometria vencida antes de qualquer coisa: se o prazo acabou
+    # enquanto o sistema estava desligado, ele nao volta reconhecendo a pessoa.
+    vencidos = retencao.expurgar()
+    for v in vencidos:
+        print(f"[RETENCAO] biometria de {v['name']} descartada ({v['motivo']})")
     pipeline.start()
 
 
@@ -54,7 +59,10 @@ def health():
 
 @app.get("/api/v1/classroom/status")
 def classroom_status():
-    return JSONResponse(pipeline.status())
+    st = pipeline.status()
+    st["backend_sface"] = pipeline.engine.backend if pipeline.engine else "sem_modelo"
+    st["detect_width"] = config.DETECT_WIDTH
+    return JSONResponse(st)
 
 
 @app.get("/api/v1/present")
@@ -67,6 +75,24 @@ def present():
 def attendance():
     """Presencas registradas hoje (persistidas no SQLite)."""
     return {"date": time.strftime("%Y-%m-%d"), "attendance": db.today_attendance()}
+
+
+@app.get("/api/v1/retencao")
+def retencao_status():
+    """Prazo de cada biometria guardada (LGPD Art. 14).
+
+    Responde "por que este dado ainda existe?" para cada pessoa cadastrada.
+    """
+    return {
+        "prazo_consentimento_dias": config.RETENCAO_DIAS,
+        "prazo_inatividade_dias": config.INATIVIDADE_DIAS,
+        "politica": (
+            "Vence pelo consentimento ou por inatividade, o que vier primeiro. "
+            "Vencido, o embedding e o cadastro sao apagados; a presenca ja "
+            "registrada e mantida, por ser registro escolar e nao biometria."
+        ),
+        "cadastros": db.students_status(),
+    }
 
 
 # ---- Dashboard -------------------------------------------------------------
