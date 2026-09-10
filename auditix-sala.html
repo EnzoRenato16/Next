@@ -1415,6 +1415,7 @@ function resumir(){
     'ligada':      'objeto suspeito: ativo',
     'carregando':  'objeto suspeito: carregando…',
     'sem modelo':  'objeto suspeito: modelo não instalado',
+    'sem runtime': 'objeto suspeito: runtime não instalado',
     'sem servidor':'objeto suspeito: servidor fora',
     'falhou':      'objeto suspeito: falhou — ' + armaErro
   }[armaEstado] || '';
@@ -1469,7 +1470,11 @@ function desenhar(){
 const ARMA_LADO      = 640;   // entrada do modelo, conferida no arquivo .onnx
 const ARMA_CONF      = 0.60;  // confiança mínima
 const ARMA_NMS       = 0.45;  // sobreposição para fundir caixas do mesmo objeto
-const ARMA_HITS      = 4;     // leituras seguidas antes de virar evento
+/* 3 aqui, contra 4 no EduVision, e não é afrouxar a trava — é o contrário. Lá
+   cada leitura custa ~0,2s, então 4 leituras são 0,8s de evidência. Aqui cada
+   leitura custa ~1s, então 3 já são ~3s de objeto presente e contínuo. O que a
+   regra protege é TEMPO de permanência, não número de quadros. */
+const ARMA_HITS      = 3;     // leituras seguidas antes de virar evento
 const ARMA_SILENCIO  = 30000; // ms entre dois alertas da mesma classe
 const ARMA_CADA      = 6;     // roda 1x a cada N quadros; é a camada mais cara
 
@@ -1490,19 +1495,26 @@ async function ligarArmas(){
        Sala concluía "não instalado" com o modelo instalado. O teste pegou. */
     const r = await fetch('/api/modelo/objeto-suspeito');
     if(!r.ok){ armaEstado = 'sem servidor'; pintarTudo(); return; }
-    if(!(await r.json()).instalado){ armaEstado = 'sem modelo'; pintarTudo(); return; }
+    const j = await r.json();
+    if(!j.instalado){
+      armaEstado = j.modelo ? 'sem runtime' : 'sem modelo';
+      pintarTudo(); return;
+    }
   }catch(e){ armaEstado = 'sem servidor'; pintarTudo(); return; }
 
   armaEstado = 'carregando';  pintarTudo();
   try{
     if(!window.ort){
+      /* Servido daqui, não de CDN. Duas razões, e a segunda é a que obriga: a
+         inferência roda num WORKER (proxy abaixo), e o navegador bloqueia
+         worker criado a partir de outra origem. */
       await new Promise((ok, erro) => {
         const s = document.createElement('script');
-        s.src = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/ort.min.js';
-        s.onload = ok; s.onerror = erro; document.head.appendChild(s);
+        s.src = '/ort/ort.wasm.min.js';
+        s.onload = ok; s.onerror = () => erro(new Error('runtime não instalado'));
+        document.head.appendChild(s);
       });
-      window.ort.env.wasm.wasmPaths =
-        'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.19.2/dist/';
+      window.ort.env.wasm.wasmPaths = '/ort/';
       /* UMA THREAD, de propósito. O padrão do ONNX Runtime é usar várias, e
          para isso ele precisa de SharedArrayBuffer — que o navegador só libera
          com os cabeçalhos COOP/COEP de isolamento de origem. O nosso servidor
@@ -1512,7 +1524,19 @@ async function ligarArmas(){
          Uma thread é mais devagar, e tudo bem: esta camada roda 1x a cada 6
          quadros e não está no caminho do vídeo. */
       window.ort.env.wasm.numThreads = 1;
-      window.ort.env.wasm.proxy = false;
+
+      /* EM WORKER, e isto não é otimização: é o que impede o vídeo de travar.
+         Uma inferência leva centenas de milissegundos de WebAssembly, e na
+         thread principal isso congela a câmera, os contornos e a interface a
+         cada leitura. Medido nesta máquina: 456ms na thread principal contra
+         979ms no worker. O worker é MAIS LENTO e ainda assim é a escolha certa
+         — numa página de câmera ao vivo, vídeo travado é bug visível; meio
+         segundo a mais para confirmar um objeto, não.
+
+         Consequência prática: o buffer do tensor é TRANSFERIDO para o worker e
+         fica inutilizável depois. Por isso encaixarArma() monta um Float32Array
+         novo a cada leitura, em vez de reaproveitar um. */
+      window.ort.env.wasm.proxy = true;
     }
     sessaoArma = await window.ort.InferenceSession.create(
       '/modelo/objeto-suspeito.onnx', { executionProviders:['wasm'] });

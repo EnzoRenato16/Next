@@ -26,16 +26,20 @@ uv run servidor.py           # http://127.0.0.1:8000
 
 ### Objeto suspeito (arma de fogo e lâmina)
 
-A Sala roda essa camada **no navegador**, com ONNX Runtime Web. O modelo não
-está no repositório (12 MB e licença AGPL-3.0) — baixe uma vez:
+A Sala roda essa camada **no navegador**, em ONNX Runtime Web, num *worker*
+para não travar o vídeo. Nem o modelo nem o runtime estão no repositório —
+são ~23 MB, e o modelo carrega AGPL-3.0. Baixe uma vez:
 
+```powershell
+powershell -ExecutionPolicy Bypass -File baixar-modelos.ps1   # Windows
+```
 ```bash
-curl -L -o modelos/objeto_suspeito_yolov8.onnx \
-  https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx
+bash baixar-modelos.sh                                        # Linux / macOS
 ```
 
-Sem ele **nada quebra**: a camada não liga e a Sala escreve isso na faixa de
-status. Detalhes e a questão da licença em [`modelos/README.md`](modelos/README.md).
+Sem esses arquivos **nada quebra**: a camada não liga e a Sala escreve isso na
+faixa de status, dizendo qual das duas partes falta. Detalhes e a questão da
+licença em [`modelos/README.md`](modelos/README.md).
 
 O evento é gravado como `objeto_suspeito`, **nunca** "arma detectada", e
 **nunca** leva id de aluno.

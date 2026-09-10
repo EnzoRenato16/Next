@@ -4,20 +4,39 @@ A Sala (`auditix-sala.html`) roda a camada de **objeto suspeito** dentro do
 navegador, com ONNX Runtime Web. O modelo é servido pelo `servidor.py` em
 `/modelo/objeto-suspeito.onnx`, lendo o arquivo desta pasta.
 
-Ele **não está no repositório**, por dois motivos: tem 12 MB, e carrega
-**AGPL-3.0**. Baixe uma vez:
-
-```bash
-curl -L -o modelos/objeto_suspeito_yolov8.onnx \
-  https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx
-```
-
-No Windows (PowerShell):
+Junto com ele vai o **ONNX Runtime Web**, em `modelos/ort/`, servido em `/ort/`.
+Nenhum dos dois está no repositório: são ~23 MB, e o modelo carrega
+**AGPL-3.0**. Baixe uma vez, da raiz do projeto:
 
 ```powershell
-curl.exe -L -o modelos\objeto_suspeito_yolov8.onnx `
-  https://huggingface.co/Hadi959/weapon-detection-yolov8/resolve/main/best.onnx
+powershell -ExecutionPolicy Bypass -File baixar-modelos.ps1   # Windows
 ```
+```bash
+bash baixar-modelos.sh                                        # Linux / macOS
+```
+
+## Por que o runtime é servido daqui, e não de CDN
+
+Duas razões, e a segunda é técnica:
+
+1. A apresentação não pode depender da internet da escola.
+2. A inferência roda num **worker**, para não travar o vídeo — e o navegador
+   **bloqueia worker criado a partir de outra origem**. Servido da mesma
+   origem, funciona.
+
+## A versão do runtime não é livre — 1.22.0, e foi medida
+
+Reproduzido no Chromium, com este modelo:
+
+| Versão | Resultado |
+|---|---|
+| 1.19.2 | falha ao criar a sessão (`33574344`, sem mensagem) |
+| 1.20.1 | falha ao criar a sessão (`33594080`, sem mensagem) |
+| **1.22.0** | **sessão em 453 ms, inferência em 558 ms, saída correta** |
+
+As versões antigas erram com um número cru de exceção do WebAssembly, sem
+mensagem nenhuma. Se um dia aparecer isso na tela de novo, é este o caminho:
+subir a versão, não mexer no modelo.
 
 Sem o arquivo, **nada quebra**: o servidor devolve 404, a Sala não liga a
 camada e escreve isso na tela. É de propósito.

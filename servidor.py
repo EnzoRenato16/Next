@@ -45,7 +45,9 @@ from pydantic import BaseModel, Field
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
 PAINEL = AQUI / "auditix-painel.html"
-MODELO_ARMAS = AQUI / "modelos" / "objeto_suspeito_yolov8.onnx"
+MODELOS_DIR  = AQUI / "modelos"
+MODELO_ARMAS = MODELOS_DIR / "objeto_suspeito_yolov8.onnx"
+ORT_DIR      = MODELOS_DIR / "ort"
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
@@ -412,6 +414,36 @@ def pagina_painel() -> FileResponse:
     return FileResponse(PAINEL, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
+# So estes arquivos, e por nome exato. A pasta e servida ao navegador, entao um
+# caminho vindo da URL nunca pode escolher o que ler daqui.
+ORT_ARQUIVOS = {
+    "ort.wasm.min.js": "text/javascript",
+    "ort-wasm-simd-threaded.mjs": "text/javascript",
+    "ort-wasm-simd-threaded.wasm": "application/wasm",
+}
+
+
+@app.get("/ort/{arquivo}")
+def ort_web(arquivo: str) -> FileResponse:
+    """O ONNX Runtime Web, servido daqui e nao de CDN.
+
+    Duas razoes, e a segunda e tecnica, nao so principio:
+
+    1. A demonstracao nao pode depender da internet da escola.
+    2. A inferencia roda num WORKER, para nao travar o video. Um worker criado
+       a partir de outra origem (o CDN) e bloqueado pelo navegador. Servindo da
+       mesma origem, ele funciona.
+    """
+    tipo = ORT_ARQUIVOS.get(arquivo)
+    if tipo is None:
+        raise HTTPException(404, "arquivo nao faz parte do runtime")
+    caminho = ORT_DIR / arquivo
+    if not caminho.exists():
+        raise HTTPException(404, f"{arquivo} nao instalado. Veja modelos/README.md")
+    return FileResponse(caminho, media_type=tipo,
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/api/modelo/objeto-suspeito")
 def status_modelo_armas() -> dict:
     """A Sala pergunta AQUI se vale a pena baixar 12 MB.
@@ -421,9 +453,11 @@ def status_modelo_armas() -> dict:
     modelo instalado e a camada nunca ligava. Uma consulta barata e explicita
     nao tem essa ambiguidade.
     """
-    existe = MODELO_ARMAS.exists()
-    return {"instalado": existe,
-            "bytes": MODELO_ARMAS.stat().st_size if existe else 0}
+    modelo = MODELO_ARMAS.exists()
+    runtime = all((ORT_DIR / a).exists() for a in ORT_ARQUIVOS)
+    return {"instalado": modelo and runtime,
+            "modelo": modelo, "runtime": runtime,
+            "bytes": MODELO_ARMAS.stat().st_size if modelo else 0}
 
 
 @app.get("/modelo/objeto-suspeito.onnx")
