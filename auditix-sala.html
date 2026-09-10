@@ -668,20 +668,145 @@ function ios(a, b){
   if(w <= 0 || h <= 0) return 0;
   return (w * h) / Math.max(1, Math.min(a.w * a.h, b.w * b.h));
 }
-const IOS_MESMO = 0.65;
+/* Interseção sobre a UNIÃO — o IoU comum. Serve para a outra pergunta: "estas
+   duas poses são a mesma pessoa duplicada?". Duas poses duplicadas têm caixas
+   quase iguais, e o IoU delas fica perto de 1.
+
+   Aqui o `ios` acima seria errado, e o teste provou: ele dá 1.00 para uma caixa
+   PEQUENA dentro de uma grande, então uma pessoa ao fundo, atrás de quem está
+   na frente, era tratada como pose duplicada e sumia da sala. O IoU não cai
+   nessa: caixa pequena dentro de grande dá IoU baixo. */
+function iou(a, b){
+  const x1 = Math.max(a.x, b.x), y1 = Math.max(a.y, b.y);
+  const x2 = Math.min(a.x + a.w, b.x + b.w), y2 = Math.min(a.y + a.h, b.y + b.h);
+  const w = x2 - x1, h = y2 - y1;
+  if(w <= 0 || h <= 0) return 0;
+  const inter = w * h;
+  return inter / Math.max(1, a.w*a.h + b.w*b.h - inter);
+}
+const IOU_MESMO = 0.65;
 const nitidez = d => d.lm.reduce((s, p) => s + vis(p), 0) / d.lm.length;
 
-/* O detector às vezes devolve duas ou três poses para a MESMA pessoa. Sem podar
-   isso viram três corpos na lista, os IDs disparam e a agitação acusa alguém
-   brigando consigo mesmo. Fica a pose mais nítida de cada aglomerado. */
-function podar(dets){
+/* Duas poses são da MESMA PESSOA quando as duas cabeças estão no mesmo lugar.
+
+   Comparar caixas não bastava, e a tela provou isso: a caixa muda de forma
+   conforme o que está no quadro (sentado, de lado, meio corpo), então duas
+   poses da mesma pessoa às vezes se sobrepõem pouco e escapavam do IOU_MESMO.
+   Duas cabeças, não: pessoa tem uma só.
+
+   A escala é a MAIOR largura de ombro do par, de propósito. A pose falsa que
+   nasce em cima de uma cabeça inventa ombros no queixo, e a largura dela sai
+   minúscula; medir por ela deixaria a folga perto de zero e o fantasma
+   sobreviveria. Pela maior, duas pessoas de verdade lado a lado ainda ficam
+   separadas: ombro colado com ombro dá distância de nariz perto de UMA largura
+   de ombro, bem acima de 0.6. */
+const CABECA_MESMA = 0.6;
+function mesmaCabeca(a, b, larg, alt){
+  const na = pontoPx(a.lm[P.NARIZ], larg, alt), nb = pontoPx(b.lm[P.NARIZ], larg, alt);
+  if(!na || !nb) return false;
+  const escala = Math.max(ombroPx(a, larg, alt), ombroPx(b, larg, alt));
+  if(!(escala > 0)) return false;
+  return Math.hypot(na.x - nb.x, na.y - nb.y) < CABECA_MESMA * escala;
+}
+
+/* Fantasma de PARTE DE CORPO: o detector monta um esqueleto inteiro em cima de
+   um pedaço da pessoa — a cabeça, uma orelha, a mão segurando um objeto. Na
+   tela isso virava "Corpo #4", "Corpo #10", "Corpo #16", com ID novo a cada
+   poucos segundos, e cada um deles concorria como se fosse gente.
+
+   Duas assinaturas denunciam o fantasma, e as duas precisam do tamanho: só é
+   candidato a parte quem for MUITO menor que o outro. Sem isso, uma pessoa
+   parcialmente atrás de outra seria engolida. */
+const PARTE_TAM    = 0.35;   // área da pequena sobre a área da grande
+const PARTE_PERTO  = 0.45;   // distância até o punho, em larguras de ombro
+const CABECA_ACIMA = 1.50;   // até onde acima do ombro a cabeça pode estar
+
+function ehParte(peq, gr, larg, alt){
+  const area = b => Math.max(1, b.w * b.h);
+  if(area(peq.box) / area(gr.box) > PARTE_TAM) return false;
+
+  /* FANTASMA DE MÃO: o centro da pose falsa cai em cima de um PUNHO do corpo
+     verdadeiro. É o caso do "Corpo #4" e do "Corpo #16" (a mão segurando a
+     faca), e escapa de qualquer regra por caixa porque o braço está esticado
+     para fora dela.
+
+     Só o punho, e isso é deliberado. Duas versões mais amplas foram reprovadas
+     pelo teste, as duas por apagarem GENTE DE VERDADE:
+
+       · "cai dentro da caixa do outro" — num close a caixa de uma pessoa cobre
+         quase o quadro inteiro, então qualquer um ao fundo cai dentro dela.
+       · "cai perto de QUALQUER ponto do esqueleto" — quem está atrás do ombro
+         de alguém fica, por definição, em cima do ombro dessa pessoa.
+
+     O punho é diferente dos outros pontos: a mão de quem está na frente fica
+     perto da câmera, e ninguém fica em pé em cima da mão de outro. */
+  const o = ombroPx(gr, larg, alt);
+  if(!(o > 0)) return false;
+  const cx = peq.box.x + peq.box.w/2, cy = peq.box.y + peq.box.h/2;
+  for(const i of [P.PULSO_E, P.PULSO_D]){
+    const p = pontoPx(gr.lm[i], larg, alt);
+    if(p && Math.hypot(cx - p.x, cy - p.y) < PARTE_PERTO * o) return true;
+  }
+
+  /* A CABEÇA QUE FALTA. Numa webcam de perto a pessoa entra cortada e o corpo
+     verdadeiro sai SEM pontos de cabeça — a caixa dele começa no ombro. Aí o
+     detector monta uma pose separada em cima do rosto, e ela não cai dentro da
+     caixa (fica acima dela) nem perto de um ponto do esqueleto (não há ponto
+     nenhum ali). Foi exatamente o "Corpo #2" do print.
+
+     A regra só vale quando o corpo grande está mesmo SEM cabeça. Isso é o que
+     a torna segura: se ele tem cabeça, a pose de cima é outra pessoa e fica.
+     Uma pessoa ao fundo, atrás de alguém de rosto visível, nunca é apagada. */
+  if(temCabeca(gr, larg, alt)) return false;
+  const oe = pontoPx(gr.lm[P.OMBRO_E], larg, alt);
+  const od = pontoPx(gr.lm[P.OMBRO_D], larg, alt);
+  if(!oe || !od) return false;
+  const mx = (oe.x + od.x)/2, my = (oe.y + od.y)/2;
+  return cy < my                                   // está acima da linha do ombro
+      && Math.abs(cx - mx) < 0.60 * o              // e centrado nela
+      && (my - cy) < CABECA_ACIMA * o;             // a uma distância de pescoço
+}
+
+/* Pontos de cabeça: nariz, olhos, orelhas. São os índices 0 a 10 do MediaPipe. */
+function temCabeca(d, larg, alt){
+  for(let i = 0; i <= 10; i++) if(pontoPx(d.lm[i], larg, alt)) return true;
+  return false;
+}
+
+const pontoPx = (p, larg, alt) =>
+  (p && vis(p) >= VIS_MIN) ? { x:p.x*larg, y:p.y*alt } : null;
+
+function ombroPx(d, larg, alt){
+  const e = pontoPx(d.lm[P.OMBRO_E], larg, alt), r = pontoPx(d.lm[P.OMBRO_D], larg, alt);
+  return (e && r) ? Math.hypot(e.x - r.x, e.y - r.y) : 0;
+}
+
+/* O detector às vezes devolve duas ou três poses para a MESMA pessoa, ou para
+   um pedaço dela. Sem podar isso vira três corpos na lista, os IDs disparam e a
+   agitação acusa alguém brigando consigo mesmo.
+
+   Duas decisões diferentes, e a diferença importa:
+     · mesma pessoa duas vezes  -> fica a pose mais NÍTIDA;
+     · pedaço de uma pessoa     -> o pedaço SEMPRE perde.
+   Antes havia só a primeira, e ela decidia pela nitidez. Um fantasma de mão em
+   close costuma ser mais nítido que o corpo de verdade com as pernas fora do
+   quadro — então a regra da nitidez chegava a manter o fantasma e descartar a
+   pessoa. */
+function podar(dets, larg, alt){
   const fora = new Set();
   for(let i = 0; i < dets.length; i++){
-    if(fora.has(i)) continue;
-    for(let j = i + 1; j < dets.length; j++){
-      if(fora.has(j)) continue;
-      if(ios(dets[i].box, dets[j].box) > IOS_MESMO)
-        fora.add(nitidez(dets[i]) >= nitidez(dets[j]) ? j : i);
+    for(let j = 0; j < dets.length; j++){
+      if(i === j || fora.has(i) || fora.has(j)) continue;
+      const A = dets[i], B = dets[j];
+
+      if(mesmaCabeca(A, B, larg, alt) || iou(A.box, B.box) > IOU_MESMO){
+        fora.add(nitidez(A) >= nitidez(B) ? j : i);
+        continue;
+      }
+
+      const areaA = A.box.w * A.box.h, areaB = B.box.w * B.box.h;
+      const peq = areaA <= areaB ? A : B;
+      if(ehParte(peq, peq === A ? B : A, larg, alt)) fora.add(peq === A ? i : j);
     }
   }
   return dets.filter((_, i) => !fora.has(i));
@@ -981,6 +1106,11 @@ function pintarMapa(){
 const IOU_MIN    = 0.30;    // sobreposição mínima para dizer "é a mesma pessoa"
 const PERTO_MAX  = 0.55;    // e, se a área falhar, distância entre centros em alturas-de-caixa
 const VISTAS_MIN = 5;       // quadros seguidos para uma trilha virar PESSOA de verdade
+/* E também tempo de tela. Só a contagem de quadros não bastava: a 30fps são
+   167ms, e um esqueleto inventado em cima de uma mão fechada dura mais que
+   isso. Foi assim que "Corpo #4" e "Corpo #16" entraram na lista. Gente de
+   verdade fica; fantasma pisca. Meio segundo é o preço, e é barato. */
+const FIRME_MS   = 500;
 const SUMIU_MS   = 1500;    // sem ser vista por mais que isso, a trilha morre
 const FRESCO_MS  = 6000;    // rosto conferido há pouco, o nome é afirmado
 const MORNO_MS   = 25000;   // passado isso, o nome cai para "provavelmente"
@@ -1011,7 +1141,7 @@ function confirmar(t, det, agora){
   t.box = det.box; t.det = det; t.visto = agora;
   t.deRosto = false;              // achou corpo de verdade, promove a trilha
   t.vistas = (t.vistas || 0) + 1;
-  if(t.vistas >= VISTAS_MIN) t.firme = true;
+  if(t.vistas >= VISTAS_MIN && agora - t.nasceu >= FIRME_MS) t.firme = true;
 }
 
 function casar(dets, agora){
@@ -1089,7 +1219,7 @@ async function laco(){
         const box = caixaDe(lm, v.videoWidth, v.videoHeight);
         if(box) brutos.push({ box, lm, world:(r.worldLandmarks || [])[i] });
       });
-      casar(podar(brutos), agora);
+      casar(podar(brutos, v.videoWidth, v.videoHeight), agora);
 
       trilhas.forEach(tr => {
         if(!tr.det) return;
@@ -1136,6 +1266,7 @@ async function lacoRosto(){
 
 function amarrar(achados){
   const agora = performance.now();
+  const v = el('cam');
 
   /* A maior detecção é quem está mais perto da câmera, que é quem se cadastra.
      achados[0] era a ordem que o detector devolveu, não a pessoa da frente. */
@@ -1178,6 +1309,14 @@ function amarrar(achados){
         if(v > melhor_ios){ melhor_ios = v; alvo = t; }
       });
       if(!alvo){
+        /* Antes de virar gente, tem que não ser PEDAÇO de gente. O detector de
+           rosto erra em mão fechada e em lâmina — foi assim que uma faca virou
+           "Corpo #16" na tela. Se esta caixa cai em cima de um punho de alguém,
+           ou dentro do corpo de alguém, ela é parte daquela pessoa e não uma
+           pessoa nova. */
+        const falso = trilhas.some(t => t.det &&
+          ehParte({ box:cxr, lm:[] }, t.det, v.videoWidth, v.videoHeight));
+        if(falso) return;
         alvo = { id:proxId++, box:cxr, det:null, nome:null, turma:'', dist:0,
                  confirmado:-Infinity, visto:agora, nasceu:agora,
                  vistas:VISTAS_MIN, firme:true, deRosto:true };
