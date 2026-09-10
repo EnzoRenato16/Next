@@ -579,6 +579,52 @@ const AGITA_PERTO = 0.9;   // distância entre quadris, em alturas-de-corpo
 const AGITA_ENER  = 1.1;   // energia dos punhos, em alturas-de-corpo por segundo
 const AGITA_SEG   = 700;
 
+/* O sinal que separa briga de abraço, dança e brincadeira.
+
+   A regra antiga era só "duas pessoas perto, as duas mexendo os braços" —
+   o que também é comemoração de gol e amigo se cumprimentando, e era a maior
+   fonte de alarme falso desta camada.
+
+   Duas tentativas de conserto foram TESTADAS e reprovadas, e vale registrar
+   porque as duas parecem certas no papel:
+
+     · "punho apontado para o outro" (cosseno da direção) reprova: num abraço
+       os braços vão um para o outro o tempo todo. Deu 0.97 no teste — mais
+       dirigido que um soco.
+     · "pico de aceleração do punho" reprova: dançar oscilando gera pico alto
+       sem nada acontecer. Deu 15.9 num cenário de comemoração.
+
+   O que separa os três é a COMBINAÇÃO, não cada um sozinho: a velocidade do
+   punho NA DIREÇÃO do tronco do outro. Medida como o encurtamento da distância
+   entre o punho e o tronco alheio, em alturas-de-corpo por segundo:
+
+       soco    rápido  e dirigido  -> alto
+       abraço  dirigido mas lento  -> baixo
+       dança   rápido, não dirigido -> perto de zero
+
+   Medir encurtamento de distância, em vez de cosseno vezes módulo, também
+   evita o caso degenerado do punho que chega ao alvo: ali a direção fica
+   indefinida e o cosseno desaba justo no impacto.
+
+   AGITA_FECHA não decide nada, só entra no texto: aproximar-se rápido também
+   é abraço. Serve para quem for conferir entender o que aconteceu.
+
+   O limiar 1.0 não é chute: `node testes/agitacao.mjs` mede sete cenários e
+   mostra onde cada um cai. Há folga dos dois lados —
+
+       DISPARA    soco 1.86 · empurrão rápido 1.22
+       não        aceno 0.76 · dança 0.62 · empurrão lento 0.46 · abraço 0.20
+
+   Antes desta mudança, SEIS dos sete disparavam: só quem estava parado
+   escapava. Agora só os dois que deveriam.
+
+   Limite honesto: os cenários são sintéticos. Provam que a fórmula separa os
+   casos, não que o número bate com gente de verdade na sua sala. Para calibrar
+   no real, faça os gestos na frente da câmera — quando o par está perto e
+   agitado mas não dispara, o console imprime o valor medido. */
+const AGITA_GOLPE = 1.0;   // alturas-de-corpo por segundo, punho rumo ao outro
+const AGITA_FECHA = 0.6;
+
 const GX = 32, GY = 24;    // grade do mapa de calor
 let mapaCalor = new Float32Array(GX*GY), mostrarMapa = false;
 let redePose = null, anomalias = [], limbo = [], agitacao = {};
@@ -720,7 +766,7 @@ function analisar(t, lm, agora){
      identificada, mas o que ela está FAZENDO não é afirmado. */
   if(vis(lm[P.QUADRIL_E]) < VIS_MIN || vis(lm[P.QUADRIL_D]) < VIS_MIN){
     t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
-    t.qx = null; t.qy = null;
+    t.qx = null; t.qy = null; t.ox = null; t.oy = null;
     return;
   }
   const q  = meio(lm, P.QUADRIL_E, P.QUADRIL_D);
@@ -753,6 +799,7 @@ function analisar(t, lm, agora){
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
   t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang;
+  t.ox = o.x; t.oy = o.y;          // meio dos ombros: o alvo da mira
 
   /* --- queda ---
      Em dois tempos, e a ordem importa. O TOMBO arma o relógio: o quadril
@@ -804,8 +851,60 @@ function analisar(t, lm, agora){
   }
 }
 
+/* O quanto o punho de `t` avança SOBRE o tronco de `alvo`, em alturas por
+   segundo. Devolve o melhor dos dois punhos.
+
+   É o encurtamento da distância punho→tronco alheio dividido pelo tempo. Junta
+   velocidade e direção num número só, que é o ponto: rápido sem direção é
+   dança, dirigido sem velocidade é abraço, e nenhum dos dois passa daqui. */
+function golpeDirigido(t, alvo, agora){
+  if(alvo.qx == null || alvo.ox == null) return 0;
+  const tx = (alvo.qx + alvo.ox) / 2, ty = (alvo.qy + alvo.oy) / 2;
+  const h = t.hist.filter(x => agora - x.t < 420);
+  if(h.length < 2) return 0;
+  const alt = t.altura || 1;
+  let melhor = 0;
+
+  /* O PICO num trecho curto, não a média da janela inteira. Um soco dura uns
+     130ms; medido de ponta a ponta de uma janela de 400ms ele aparece pela
+     metade, e foi assim que a primeira versão desta função deixou um soco
+     passar por baixo do limiar. O trecho fica entre 90 e 200ms: abaixo disso é
+     tremor de landmark, acima dilui o avanço de novo. */
+  for(const esq of [true, false]){
+    for(let i = 0; i < h.length; i++){
+      const p0 = esq ? h[i].px : h[i].pd;
+      const d0 = Math.hypot(tx - p0.x, ty - p0.y);
+      for(let j = i + 1; j < h.length; j++){
+        const dt = (h[j].t - h[i].t) / 1000;
+        if(dt < 0.09) continue;
+        if(dt > 0.20) break;
+        const p1 = esq ? h[j].px : h[j].pd;
+        const d1 = Math.hypot(tx - p1.x, ty - p1.y);
+        melhor = Math.max(melhor, (d0 - d1) / alt / dt);
+      }
+    }
+  }
+  return melhor;
+}
+
+/* Aproximação: a distância entre os dois encurtando, em alturas por segundo.
+   Positivo = se aproximando. Não decide nada sozinho — abraço também se
+   aproxima — mas entra no texto para quem for conferir. */
+function aproximacao(a, b, agora){
+  const ha = a.hist.filter(x => agora - x.t < 500);
+  const hb = b.hist.filter(x => agora - x.t < 500);
+  if(ha.length < 2 || hb.length < 2) return 0;
+  const a0 = ha[0], a1 = ha[ha.length-1], b0 = hb[0], b1 = hb[hb.length-1];
+  const dt = (Math.min(a1.t, b1.t) - Math.max(a0.t, b0.t)) / 1000;
+  if(dt <= 0) return 0;
+  const escala = (a.altura + b.altura) / 2 || 1;
+  const d0 = Math.hypot(a0.qx - b0.qx, a0.qy - b0.qy);
+  const d1 = Math.hypot(a1.qx - b1.qx, a1.qy - b1.qy);
+  return (d0 - d1) / escala / dt;
+}
+
 /* Agitação é propriedade de PAR, não de pessoa: precisa de duas pessoas perto
-   uma da outra, as duas com energia alta ao mesmo tempo. */
+   uma da outra, as duas com energia alta, E evidência de movimento dirigido. */
 function verAgitacao(agora){
   for(let i = 0; i < trilhas.length; i++)
   for(let j = i+1; j < trilhas.length; j++){
@@ -819,12 +918,34 @@ function verAgitacao(agora){
     const perto = Math.hypot(a.qx - b.qx, a.qy - b.qy) < AGITA_PERTO * escala;
     const bravo = a.energia > AGITA_ENER && b.energia > AGITA_ENER;
     const chave = Math.min(a.id, b.id) + '-' + Math.max(a.id, b.id);
-    if(perto && bravo){
+
+    /* Perto e agitado é o piso, não a prova: cabe abraço, dança e
+       comemoração. O que decide é a evidência DIRIGIDA. */
+    const golpe = Math.max(golpeDirigido(a, b, agora), golpeDirigido(b, a, agora));
+    const fecha = aproximacao(a, b, agora);
+
+    if(perto && bravo && golpe > AGITA_GOLPE){
       if(!agitacao[chave]) agitacao[chave] = agora;
-      else if(agora - agitacao[chave] > AGITA_SEG)
+      else if(agora - agitacao[chave] > AGITA_SEG){
+        /* O texto diz QUAL sinal disparou. É o que permite a quem confere
+           discordar do sistema com base em algo, em vez de só acreditar. */
+        const porque = ['punho avançando sobre o outro corpo'];
+        if(fecha > AGITA_FECHA) porque.push('aproximação rápida');
         registrarAnomalia('agitacao', a, 'Agitação entre os corpos #' + a.id +
-          ' e #' + b.id + ', conferir na hora. O sistema não afirma que é briga.');
-    } else delete agitacao[chave];
+          ' e #' + b.id + ' — ' + porque.join(', ') +
+          '. Conferir na hora; o sistema não afirma que é briga.');
+      }
+    } else {
+      /* Perto e agitado, mas sem evidência dirigida: é quase certamente
+         abraço, dança ou brincadeira. Antes isto virava alerta. Agora imprime
+         os números medidos, que é como se calibra AGITA_ACEL e AGITA_MIRA com
+         gente de verdade na frente da câmera, em vez de no chute. */
+      if(perto && bravo)
+        console.debug('[agitação] #' + a.id + '×#' + b.id +
+          ' não disparou — golpe ' + golpe.toFixed(2) + '/' + AGITA_GOLPE +
+          ', aproximação ' + fecha.toFixed(2));
+      delete agitacao[chave];
+    }
   }
 }
 
