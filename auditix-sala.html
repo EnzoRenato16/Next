@@ -238,7 +238,7 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
           <button class="btn" id="vivo-cancelar">Cancelar</button>
         </div>
       </div>
-      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span></div>
+      <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span><span id="faixa-aviso" style="margin-left:auto; opacity:.85"></span></div>
       <div class="desl" id="desl">
         <button class="grandao" id="ligar">Abrir a sala</button>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
@@ -462,15 +462,39 @@ function pintarTudo(){
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em></span>' +
         '<span class="hr">' + a.h + '</span></div>').join('')
-    : '<div class="vazio">' + (rodando
-        ? 'Nada fora do padrão na sala.'
-        : 'Quedas, corridas e agitação aparecem aqui.') + '</div>';
+    : '<div class="vazio">' + (rodando ? textoSemAnomalia() :
+        'Quedas, corridas e agitação aparecem aqui.') + '</div>';
 
   el('l-eventos').innerHTML = eventos.length
     ? eventos.slice(0,10).map(e => '<div class="linha"><span class="pino ' + e.p + '"></span>' +
         '<span class="nm">' + e.t + '</span><span class="hr">' + e.h + '</span></div>').join('')
     : '<div class="vazio">Nenhum evento ainda.</div>';
 }
+/* "Nada fora do padrão" só pode ser dito quando houve como olhar.
+
+   A camada de queda, corrida e agitação mede tudo a partir do quadril, e sem o
+   quadril no quadro ela não roda — de propósito, porque o modelo INVENTA os
+   pontos que não vê e quadril inventado vira alarme falso. Mas calar sobre isso
+   é pior que o alarme falso: a tela dizia "nada fora do padrão" quando a
+   verdade era "não tenho como saber". */
+function textoSemAnomalia(){
+  const firmes = trilhas.filter(t => t.firme);
+  if(!firmes.length) return 'Nada fora do padrão na sala.';
+  const cegos = firmes.filter(t => t.analisavel === false).length;
+  if(cegos === firmes.length)
+    return firmes.length === 1
+      ? 'Corpo cortado no enquadramento: dá para identificar a pessoa, mas não '
+        + 'para afirmar queda, corrida ou agitação. A câmera precisa pegar da '
+        + 'cintura para baixo.'
+      : 'Nenhum dos ' + firmes.length + ' corpos aparece inteiro no quadro: dá '
+        + 'para identificar as pessoas, mas não para afirmar o que está '
+        + 'acontecendo. A câmera precisa pegar da cintura para baixo.';
+  if(cegos)
+    return 'Nada fora do padrão em quem aparece inteiro. ' + cegos + ' de ' +
+      firmes.length + ' estão cortados no quadro e não foram avaliados.';
+  return 'Nada fora do padrão na sala.';
+}
+
 function anotar(p, t){ eventos.unshift({ p, t, h: hora() }); eventos = eventos.slice(0,40); pintarTudo(); }
 
 /* ---------------------------------------------------------------- câmera --- */
@@ -947,8 +971,15 @@ function analisar(t, lm, agora){
   if(vis(lm[P.QUADRIL_E]) < VIS_MIN || vis(lm[P.QUADRIL_D]) < VIS_MIN){
     t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
     t.qx = null; t.qy = null; t.ox = null; t.oy = null;
+    /* E DIZ ISSO NA TELA. Antes esta camada simplesmente calava: com uma webcam
+       de notebook, que enquadra da cintura para cima, ela NUNCA rodava e o
+       painel continuava escrevendo "Nada fora do padrão na sala" — afirmando
+       uma segurança que não tinha como verificar. Uma pessoa caiu na frente da
+       câmera e o sistema não disse nem que não sabia. */
+    t.analisavel = false;
     return;
   }
+  t.analisavel = true;
   const q  = meio(lm, P.QUADRIL_E, P.QUADRIL_D);
   const o  = meio(lm, P.OMBRO_E,   P.OMBRO_D);
   const pe = meio(lm, P.TORN_E,    P.TORN_D);
@@ -1488,6 +1519,16 @@ function resumir(){
     ? naSala + ' pessoa' + (naSala > 1 ? 's' : '') + ' na sala · ' +
       presentes.length + ' com nome, ' + naoIdent.length + ' sem'
     : 'Sala vazia';
+
+  /* O aviso fica À VISTA, na faixa, e não escondido num cartão que o operador
+     pode não estar olhando. É a mesma regra de sempre aqui: a camada que não
+     está funcionando precisa dizer que não está. */
+  const firmes = trilhas.filter(t => t.firme);
+  const cegos = firmes.filter(t => t.analisavel === false).length;
+  el('faixa-aviso').textContent = !cegos ? ''
+    : cegos === firmes.length
+      ? 'sem análise de queda: corpo cortado no quadro'
+      : 'sem análise de queda em ' + cegos + ' de ' + firmes.length;
   pintarTudo();
 }
 

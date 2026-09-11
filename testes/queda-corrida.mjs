@@ -268,6 +268,24 @@ const CENARIOS = [
       return { escala:0.90, quadrilY: suave(0.50,0.61,k) - suave(0,0.11,v),
                incl: suave(0,60,k) - suave(0,60,v) }; } },
 
+  /* O ENQUADRAMENTO QUE A ESCOLA VAI USAR DE VERDADE: câmera no alto da sala,
+     quadril visível, PÉS FORA DO QUADRO. Todos os cenários acima têm os pés à
+     vista, que é o caso fácil — a régua de altura sai direto do tornozelo. Sem
+     os pés ela é ESTIMADA pelo joelho, e é essa estimativa que precisa aguentar
+     os limiares. Sem estes três cenários, o teste só provava o caso fácil. */
+  { nome:'queda sem os pés no quadro', espera:['queda'], dur:4000, cena: ms => {
+      const k = (ms-500)/450;
+      return { quadrilY: suave(0.55,0.80,k), incl: suave(0,80,k), visPe:false }; } },
+
+  { nome:'corrida sem os pés no quadro', espera:['corrida'], dur:3000, cena: ms =>
+      ({ x: 0.12 + Math.min(0.80, ms/1000*0.73), visPe:false }) },
+
+  { nome:'agachar sem os pés no quadro', espera:[], dur:4000, cena: ms => {
+      const k = (ms-500)/700, v = (ms-2500)/700;
+      return { quadrilY: suave(0.55,0.69,k) - suave(0,0.14,v), visPe:false,
+               agacha: suave(0,0.55,k) - suave(0,0.55,v),
+               incl: suave(0,35,k) - suave(0,35,v) }; } },
+
   { nome:'agachar para pegar algo', espera:[], dur:4000, cena: ms => {
       const k = (ms-500)/700, v = (ms-2500)/700;    // desce e volta
       return { quadrilY: suave(0.60,0.74,k) - suave(0,0.14,v),
