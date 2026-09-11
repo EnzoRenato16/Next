@@ -82,6 +82,7 @@ const ASPECTO = 4/3;
 const N_QUEDA_ANG   = 55;    // graus fora da vertical
 const N_QUEDA_CAI   = 0.35;  // queda do quadril em ALTURAS DE CORPO, não da tela
 const N_QUEDA_SEG   = 1200;
+const N_QUEDA_JANELA= 500;   // ms: um tombo cabe aqui, um agachamento não
 const N_QUEDA_TRONCO= 0.60;  // tronco encolheu para menos disto do próprio máximo
 const N_CORRE_VEL   = 1.5;   // alturas de corpo por segundo, na horizontal
 const N_CORRE_SEG   = 400;
@@ -117,15 +118,30 @@ function analisarNovo(t, lm, agora, disparo){
      distância muda. O ASPECTO entra porque x e y são normalizados por lados
      diferentes do quadro. */
   const eixo = Math.hypot((o.x - q.x) * ASPECTO, o.y - q.y);
+  const ombro = Math.hypot((lm[P.OMBRO_E].x - lm[P.OMBRO_D].x) * ASPECTO,
+                            lm[P.OMBRO_E].y - lm[P.OMBRO_D].y);
 
   if(!t.hist) t.hist = [];
-  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo });
+  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro });
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
 
   /* --- queda --- */
   const jan = t.hist.filter(h => agora - h.t < 900);
   const maisAlto = Math.min.apply(null, jan.map(h => h.qy));
-  const caiu = (q.y - maisAlto) / altura > N_QUEDA_CAI;
+  /* A régua é a altura de ANTES, não a de agora. Quem agacha dobra as pernas e
+     encolhe no quadro; dividir a descida do quadril por essa altura já encolhida
+     inflava a queda relativa e fazia um agachamento deliberado parecer tombo.
+     A maior altura da janela é o tamanho que a pessoa tinha antes de descer. */
+  const alturaMax = Math.max.apply(null, jan.map(h => h.altura));
+
+  /* A DESCIDA É MEDIDA NUMA JANELA CURTA, e isso é o que separa tombo de
+     agachamento. Um tombo leva menos de meio segundo; agachar até o chão leva
+     mais de um. Numa janela de 0,9s as duas coisas acumulam a mesma descida —
+     medido: 0,37 alturas de corpo para o agachamento lento, contra um limiar de
+     0,35. Em 0,5s, só o tombo chega lá. Não é o QUANTO desceu, é o quão rápido. */
+  const curta = t.hist.filter(h => agora - h.t < N_QUEDA_JANELA);
+  const antes = Math.min.apply(null, curta.map(h => h.qy));
+  const caiu = (q.y - antes) / alturaMax > N_QUEDA_CAI;
 
   /* DUAS formas de estar no chão, e a segunda faltava.
 
@@ -183,7 +199,19 @@ function analisarNovo(t, lm, agora, disparo){
        a regra lia isso como alguém correndo em direção à lente — amarrar o
        sapato virava corrida. O tronco não muda de tamanho quando se agacha; só
        muda com a distância da câmera, que é exatamente o que se quer medir. */
-    const cresc = (eixo - ant.eixo) / eixo / dt;
+    /* APROXIMAR-SE cresce o CORPO INTEIRO. Levantar-se cresce só o tronco.
+
+       Medir só o tronco reprovou contra um vídeo de verdade: a pessoa se
+       abaixou até o chão de frente para a câmera e, ao levantar, o tronco
+       saiu da perspectiva e cresceu depressa na imagem — e a tela registrou
+       CORRIDA em alguém parado.
+
+       A largura dos ombros é perpendicular ao eixo em que a pessoa dobra, então
+       abaixar e levantar não a altera. Exigir que as DUAS cresçam juntas
+       distingue os casos: aproximar-se cresce as duas; levantar cresce só o
+       tronco; girar o corpo de frente para perfil cresce só os ombros. */
+    const cresc = Math.min((eixo - ant.eixo) / eixo,
+                           (ombro - ant.ombro) / ombro) / dt;
 
     if(lateral > N_CORRE_VEL || cresc > N_CORRE_CRESC){
       if(!t.correDesde) t.correDesde = agora;
@@ -197,11 +225,15 @@ function analisarNovo(t, lm, agora, disparo){
    frações da tela — é ela que representa a distância da câmera. `incl` é a
    inclinação do tronco em graus (0 = em pé). `agacha` encurta as pernas sem
    inclinar, que é o que acontece de verdade quando alguém se agacha. */
-function pose({ x=0.5, quadrilY=0.60, escala=0.55, incl=0, agacha=0, visPe=true }){
+function pose({ x=0.5, quadrilY=0.60, escala=0.55, incl=0, agacha=0, visPe=true,
+                incl3d=0 }){
   const lm = Array.from({length:33}, () => ({x, y:quadrilY, visibility:0}));
   const p = (i,px,py,v=0.95) => lm[i] = {x:px, y:py, z:0, visibility:v};
   const rad = incl * Math.PI/180;
-  const tronco = escala * 0.30;
+  /* incl3d inclina o tronco PARA A CÂMERA (ou para longe dela). Na imagem isso
+     não desloca nada em x: o tronco só ENCURTA, por perspectiva. É o movimento
+     de quem se abaixa de frente para a lente — e é o caso que faltava aqui. */
+  const tronco = escala * 0.30 * Math.cos(incl3d * Math.PI/180);
   const ox = x + Math.sin(rad)*tronco, oy = quadrilY - Math.cos(rad)*tronco;
   const perna = escala * 0.50 * (1 - agacha);
   const ombro = escala * 0.20;
@@ -280,6 +312,32 @@ const CENARIOS = [
   { nome:'corrida sem os pés no quadro', espera:['corrida'], dur:3000, cena: ms =>
       ({ x: 0.12 + Math.min(0.80, ms/1000*0.73), visPe:false }) },
 
+  /* O CASO QUE VEIO DE UM VÍDEO DE VERDADE, não da minha imaginação.
+
+     A pessoa se abaixou até o chão de frente para a câmera e levantou. A tela
+     registrou CORRIDA — durante o levantar. A causa é o sinal de aproximação
+     que eu mesmo tinha acabado de acrescentar: abaixado, o tronco aparece
+     encurtado por perspectiva; ao levantar, ele cresce depressa na imagem, e
+     crescer era lido como "vindo em direção à lente".
+
+     Nenhum cenário sintético meu pegava isso, porque todos inclinavam o tronco
+     NO PLANO da imagem (deslocando em x), onde o comprimento pela diagonal não
+     muda. Faltava justamente a inclinação para a câmera. */
+  { nome:'cai de frente e levanta', espera:['queda'], dur:6000, cena: ms => {
+      /* Vai ao chão em 0,45s (tombo), fica ~1,5s, levanta em 1,1s. A QUEDA tem
+         que ser vista; a subida NÃO pode virar corrida. */
+      const k = (ms-600)/450, v = (ms-2600)/1100;
+      return { quadrilY: suave(0.55,0.80,k) - suave(0,0.25,v),
+               agacha: suave(0,0.85,k) - suave(0,0.85,v),
+               incl3d: suave(0,70,k) - suave(0,70,v) }; } },
+
+  { nome:'agacha devagar e levanta', espera:[], dur:6000, cena: ms => {
+      /* O mesmo movimento, só que deliberado: 1,4s para descer. Não é tombo. */
+      const k = (ms-600)/1400, v = (ms-3200)/1400;
+      return { quadrilY: suave(0.55,0.78,k) - suave(0,0.23,v),
+               agacha: suave(0,0.80,k) - suave(0,0.80,v),
+               incl3d: suave(0,65,k) - suave(0,65,v) }; } },
+
   { nome:'agachar sem os pés no quadro', espera:[], dur:4000, cena: ms => {
       const k = (ms-500)/700, v = (ms-2500)/700;
       return { quadrilY: suave(0.55,0.69,k) - suave(0,0.14,v), visPe:false,
@@ -345,8 +403,8 @@ const CENARIOS = [
   };
   const conferir = {
     QUEDA_ANG:N_QUEDA_ANG, QUEDA_CAI:N_QUEDA_CAI, QUEDA_SEG:N_QUEDA_SEG,
-    QUEDA_EIXO:N_QUEDA_TRONCO, CORRE_VEL:N_CORRE_VEL, CORRE_SEG:N_CORRE_SEG,
-    CORRE_CRESC:N_CORRE_CRESC,
+    QUEDA_EIXO:N_QUEDA_TRONCO, QUEDA_JANELA:N_QUEDA_JANELA,
+    CORRE_VEL:N_CORRE_VEL, CORRE_SEG:N_CORRE_SEG, CORRE_CRESC:N_CORRE_CRESC,
   };
   const fora = Object.entries(conferir)
     .filter(([nome, aqui]) => daSala(nome) !== aqui)

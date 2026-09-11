@@ -594,6 +594,7 @@ const HIST_MS = 2500;      // memória de movimento de cada pessoa
 const QUEDA_ANG = 55;      // graus fora da vertical
 const QUEDA_CAI = 0.35;    // queda do quadril em ALTURAS DE CORPO
 const QUEDA_SEG = 1200;    // ms deitado para virar alerta
+const QUEDA_JANELA = 500;  // ms: um tombo cabe aqui, um agachamento não
 const QUEDA_EIXO = 0.60;   // tronco encolheu para menos disto do tamanho de antes
 
 /* O quadro não é quadrado, e isso muda as contas.
@@ -1010,9 +1011,14 @@ function analisar(t, lm, agora){
      corpo. Pela diagonal, inclinar no plano da imagem não muda nada — só a
      distância muda, que é o que interessa medir. */
   const eixo = Math.hypot((o.x - q.x) * aspecto, o.y - q.y);
+  /* A largura dos ombros é perpendicular ao eixo em que a pessoa dobra: abaixar
+     e levantar não a altera, e afastar-se da câmera altera. É o que separa
+     "cresceu porque se aproximou" de "cresceu porque endireitou o corpo". */
+  const ombro = Math.hypot((lm[P.OMBRO_E].x - lm[P.OMBRO_D].x) * aspecto,
+                            lm[P.OMBRO_E].y - lm[P.OMBRO_D].y);
 
   if(!t.hist) t.hist = [];
-  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo,
+  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro,
                 px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
@@ -1026,7 +1032,19 @@ function analisar(t, lm, agora){
      cobrar as duas coisas ao mesmo tempo faria o alerta nunca disparar. */
   const jan = t.hist.filter(h => agora - h.t < 900);
   const maisAlto = Math.min.apply(null, jan.map(h => h.qy));
-  const caiu = (q.y - maisAlto) / altura > QUEDA_CAI;
+  /* A régua é a altura de ANTES, não a de agora: quem desce dobra as pernas e
+     encolhe no quadro, e dividir a descida por essa altura já encolhida inflava
+     a queda relativa. */
+  const alturaMax = Math.max.apply(null, jan.map(h => h.altura));
+
+  /* E a descida é medida numa JANELA CURTA — é o que separa tombo de
+     agachamento. Um tombo leva menos de meio segundo; agachar até o chão leva
+     mais de um. Em 0,9s as duas coisas acumulam a mesma descida (medido: 0,37
+     alturas de corpo no agachamento lento, contra um limiar de 0,35). Em 0,5s,
+     só o tombo chega lá. Não é o QUANTO desceu, é o quão rápido. */
+  const curta = t.hist.filter(h => agora - h.t < QUEDA_JANELA);
+  const antesQ = Math.min.apply(null, curta.map(h => h.qy));
+  const caiu = (q.y - antesQ) / alturaMax > QUEDA_CAI;
 
   /* DUAS formas de estar no chão, e a segunda faltava.
 
@@ -1075,7 +1093,19 @@ function analisar(t, lm, agora){
        toda queda de frente seria registrada como corrida. O preço, dito aqui
        para não virar surpresa: correr PARA LONGE da câmera não é detectado por
        este caminho. */
-    t.cresc = (eixo - ant.eixo) / eixo / dt;
+    /* APROXIMAR-SE cresce o CORPO INTEIRO. Levantar-se cresce só o tronco.
+
+       Medir só o tronco reprovou contra um VÍDEO DE VERDADE: a pessoa se
+       abaixou até o chão de frente para a câmera e, ao levantar, o tronco saiu
+       da perspectiva e cresceu depressa na imagem — a tela registrou CORRIDA em
+       alguém parado, e foi este sinal que eu mesmo tinha acabado de acrescentar
+       que causou isso.
+
+       Exigindo que o tronco E os ombros cresçam JUNTOS os casos se separam:
+       aproximar-se cresce os dois; levantar cresce só o tronco; girar o corpo
+       de frente para perfil cresce só os ombros. */
+    t.cresc = Math.min((eixo - ant.eixo) / eixo,
+                       (ombro - ant.ombro) / ombro) / dt;
 
     if(t.vel > CORRE_VEL || t.cresc > CORRE_CRESC){
       if(!t.correDesde) t.correDesde = agora;
