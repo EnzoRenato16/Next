@@ -47,6 +47,7 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 | `svatech-scanner.html` | Leitor de patrimônio (código de barras / QR) |
 | `views_powerbi.sql` | Visões agregadas para o Power BI — nunca a tabela crua |
 | `testes/` | Testes das regras de visão — `node testes/<arquivo>.mjs` |
+| `treino/` | Rede de detecção de queda: dados, treino e provas — [`treino/LEIA.md`](treino/LEIA.md) |
 | `daten/` | EduVision: reconhecimento facial em Python no AIBOX |
 | `SVATech_Health.md` | A tese do SVATech Health |
 
@@ -57,6 +58,11 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 **Offline-first, com queda graciosa.** Postgres cai para SQLite, nuvem cai para
 borda, e nenhuma página depende de CDN para desenhar. Demonstração que morre
 porque a internet caiu é demonstração perdida.
+
+**Medido, não achado.** Queda, corrida e agitação têm teste com cenários em
+`testes/`, e a rede de queda tem números de um dataset público de 4.509 clipes
+(revocação 89% contra 60% da regra geométrica). Quando algo não foi medido, o
+código diz isso.
 
 **Evidência para conferência humana, nunca acusação automática.** Quem não é
 reconhecido vira "Desconhecido pendente de validação", biometria tem prazo para

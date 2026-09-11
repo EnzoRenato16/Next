@@ -678,6 +678,94 @@ const temPontoCabeca = lm => {
 const meio = (lm, a, b) => ({ x:(lm[a].x + lm[b].x)/2, y:(lm[a].y + lm[b].y)/2 });
 const dist3 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.z||0) - (b.z||0));
 
+
+/* ===================================================== rede de queda ========
+   Classificador treinado no Fall Vision (Harvard Dataverse, CC0): 4.509 clipes
+   com esqueleto quadro a quadro, 2.680 deles com queda.
+
+   POR QUE ELE EXISTE. A regra geométrica, medida nesses mesmos clipes, acerta
+   quando dispara (precisão 100%) mas PERDE 4 DE CADA 10 QUEDAS — revocação de
+   60%. É um número que nenhum ajuste de limiar conserta: as quedas que ela
+   perde não se parecem com as que ela pega. A rede sobe a revocação para 89%
+   mantendo 98% de precisão, em cenários que ela nunca viu no treino.
+
+   POR QUE ELE CABE AQUI. São 12 entradas, 8 neurônios ocultos e 113 pesos, que
+   estão escritos abaixo. Nada para baixar, nenhum runtime, nenhum CDN: a Sala
+   continua abrindo sem internet, que é regra do projeto desde o começo.
+
+   AS 12 ENTRADAS SÃO ADIMENSIONAIS de propósito. Todas são razões — alturas de
+   corpo, frações do próprio máximo, graus sobre 90. Um modelo treinado nos
+   pixels de outra sala, com outra câmera e outra distância, não serviria para a
+   de vocês; em razões, serve.
+
+   Como reproduzir, do zero: treino/LEIA.md */
+const QUEDA_MU = [0.25591,0.18844,7.5932,0.56055,0.37979,0.41092,0.61061,0.76382,0.69857,0.54543,1.6829,1.1988];
+const QUEDA_SD = [0.34159,0.2951,14.4,0.55285,0.42306,0.45124,0.34595,0.24896,0.26248,0.3479,1.7791,1.1081];
+const QUEDA_W1 = [[-1.16137,-0.35611,2.3317,-1.8823,-1.03826,-2.59795,-1.79353,3.78288],[-1.3729,-2.07119,-1.01908,1.62034,-0.79527,-0.15735,0.04098,7.52829],[-0.59179,-0.44426,-0.37478,0.87601,-0.90383,-0.31442,-3.37697,2.67162],[-3.60081,-0.26591,-7.88018,-1.64134,-0.78936,-0.83107,-0.65161,-2.51545],[0.32661,4.0584,4.37775,3.61784,1.73765,-0.05069,-0.27299,-2.09035],[0.02456,-0.43903,1.48134,-6.28319,-0.67357,1.03662,1.16954,2.39528],[-1.18894,4.32664,-2.36188,-1.42476,5.16992,6.19504,-0.47092,-0.65952],[1.62946,1.64156,1.61111,0.79732,-3.62254,0.61736,1.20392,-2.59582],[-2.1002,-0.90773,2.88387,0.01366,-1.41609,-7.14177,0.31795,0.17853],[1.27453,-1.5466,-0.36763,1.26005,-0.90372,0.79016,0.68851,2.03211],[-10.67825,2.06959,3.91451,-3.14314,-2.09548,0.25958,2.42676,2.91427],[3.26628,-1.46717,1.86166,1.92859,-0.01989,2.36796,4.33631,-2.24591]];
+const QUEDA_B1 = [6.047,-3.0637,-0.52136,-0.40176,-1.9844,1.7482,3.1094,-1.5094];
+const QUEDA_W2 = [-2.1171,1.8356,-2.3764,-1.698,-1.7721,-1.2129,2.5868,1.7893];
+const QUEDA_B2 = 0.4048;
+/* Limiar escolhido pelo melhor F1 NO TREINO, nunca no teste — escolher no teste
+   é decorar a prova. */
+const QUEDA_LIMIAR = 0.50;
+const QUEDA_JAN = 30;      // quadros de história que a janela cobre (~1s a 30fps)
+
+/* As 12 características da janela. Esta função é a gêmea de
+   caracteristicas() em treino/extrair.py, e testes/rede-queda.mjs compara as
+   duas número a número em janelas reais do dataset. Se você mexer aqui sem
+   mexer lá, o teste acusa. */
+function caracteristicasQueda(h, fps){
+  if(h.length < QUEDA_JAN/2) return null;
+  const reg = Math.max.apply(null, h.map(x => x.altura));
+  if(!(reg > 1e-6)) return null;
+  const col = k => h.map(x => x[k]);
+  const hy = col('qy'), hx = col('qx'), ang = col('ang');
+  const alt = col('altura'), eixo = col('eixo'), omb = col('ombro'), prop = col('prop');
+  const max = a => Math.max.apply(null, a), min = a => Math.min.apply(null, a);
+  const fim = a => { const n = Math.max(1, Math.floor(a.length/3));
+                     return a.slice(-n).reduce((s,v) => s+v, 0)/n; };
+  const dt = 1/fps;
+
+  /* A descida mais rápida em meio segundo — não a descida total. É o que separa
+     tombo de agachamento, e é a mesma ideia da regra geométrica. */
+  const meia = Math.max(2, Math.round(fps*0.5));
+  let desc = 0;
+  for(let k = 0; k < hy.length; k++)
+    desc = Math.max(desc, hy[k] - hy[Math.max(0, k - meia)]);
+
+  let lat = 0;
+  for(let k = 1; k < hx.length; k++)
+    lat = Math.max(lat, Math.abs(hx[k] - hx[k-1]));
+
+  return [
+    (max(hy) - min(hy)) / reg,
+    desc / reg,
+    lat / reg / dt,
+    max(ang) / 90,
+    ang.reduce((s,v) => s+v, 0) / ang.length / 90,
+    fim(ang) / 90,
+    min(alt) / reg,
+    fim(alt) / reg,
+    min(eixo) / Math.max(max(eixo), 1e-6),
+    min(omb) / Math.max(max(omb), 1e-6),
+    max(prop),
+    fim(prop),
+  ];
+}
+
+/* A rede: padroniza, uma camada tanh, e a sigmoide no fim. */
+function redeQueda(c){
+  let soma = QUEDA_B2;
+  for(let j = 0; j < QUEDA_W1[0].length; j++){
+    let a = QUEDA_B1[j];
+    for(let i = 0; i < c.length; i++)
+      a += ((c[i] - QUEDA_MU[i]) / QUEDA_SD[i]) * QUEDA_W1[i][j];
+    soma += Math.tanh(a) * QUEDA_W2[j];
+  }
+  return 1 / (1 + Math.exp(-soma));
+}
+/* ---- queda: fim da rede ----------------------------------------- */
+
 /* A caixa sai dos próprios pontos visíveis, com uma folga, porque o modelo
    entrega a pessoa e não a moldura dela. */
 function caixaDe(lm, larg, alt){
@@ -1018,7 +1106,11 @@ function analisar(t, lm, agora){
                             lm[P.OMBRO_E].y - lm[P.OMBRO_D].y);
 
   if(!t.hist) t.hist = [];
-  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro,
+  /* prop: a caixa do corpo mais larga que alta. É o sinal clássico de "está
+     deitado", e é uma das 12 entradas da rede. Vem da caixa que o podar() já
+     calculou, então não custa nada. */
+  const cx = t.box ? t.box.w / Math.max(t.box.h, 1e-6) : 0;
+  t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro, prop:cx,
                 px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
@@ -1066,12 +1158,32 @@ function analisar(t, lm, agora){
      Por isso a referência é CONGELADA: no tombo guardamos o tamanho que o
      tronco tinha, e daí em diante comparamos contra esse número, que não
      envelhece junto com a janela. */
-  if((ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu && !t.quedaDesde){
+  /* A REDE, sobre a mesma janela de 1s. Medida em 1.020 clipes de cenários que
+     ela nunca viu: revocação 89% contra 60% da geometria, com precisão 98%.
+     A geometria fica AO LADO, não é substituída — ela não errou uma vez nesses
+     clipes, e duas evidências independentes é melhor que uma. Qualquer uma das
+     duas arma o relógio; as duas passam pela mesma exigência de permanência. */
+  const janRede = t.hist.filter(h => agora - h.t < 1000);
+  /* A taxa de quadros é MEDIDA, não presumida: a janela é de 1s, então o número
+     de amostras nela é o fps real desta máquina. O treino foi a 30fps, e uma
+     das 12 entradas é velocidade — presumir 30 numa máquina que roda a 15
+     dobraria esse número. */
+  const carQ = janRede.length >= QUEDA_JAN/2
+    ? caracteristicasQueda(janRede, janRede.length)
+    : null;
+  t.notaQueda = carQ ? redeQueda(carQ) : 0;
+  const geo = (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu;
+  const rede = t.notaQueda >= QUEDA_LIMIAR;
+
+  if((geo || rede) && !t.quedaDesde){
     t.quedaDesde = agora;
     t.eixoAntes = eixoMax;
+    t.porRede = !geo;
   }
+  /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
+     apontando queda. Exigir as duas faria o alerta morrer na transição. */
   const noChao = t.quedaDesde &&
-    (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO);
+    (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || t.notaQueda >= QUEDA_LIMIAR);
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   if(t.quedaDesde && agora - t.quedaDesde > QUEDA_SEG)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +

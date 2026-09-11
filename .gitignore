@@ -32,3 +32,6 @@ graphify-out/cache/
 .DS_Store
 Thumbs.db
 
+
+# treino
+treino/__pycache__/
