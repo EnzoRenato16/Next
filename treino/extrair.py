@@ -12,6 +12,11 @@ import csv, glob, os, sys, numpy as np
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 DADOS = os.environ.get("DADOS", "/tmp/ds")
+# Os 16 arquivos de keypoints no Harvard Dataverse (doi:10.7910/DVN/75QPKK).
+# Baixar: https://dataverse.harvard.edu/api/access/datafile/<id>  (sao RAR5)
+IDS = (10857218, 10857222, 10857223, 10857224, 10857225, 10857226, 10857227,
+       10857228, 10857229, 10857230, 10857235, 10857236, 10857237, 10857238,
+       10857239, 10857240)
 FPS = 30.0
 JANELA = 30          # quadros: 1 segundo
 PASSO = 5

@@ -33,6 +33,25 @@ servir e não outro.
 
 4.509 clipes aproveitados, 2.680 com queda.
 
+## Taxa de quadros da camera
+
+A rede foi treinada a 30fps. Camera IP domestica (Tapo C200/C210) entrega 15.
+`treino/taxa.py` reextrai os MESMOS clipes de teste jogando fora quadros e
+pontua com o modelo que ja esta no ar, sem retreinar:
+
+| fps | AUC | precisao | revocacao | quedas perdidas (de 1.020) |
+|---|---|---|---|---|
+| 30 | 0,977 | 98% | **89%** | 55 |
+| 15 | 0,972 | 99% | **87%** | 70 |
+| 10 | 0,959 | 98% | 86% | 75 |
+
+Ou seja: 15fps custa **2 pontos de revocacao**, nao a deteccao. As entradas que
+dependem de tempo sao divididas pelo intervalo real entre quadros, e a Sala
+mede o fps em vez de presumir — e por isso que a queda e pequena.
+
+O que 15fps quase quebrou foi o codigo, nao o modelo: a janela exigia 15
+amostras, e 15fps entrega ~15. Ver `QUEDA_AMOSTRAS` no `auditix-sala.html`.
+
 ## Reproduzir do zero
 
 ```bash

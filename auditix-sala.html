@@ -709,13 +709,20 @@ const QUEDA_B2 = 0.4048;
    é decorar a prova. */
 const QUEDA_LIMIAR = 0.50;
 const QUEDA_JAN = 30;      // quadros de história que a janela cobre (~1s a 30fps)
+/* Mínimo de amostras para a janela valer. NÃO é metade de QUEDA_JAN: câmera IP
+   doméstica entrega 15 quadros por segundo, o que dá ~15 amostras na janela de
+   1s — em cima do limite, e uma engasgada do navegador desligaria a rede em
+   silêncio. treino/taxa.py mede o custo real da taxa menor: a 15fps a revocação
+   cai de 89% para 87%, a 10fps para 86%. Vale muito mais rodar degradado do que
+   não rodar. */
+const QUEDA_AMOSTRAS = 8;
 
 /* As 12 características da janela. Esta função é a gêmea de
    caracteristicas() em treino/extrair.py, e testes/rede-queda.mjs compara as
    duas número a número em janelas reais do dataset. Se você mexer aqui sem
    mexer lá, o teste acusa. */
 function caracteristicasQueda(h, fps){
-  if(h.length < QUEDA_JAN/2) return null;
+  if(h.length < QUEDA_AMOSTRAS) return null;
   const reg = Math.max.apply(null, h.map(x => x.altura));
   if(!(reg > 1e-6)) return null;
   const col = k => h.map(x => x[k]);
@@ -1168,7 +1175,7 @@ function analisar(t, lm, agora){
      de amostras nela é o fps real desta máquina. O treino foi a 30fps, e uma
      das 12 entradas é velocidade — presumir 30 numa máquina que roda a 15
      dobraria esse número. */
-  const carQ = janRede.length >= QUEDA_JAN/2
+  const carQ = janRede.length >= QUEDA_AMOSTRAS
     ? caracteristicasQueda(janRede, janRede.length)
     : null;
   t.notaQueda = carQ ? redeQueda(carQ) : 0;
