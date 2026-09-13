@@ -465,8 +465,9 @@ function pintarTudo(){
   const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
   el('l-anomalias').innerHTML = anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
-        '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em></span>' +
-        '<span class="hr">' + a.h + '</span></div>').join('')
+        '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em>' +
+        (a.porque ? '<br><small style="opacity:.6">' + a.porque + '</small>' : '') +
+        '</span><span class="hr">' + a.h + '</span></div>').join('')
     : '<div class="vazio">' + (rodando ? textoSemAnomalia() :
         'Quedas, corridas e agitação aparecem aqui.') + '</div>';
 
@@ -1201,12 +1202,25 @@ function tentarRecolar(t, agora){
    existe — e alerta falso é o que faz uma escola parar de olhar para o alerta. */
 const ANOM_IDADE = 2000;
 
-function registrarAnomalia(tipo, t, texto){
+/* Por que este alerta disparou, em números. Um alarme falso só tem conserto
+   dirigido se dá para saber QUAL evidência o causou — a rede treinada ou a
+   regra geométrica — e com que folga. Sem isto, a alternativa é adivinhar
+   mexendo em limiar, que é como se acerta um caso e se quebra dois. */
+function porqueQueda(t){
+  return (t.porRede ? 'rede ' + (t.notaQueda || 0).toFixed(2) + ' (limiar ' +
+                      QUEDA_LIMIAR.toFixed(2) + ')'
+                    : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
+                      'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas') +
+         ' · rede ' + (t.notaQueda || 0).toFixed(2);
+}
+
+function registrarAnomalia(tipo, t, texto, porque){
   if(!t.firme) return;   // trilha provisória não acusa nada
   if(performance.now() - t.nasceu < ANOM_IDADE) return;
   const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
   if(ja){ ja.visto = Date.now(); return; }
-  anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, h:hora(), visto:Date.now() });
+  anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, porque,
+                      h:hora(), visto:Date.now() });
   anomalias = anomalias.slice(0, 20);
   anotar('mal', texto);
   mandarEvento(tipo, 'corpo-' + t.id);
@@ -1340,6 +1354,10 @@ function analisar(t, lm, agora){
     t.quedaDesde = agora;
     t.eixoAntes = eixoMax;
     t.porRede = !geo;
+    /* guardados no instante em que o relógio arma, não no do alerta: 1,2s
+       depois estes números já são outros e não explicam mais nada */
+    t.angQueda = ang;
+    t.caiuQueda = (q.y - antesQ) / alturaMax;
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
@@ -1348,7 +1366,8 @@ function analisar(t, lm, agora){
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   if(t.quedaDesde && agora - t.quedaDesde > QUEDA_SEG)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
-      (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana');
+      (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
+      porqueQueda(t));
 
   /* --- corrida e energia dos punhos --- */
   const ant = t.hist.find(h => agora - h.t < 320 && agora - h.t > 80);
