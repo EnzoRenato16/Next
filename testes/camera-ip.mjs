@@ -47,11 +47,16 @@ const sala = await ctx.newPage();
 const erros = [];
 sala.on('pageerror', e => erros.push('pageerror: ' + e.message));
 
+/* O par falso fala WHEP, como o go2rtc: recebe SDP cru e devolve SDP cru.
+   A versão anterior deste teste falava JSON dos dois lados — era a MINHA
+   suposição, e por isso ele passava enquanto o go2rtc respondia
+   "sdp: syntax error at pos 1". Um teste que inventa o outro lado não testa
+   nada; daí a checagem do corpo abaixo. */
+let corpoEnviado = null;
 await sala.route('**/api/webrtc*', async route => {
-  const oferta = JSON.parse(route.request().postData()).sdp;
-  const sdp = await cam.evaluate(o => window.responder(o), oferta);
-  await route.fulfill({ status:200, contentType:'application/json',
-    body: JSON.stringify({ type:'answer', sdp }) });
+  corpoEnviado = route.request().postData();
+  const sdp = await cam.evaluate(o => window.responder(o), corpoEnviado);
+  await route.fulfill({ status:200, contentType:'application/sdp', body: sdp });
 });
 
 const falhar = async (m) => { console.error('FALHOU: ' + m); await nav.close(); process.exit(1); };
@@ -81,6 +86,11 @@ try{
   await falhar('nenhum quadro chegou. tela: ' +
     (await sala.textContent('#desltxt')).replace(/\s+/g,' ').trim());
 }
+
+if(!corpoEnviado || !corpoEnviado.startsWith('v='))
+  await falhar('a oferta não foi enviada como SDP cru (WHEP), e sim: ' +
+               String(corpoEnviado).slice(0, 40));
+console.log('a oferta sai como SDP cru');
 
 const d = await sala.evaluate(() => { const v = document.getElementById('cam');
   return { w:v.videoWidth, h:v.videoHeight, over:document.getElementById('over').width }; });

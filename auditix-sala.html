@@ -674,8 +674,12 @@ async function fluxoDaPonte(alvo){
     });
     let r;
     try{
+      /* WHEP: o corpo é o SDP cru, não JSON. Mandar {type,sdp} faz o go2rtc ler
+         a chave como se fosse SDP e responder "syntax error at pos 1" — que é
+         onde está o primeiro caractere do embrulho. */
       r = await fetch(base + '/api/webrtc?src=' + encodeURIComponent(nome), {
-        method:'POST', body: JSON.stringify({ type:'offer', sdp: pc.localDescription.sdp }) });
+        method:'POST', headers:{ 'Content-Type':'application/sdp' },
+        body: pc.localDescription.sdp });
     }catch(e){
       throw Object.assign(new Error(base), { name:'PonteFora' });
     }
@@ -684,7 +688,16 @@ async function fluxoDaPonte(alvo){
     if(!r.ok) throw Object.assign(new Error(nome),
       { name: r.status === 404 ? 'FluxoDesconhecido' : 'PonteSemCamera',
         status: r.status });
-    await pc.setRemoteDescription(await r.json());
+    /* A resposta do WHEP é SDP cru; versões e intermediários devolvem o JSON
+       antigo. Aceitar os dois sai mais barato que descobrir qual é na hora. */
+    const bruto = await r.text();
+    let sdp = bruto.trimStart().startsWith('{') ? JSON.parse(bruto).sdp : bruto;
+    if(!sdp || !sdp.trimStart().startsWith('v=')) throw Object.assign(
+      new Error('a ponte respondeu algo que não é SDP'), { name:'PonteSemCamera', status:r.status });
+    /* SDP sem quebra de linha no fim o navegador recusa inteiro, reclamando da
+       ÚLTIMA linha como se ela estivesse malformada. Não corte o fim. */
+    if(!sdp.endsWith('\n')) sdp += '\r\n';
+    await pc.setRemoteDescription({ type:'answer', sdp });
     fl.addEventListener('inactive', () => { if(rodando) desligar(); });
     return fl;
   }catch(e){ pc.close(); throw e; }
