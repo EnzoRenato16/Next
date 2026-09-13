@@ -241,6 +241,8 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <div class="faixa" id="faixa"><span class="luz"></span><span id="faixatxt">Câmera desligada</span><span id="faixa-aviso" style="margin-left:auto; opacity:.85"></span></div>
       <div class="desl" id="desl">
         <button class="grandao" id="ligar">Abrir a sala</button>
+        <p style="margin:.2rem 0 0"><a href="#" id="btn-fonte"
+          style="color:inherit; opacity:.75; font-size:.85rem">fonte de vídeo: webcam</a></p>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
           saber o que mudou nela. Nenhuma imagem é guardada.</p>
       </div>
@@ -532,10 +534,12 @@ async function ligar(){
       prontos = true;
     }
     b.textContent = 'Abrindo a câmera…';
-    fluxo = await navigator.mediaDevices.getUserMedia({
-      video:{ width:{ ideal:1280 }, height:{ ideal:960 } }, audio:false });
+    fluxo = fonteIP() ? await fluxoDaPonte(fonteIP()) : await fluxoDaWebcam();
     const v = el('cam');
     v.srcObject = fluxo; await v.play();
+    /* WebRTC entrega o fluxo ANTES do primeiro quadro: videoWidth fica 0 por
+       alguns instantes, e tudo aqui embaixo mede em cima dele. */
+    await primeiroQuadro(v);
     el('palco').style.aspectRatio = v.videoWidth + '/' + v.videoHeight;
     ['over','calor'].forEach(id => { const c = el(id);
       c.width = v.videoWidth; c.height = v.videoHeight; });
@@ -555,10 +559,99 @@ async function ligar(){
         ? '<b>Permissão de câmera negada.</b> Se estiver por link, abra o arquivo direto no Chrome.'
         : n === 'SemModelo'
           ? '<b>Os modelos não carregaram.</b> Esta página precisa de internet na primeira vez.'
+        : n === 'PonteFora'
+          ? '<b>A ponte go2rtc não respondeu</b> em ' + err.message +
+            '.<br><small>Ela está aberta? E o go2rtc.yaml tem <code>api: { origin: "*" }</code>?</small>'
+        : n === 'FluxoDesconhecido'
+          ? '<b>A ponte não conhece esse fluxo:</b> ' + err.message +
+            '.<br><small>O nome tem que ser igual ao do go2rtc.yaml.</small>'
+        : n === 'FonteInvalida' || n === 'SemQuadro'
+          ? '<b>A câmera IP não entregou imagem.</b> ' + err.message +
+            '.<br><small>Teste a URL RTSP no VLC primeiro: se não abrir lá, o problema é a câmera.</small>'
           : '<b>Não abriu.</b> ' + n +
             (err && err.message ? ': ' + err.message : '') +
             '<br><small>Abra o console do navegador (F12) para o rastro completo.</small>';
   }finally{ b.disabled = false; b.textContent = 'Abrir a sala'; }
+}
+
+/* --------------------------- fonte de vídeo ---------------------------
+   A webcam serve para demonstrar; numa sala de verdade a câmera fica no alto,
+   no canto, e é uma câmera IP. Navegador nenhum abre RTSP — quem traduz é o
+   go2rtc, rodando na mesma máquina que este servidor. A senha da câmera fica
+   no go2rtc.yaml, NUNCA aqui: esta página é servida ao navegador, e qualquer
+   um lê o código dela com F12. Passo a passo em CAMERA-IP.md. */
+const CHAVE_FONTE = 'auditix.fonte';
+const fonteIP = () => (localStorage.getItem(CHAVE_FONTE) || '').trim();
+
+function mostrarFonte(){
+  const f = fonteIP();
+  el('btn-fonte').textContent = 'fonte de vídeo: ' + (f ? 'câmera IP (' + f + ')' : 'webcam');
+}
+
+function trocarFonte(){
+  const atual = fonteIP();
+  const r = prompt(
+    'Câmera IP pela ponte go2rtc.\n\n' +
+    'Escreva  endereço/nome-do-fluxo , por exemplo:\n' +
+    '   127.0.0.1:1984/sala\n\n' +
+    'Deixe em branco para voltar à webcam.', atual);
+  if(r === null) return;                       // cancelou: não mexe em nada
+  const v = r.trim().replace(/^https?:\/\//, '');
+  if(v) localStorage.setItem(CHAVE_FONTE, v); else localStorage.removeItem(CHAVE_FONTE);
+  mostrarFonte();
+}
+
+function fluxoDaWebcam(){
+  return navigator.mediaDevices.getUserMedia({
+    video:{ width:{ ideal:1280 }, height:{ ideal:960 } }, audio:false });
+}
+
+/* Pede o vídeo ao go2rtc por WebRTC, que é o único caminho com atraso de
+   fração de segundo. HLS seria mais fácil de achar em tutorial e atrasa
+   segundos — serve para gravação, não para alerta. */
+async function fluxoDaPonte(alvo){
+  const corte = alvo.indexOf('/');
+  if(corte < 1) throw Object.assign(new Error('escreva endereço/nome, ex 127.0.0.1:1984/sala'),
+                                    { name:'FonteInvalida' });
+  const base = 'http://' + alvo.slice(0, corte), nome = alvo.slice(corte + 1);
+  const pc = new RTCPeerConnection({ iceServers:[] });
+  try{
+    pc.addTransceiver('video', { direction:'recvonly' });
+    const fl = new MediaStream();
+    pc.ontrack = e => fl.addTrack(e.track);
+    await pc.setLocalDescription(await pc.createOffer());
+    /* o go2rtc não faz trickle ICE: a oferta tem que ir completa */
+    await new Promise(ok => {
+      if(pc.iceGatheringState === 'complete') return ok();
+      const t = setTimeout(ok, 2000);
+      pc.addEventListener('icegatheringstatechange', () => {
+        if(pc.iceGatheringState === 'complete'){ clearTimeout(t); ok(); } });
+    });
+    let r;
+    try{
+      r = await fetch(base + '/api/webrtc?src=' + encodeURIComponent(nome), {
+        method:'POST', body: JSON.stringify({ type:'offer', sdp: pc.localDescription.sdp }) });
+    }catch(e){
+      throw Object.assign(new Error(base), { name:'PonteFora' });
+    }
+    if(!r.ok) throw Object.assign(new Error(nome + ' (HTTP ' + r.status + ')'),
+                                  { name:'FluxoDesconhecido' });
+    await pc.setRemoteDescription(await r.json());
+    fl.addEventListener('inactive', () => { if(rodando) desligar(); });
+    return fl;
+  }catch(e){ pc.close(); throw e; }
+}
+
+/* Só volta quando existe imagem de verdade para medir. */
+function primeiroQuadro(v, ms = 10000){
+  if(v.videoWidth) return Promise.resolve();
+  return new Promise((ok, falhou) => {
+    const t = setTimeout(() => falhou(Object.assign(
+      new Error('nenhum quadro chegou'), { name:'SemQuadro' })), ms);
+    const olhar = () => { if(v.videoWidth){ clearTimeout(t); ok(); }
+                          else requestAnimationFrame(olhar); };
+    olhar();
+  });
 }
 
 function desligar(){
@@ -1946,6 +2039,8 @@ setInterval(expurgar, 3600000);   // sala fica aberta o dia todo; não espera F5
 
 el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
+el('btn-fonte').addEventListener('click', e => { e.preventDefault(); trocarFonte(); });
+mostrarFonte();
 el('limpar').addEventListener('click', () => { eventos = []; pintarTudo(); });
 
 /* ------------------------------------------------ ligação com o servidor --
