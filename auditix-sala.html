@@ -823,6 +823,7 @@ const AGITA_FECHA = 0.6;
 const GX = 32, GY = 24;    // grade do mapa de calor
 let mapaCalor = new Float32Array(GX*GY), mostrarMapa = false;
 let redePose = null, anomalias = [], limbo = [], agitacao = {};
+let picoCorrida = { quanto:0, vel:0, t:0 };
 
 const vis = p => (p && p.visibility != null) ? p.visibility : 1;
 /* Nariz, olhos, orelhas e boca: os índices 0 a 10 do MediaPipe. */
@@ -1420,6 +1421,13 @@ function analisar(t, lm, agora){
     t.cresc = Math.min((eixo - ant.eixo) / eixo,
                        (ombro - ant.ombro) / ombro) / dt;
 
+    /* O pico recente, para a faixa poder dizer QUANTO faltou. Sem isto, "não
+       detectou" e "quase detectou" são a mesma tela em branco, e a diferença
+       entre as duas é a diferença entre mexer no limiar e mexer na câmera. */
+    const quanto = Math.max(t.vel / CORRE_VEL, t.cresc / CORRE_CRESC);
+    if(quanto > (picoCorrida.quanto || 0) || agora - picoCorrida.t > 8000)
+      picoCorrida = { quanto, vel:t.vel, t:agora };
+
     if(t.vel > CORRE_VEL || t.cresc > CORRE_CRESC){
       if(!t.correDesde) t.correDesde = agora;
       else if(agora - t.correDesde > CORRE_SEG)
@@ -1868,10 +1876,15 @@ function resumir(){
      está funcionando precisa dizer que não está. */
   const firmes = trilhas.filter(t => t.firme);
   const cegos = firmes.filter(t => t.analisavel === false).length;
-  el('faixa-aviso').textContent = !cegos ? ''
+  const pico = performance.now() - picoCorrida.t < 8000 && picoCorrida.quanto > 0.25
+    ? 'corrida: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
+    : '';
+  el('faixa-aviso').textContent = !cegos
+    ? pico
     : cegos === firmes.length
       ? 'sem análise de queda: corpo cortado no quadro'
-      : 'sem análise de queda em ' + cegos + ' de ' + firmes.length;
+      : 'sem análise de queda em ' + cegos + ' de ' + firmes.length +
+        (pico ? ' · ' + pico : '');
   pintarTudo();
 }
 
