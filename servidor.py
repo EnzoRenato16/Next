@@ -50,6 +50,22 @@ PAINEL = AQUI / "auditix-painel.html"
 # "Carregando o detector de corpo..." para sempre. Numa apresentacao isso e o
 # projeto inteiro nao abrindo.
 ESTATICOS = AQUI / "vendor"
+# O tipo de cada arquivo, decidido AQUI e nao pelo sistema operacional. O
+# mimetypes do Python consulta o registro do Windows, que nao conhece .mjs: o
+# arquivo ia como "binario qualquer", o Chrome recusava executar um modulo com
+# tipo errado, e a tela ficava presa em "Carregando o detector de corpo..." sem
+# nenhum erro. No Linux passava, porque la a extensao e conhecida — foi assim
+# que escapou dos testes.
+TIPOS = {
+    ".mjs":  "text/javascript",
+    ".js":   "text/javascript",
+    ".wasm": "application/wasm",     # instantiateStreaming exige exatamente este
+    ".json": "application/json",
+    ".css":  "text/css",
+    ".woff2": "font/woff2",
+    ".task": "application/octet-stream",
+    ".bin":  "application/octet-stream",
+}
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
@@ -238,8 +254,12 @@ def estatico(caminho: str) -> FileResponse:
     # maquina. O navegador nunca faria isso; quem faria e quem quer ler o disco.
     if not alvo.is_file() or ESTATICOS.resolve() not in alvo.parents:
         raise HTTPException(404, "não encontrado")
+    tipo = TIPOS.get(alvo.suffix.lower())
+    if tipo is None:
+        raise HTTPException(404, "tipo de arquivo não servido daqui")
     # Sao arquivos que so mudam quando a gente troca a versao da biblioteca.
-    return FileResponse(alvo, headers={"Cache-Control": "public, max-age=604800"})
+    return FileResponse(alvo, media_type=tipo,
+                        headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.post("/api/evento")
