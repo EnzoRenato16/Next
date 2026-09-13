@@ -916,6 +916,21 @@ function caracteristicasQueda(h, fps){
 }
 
 /* A rede: padroniza, uma camada tanh, e a sigmoide no fim. */
+/* Quão longe esta janela está de tudo que o modelo viu treinando, no pior dos
+   12 atributos. Um modelo não avisa quando está fora do seu mundo: ele responde
+   com a mesma convicção de sempre. Câmera no alto e inclinada, enquadramento
+   que corta o corpo, pessoa deitada numa cama — nada disso existia nos 4.509
+   clipes, e ali a nota 1,00 não quer dizer "tenho certeza", quer dizer
+   "extrapolei". Medido na base: cortar em 6 leva a revocação de 93,7% para
+   93,5% e descarta 0,6% das janelas. É barato desconfiar. */
+const QUEDA_FORA = 6;
+function distanciaDoTreino(c){
+  let pior = 0;
+  for(let i = 0; i < c.length; i++)
+    pior = Math.max(pior, Math.abs((c[i] - QUEDA_MU[i]) / QUEDA_SD[i]));
+  return pior;
+}
+
 function redeQueda(c){
   let soma = QUEDA_B2;
   for(let j = 0; j < QUEDA_W1[0].length; j++){
@@ -1211,7 +1226,9 @@ function porqueQueda(t){
                       QUEDA_LIMIAR.toFixed(2) + ')'
                     : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
                       'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas') +
-         ' · rede ' + (t.notaQueda || 0).toFixed(2);
+         ' · rede ' + (t.notaQueda || 0).toFixed(2) +
+         ' · distância do treino ' + (t.foraQueda || 0).toFixed(1) +
+         (t.foraQueda > QUEDA_FORA ? ' (FORA, rede ignorada)' : '');
 }
 
 function registrarAnomalia(tipo, t, texto, porque){
@@ -1346,7 +1363,10 @@ function analisar(t, lm, agora){
   const carQ = janRede.length >= QUEDA_AMOSTRAS
     ? caracteristicasQueda(janRede, janRede.length)
     : null;
-  t.notaQueda = carQ ? redeQueda(carQ) : 0;
+  t.foraDoTreino = carQ ? distanciaDoTreino(carQ) : 0;
+  /* Fora do mundo do modelo, a nota dele não vale — e a geometria, que não
+     aprendeu nada e só mede, continua valendo. */
+  t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
   const geo = (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu;
   const rede = t.notaQueda >= QUEDA_LIMIAR;
 
@@ -1358,6 +1378,7 @@ function analisar(t, lm, agora){
        depois estes números já são outros e não explicam mais nada */
     t.angQueda = ang;
     t.caiuQueda = (q.y - antesQ) / alturaMax;
+    t.foraQueda = t.foraDoTreino;
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */

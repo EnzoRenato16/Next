@@ -52,6 +52,24 @@ mede o fps em vez de presumir — e por isso que a queda e pequena.
 O que 15fps quase quebrou foi o codigo, nao o modelo: a janela exigia 15
 amostras, e 15fps entrega ~15. Ver `QUEDA_AMOSTRAS` no `auditix-sala.html`.
 
+## Fora do que o modelo viu
+
+Um modelo nao avisa quando esta fora do seu mundo: responde com a mesma
+convicção de sempre. Numa camera alta e inclinada, amarrar o cadarco marcou
+**1,00** — o topo da escala — enquanto na base o alarme falso fica em 2 a 3%.
+Nao e limiar mal escolhido: e vista que nao existia nos 4.509 clipes, todos
+gravados na altura da pessoa.
+
+Por isso a Sala mede, a cada janela, a distancia ao treino: o maior |z| entre
+os 12 atributos. Acima de `QUEDA_FORA = 6`, a nota da rede e descartada e so a
+geometria decide — ela nao aprendeu nada, so mede, e nao tem como extrapolar.
+
+Custo medido na base: revocacao de 93,7% para 93,5%, com 0,6% das janelas
+descartadas.
+
+Isto **reduz** o estrago de uma camera mal posicionada; nao conserta. O jeito
+de consertar continua sendo montar a camera de lado, como diz o CAMERA-IP.md.
+
 ## Reproduzir do zero
 
 ```bash
