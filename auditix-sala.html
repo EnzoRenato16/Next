@@ -502,22 +502,50 @@ function textoSemAnomalia(){
 
 function anotar(p, t){ eventos.unshift({ p, t, h: hora() }); eventos = eventos.slice(0,40); pintarTudo(); }
 
-/* ---------------------------------------------------------------- câmera --- */
+/* ---------------------------------------------------------------- câmera ---
+
+   Cada etapa da abertura tem nome e prazo. Uma tela que fica em "Carregando os
+   modelos..." para sempre não diz nada a quem está na frente dela, e já custou
+   uma tarde inteira de tentativa e erro numa máquina que não era esta. Se algo
+   travar, tem que aparecer O QUE travou. */
+const ETAPAS = 6;
+async function etapa(n, nome, tarefa, ms = 25000){
+  el('ligar').textContent = `(${n}/${ETAPAS}) ${nome}…`;
+  let relogio;
+  const prazo = new Promise((_, parar) => {
+    relogio = setTimeout(() => parar(Object.assign(
+      new Error(nome), { name:'Demorou', etapa:n })), ms);
+  });
+  try{ return await Promise.race([tarefa, prazo]); }
+  catch(e){
+    if(e && e.name === 'Demorou') throw e;
+    /* o erro de verdade importa mais que o prazo, mas sem o nome da etapa
+       ninguém sabe onde ele aconteceu */
+    throw Object.assign(e instanceof Error ? e : new Error(String(e && e.name || e)),
+                        { etapa:n, comoChamam:nome });
+  }
+  finally{ clearTimeout(relogio); }
+}
+
 async function ligar(){
   const b = el('ligar');
   try{
-    b.disabled = true; b.textContent = 'Carregando os modelos…';
-    if(!window.faceapi) throw { name:'SemModelo' };
+    b.disabled = true;
+    if(!window.faceapi) throw { name:'SemBiblioteca', message:'face-api.js' };
     if(!prontos){
-      await faceapi.nets.tinyFaceDetector.loadFromUri(MODELOS);
-      await faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS);
-      await faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS);
-      b.textContent = 'Carregando o detector de corpo…';
-      for(let i = 0; i < 100 && !window.__mp; i++)
-        await new Promise(r => setTimeout(r, 100));
-      if(!window.__mp) throw { name:'SemModelo' };
-      const visao = await window.__mp.FilesetResolver.forVisionTasks(
-        'vendor/mediapipe/wasm');
+      await etapa(1, 'detector de rosto',
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODELOS));
+      await etapa(2, 'pontos do rosto',
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS));
+      await etapa(3, 'reconhecimento facial',
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS));
+      await etapa(4, 'biblioteca de corpo', (async () => {
+        for(let i = 0; i < 100 && !window.__mp; i++)
+          await new Promise(r => setTimeout(r, 100));
+        if(!window.__mp) throw { name:'SemBiblioteca', message:'vision_bundle.mjs' };
+      })(), 12000);
+      const visao = await etapa(5, 'motor de visão (9 MB)',
+        window.__mp.FilesetResolver.forVisionTasks('vendor/mediapipe/wasm'), 60000);
       const opcoes = delegado => ({
         baseOptions:{ modelAssetPath:'vendor/mediapipe/pose_landmarker_lite.task',
           delegate: delegado },
@@ -528,10 +556,14 @@ async function ligar(){
         minPosePresenceConfidence:0.6,
         minTrackingConfidence:0.6 });
       try{
-        redePose = await window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('GPU'));
+        redePose = await etapa(6, 'detector de corpo (placa de vídeo)',
+          window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('GPU')), 25000);
       }catch(e){
-        /* máquina sem WebGL decente ainda roda, só mais devagar */
-        redePose = await window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('CPU'));
+        /* Máquina sem WebGL decente ainda roda, só mais devagar. O prazo da
+           etapa entra aqui também: já vi a criação por GPU não falhar, apenas
+           nunca voltar — e aí o CPU nunca era tentado. */
+        redePose = await etapa(6, 'detector de corpo (processador)',
+          window.__mp.PoseLandmarker.createFromOptions(visao, opcoes('CPU')), 45000);
       }
       prontos = true;
     }
@@ -559,9 +591,13 @@ async function ligar(){
       ? '<b>A câmera está ocupada por outro programa.</b> Feche Teams, Meet, Zoom ou o app Câmera.'
       : n === 'NotAllowedError'
         ? '<b>Permissão de câmera negada.</b> Se estiver por link, abra o arquivo direto no Chrome.'
-        : n === 'SemModelo'
-          ? '<b>Os modelos não carregaram.</b> Eles ficam em <code>vendor/</code>, ao lado do ' +
-            'servidor — confira se essa pasta veio junto no <code>git clone</code>.'
+        : n === 'SemBiblioteca'
+          ? '<b>Uma biblioteca não carregou:</b> <code>' + (err.message || '?') + '</code>.' +
+            '<br><small>Ela fica em <code>vendor/</code>, ao lado do servidor. Confira se ' +
+            'a pasta veio no <code>git clone</code> e se o servidor foi reiniciado depois.</small>'
+        : n === 'Demorou'
+          ? '<b>Travou na etapa ' + err.etapa + ' de ' + ETAPAS + ':</b> ' + err.message +
+            '.<br><small>Passou do prazo sem responder nem falhar. Me diga este número.</small>'
         : n === 'PonteFora'
           ? '<b>A ponte go2rtc não respondeu</b> em ' + err.message +
             '.<br><small>Ela está aberta? E o go2rtc.yaml tem <code>api: { origin: "*" }</code>?</small>'
@@ -571,7 +607,8 @@ async function ligar(){
         : n === 'FonteInvalida' || n === 'SemQuadro'
           ? '<b>A câmera IP não entregou imagem.</b> ' + err.message +
             '.<br><small>Teste a URL RTSP no VLC primeiro: se não abrir lá, o problema é a câmera.</small>'
-          : '<b>Não abriu.</b> ' + n +
+          : '<b>Não abriu.</b> ' + (err.comoChamam ? 'etapa ' + err.etapa + ' (' +
+              err.comoChamam + '), ' : '') + n +
             (err && err.message ? ': ' + err.message : '') +
             '<br><small>Abra o console do navegador (F12) para o rastro completo.</small>';
   }finally{ b.disabled = false; b.textContent = 'Abrir a sala'; }
