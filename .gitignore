@@ -35,3 +35,8 @@ Thumbs.db
 
 # treino
 treino/__pycache__/
+
+# Ponte da câmera IP: contém a senha da câmera
+go2rtc.yaml
+go2rtc.exe
+go2rtc
