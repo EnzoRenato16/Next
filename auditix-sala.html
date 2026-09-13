@@ -604,6 +604,11 @@ async function ligar(){
         : n === 'FluxoDesconhecido'
           ? '<b>A ponte não conhece esse fluxo:</b> ' + err.message +
             '.<br><small>O nome tem que ser igual ao do go2rtc.yaml.</small>'
+        : n === 'PonteSemCamera'
+          ? '<b>A ponte está no ar, mas não conseguiu a imagem</b> de <code>' +
+            err.message + '</code> (HTTP ' + err.status + ').' +
+            '<br><small>Quase sempre é a câmera fora de alcance: esta máquina precisa estar ' +
+            'na mesma rede que ela. O motivo exato aparece na janela do go2rtc.</small>'
         : n === 'FonteInvalida' || n === 'SemQuadro'
           ? '<b>A câmera IP não entregou imagem.</b> ' + err.message +
             '.<br><small>Teste a URL RTSP no VLC primeiro: se não abrir lá, o problema é a câmera.</small>'
@@ -674,8 +679,11 @@ async function fluxoDaPonte(alvo){
     }catch(e){
       throw Object.assign(new Error(base), { name:'PonteFora' });
     }
-    if(!r.ok) throw Object.assign(new Error(nome + ' (HTTP ' + r.status + ')'),
-                                  { name:'FluxoDesconhecido' });
+    /* 404 e 500 dizem coisas diferentes e o conserto de cada um é outro: um é
+       nome errado aqui, o outro é a ponte sem conseguir falar com a câmera. */
+    if(!r.ok) throw Object.assign(new Error(nome),
+      { name: r.status === 404 ? 'FluxoDesconhecido' : 'PonteSemCamera',
+        status: r.status });
     await pc.setRemoteDescription(await r.json());
     fl.addEventListener('inactive', () => { if(rodando) desligar(); });
     return fl;
