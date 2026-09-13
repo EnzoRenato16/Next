@@ -45,6 +45,11 @@ from pydantic import BaseModel, Field
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
 PAINEL = AQUI / "auditix-painel.html"
+# Os modelos de rosto e de corpo moram aqui, versionados junto do projeto. Vinham
+# de CDN, e uma rede que bloqueie jsdelivr ou googleapis deixava a tela presa em
+# "Carregando o detector de corpo..." para sempre. Numa apresentacao isso e o
+# projeto inteiro nao abrindo.
+ESTATICOS = AQUI / "vendor"
 SQLITE = AQUI / "auditix.db"
 GENESE = "0" * 64
 
@@ -223,6 +228,18 @@ def pagina() -> FileResponse:
     # o Chrome serve a versão velha e some com a correção que acabou de ser feita,
     # o que já custou uma sessão inteira de depuração do bug errado.
     return FileResponse(PAGINA, headers={"Cache-Control": "no-store, must-revalidate"})
+
+
+@app.get("/vendor/{caminho:path}")
+def estatico(caminho: str) -> FileResponse:
+    """Serve os modelos locais. So de dentro de vendor/, e so arquivo que existe."""
+    alvo = (ESTATICOS / caminho).resolve()
+    # Sem isto, um caminho com .. sairia da pasta e serviria qualquer arquivo da
+    # maquina. O navegador nunca faria isso; quem faria e quem quer ler o disco.
+    if not alvo.is_file() or ESTATICOS.resolve() not in alvo.parents:
+        raise HTTPException(404, "não encontrado")
+    # Sao arquivos que so mudam quando a gente troca a versao da biblioteca.
+    return FileResponse(alvo, headers={"Cache-Control": "public, max-age=604800"})
 
 
 @app.post("/api/evento")

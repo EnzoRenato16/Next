@@ -1,14 +1,14 @@
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="vendor/fontes/fontes.css">
 <title>Sala Auditada</title>
 
-<script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+<script src="vendor/face-api/face-api.js"></script>
 <script type="module">
 /* O MoveNet do TensorFlow morreu junto com o tfhub.dev, que responde 400 desde o
    desligamento. O PoseLandmarker do MediaPipe carrega em 1,5s contra 16s do
    COCO-SSD, roda em 16ms por quadro na GPU, aceita várias pessoas e ainda
    devolve os 33 pontos que as camadas de anomalia e assinatura precisam. */
 import { FilesetResolver, PoseLandmarker }
-  from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+  from './vendor/mediapipe/vision_bundle.mjs';
 window.__mp = { FilesetResolver, PoseLandmarker };
 </script>
 
@@ -346,7 +346,10 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
 <script>
 const el = id => document.getElementById(id);
 const hora = () => new Date().toTimeString().slice(0,5);
-const MODELOS = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+/* Modelos servidos pelo próprio servidor, de vendor/. Nada de CDN: rede que
+   bloqueie jsdelivr ou googleapis prendia a tela em "Carregando o detector de
+   corpo..." para sempre, e numa apresentação isso é o projeto não abrir. */
+const MODELOS = 'vendor/face-api/model';
 
 /* Reconhecimento facial: descritor de 128 dimensões, o mesmo tipo de coisa que o
    SFace produz no AIBOX. 0.5 é conservador; o padrão da literatura é 0.6. */
@@ -514,10 +517,9 @@ async function ligar(){
         await new Promise(r => setTimeout(r, 100));
       if(!window.__mp) throw { name:'SemModelo' };
       const visao = await window.__mp.FilesetResolver.forVisionTasks(
-        'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm');
+        'vendor/mediapipe/wasm');
       const opcoes = delegado => ({
-        baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/' +
-          'pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+        baseOptions:{ modelAssetPath:'vendor/mediapipe/pose_landmarker_lite.task',
           delegate: delegado },
         runningMode:'VIDEO', numPoses:6,
         /* Sem isto o modelo aceita qualquer coisa que lembre uma pessoa, e uma
@@ -558,7 +560,8 @@ async function ligar(){
       : n === 'NotAllowedError'
         ? '<b>Permissão de câmera negada.</b> Se estiver por link, abra o arquivo direto no Chrome.'
         : n === 'SemModelo'
-          ? '<b>Os modelos não carregaram.</b> Esta página precisa de internet na primeira vez.'
+          ? '<b>Os modelos não carregaram.</b> Eles ficam em <code>vendor/</code>, ao lado do ' +
+            'servidor — confira se essa pasta veio junto no <code>git clone</code>.'
         : n === 'PonteFora'
           ? '<b>A ponte go2rtc não respondeu</b> em ' + err.message +
             '.<br><small>Ela está aberta? E o go2rtc.yaml tem <code>api: { origin: "*" }</code>?</small>'

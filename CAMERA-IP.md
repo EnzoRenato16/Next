@@ -116,6 +116,17 @@ webcam, é só apagar o campo.
 | a câmera IP não entregou imagem | a ponte respondeu mas a câmera não — teste no VLC |
 | erro 401 no go2rtc | senha errada, ou caractere especial nela; ou reinicie a câmera |
 
+## Internet
+
+Nenhuma. Os modelos de rosto e de corpo ficam em `vendor/`, versionados junto
+do projeto e servidos pelo proprio `servidor.py` — as fontes tambem. Com todo
+acesso externo bloqueado, a Sala e o Painel abrem do mesmo jeito, com zero
+pedidos para fora.
+
+Vinham de CDN, e bastava a rede bloquear `jsdelivr` ou `googleapis` para a tela
+ficar presa em "Carregando o detector de corpo..." para sempre. Numa rede de
+escola ou de evento, isso e o projeto inteiro nao abrindo.
+
 ## Duas coisas para a apresentação
 
 **A imagem não sai da rede.** Câmera, ponte e servidor na mesma máquina/rede;
