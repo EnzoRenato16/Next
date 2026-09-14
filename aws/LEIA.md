@@ -102,8 +102,20 @@ Reinicie o servidor. Pronto.
 Com o servidor no ar:
 
 ```powershell
-curl.exe -X POST http://127.0.0.1:8000/api/evento -H "Content-Type: application/json" -d "{\"aluno_id\":\"corpo-1\",\"tipo_evento\":\"queda\",\"localizacao\":\"sala-12\"}"
+Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/evento -ContentType 'application/json' -Body '{"aluno_id":"corpo-1","tipo_evento":"queda","localizacao":"sala-12"}'
 ```
+
+No Linux ou no Mac:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/evento \
+  -H 'Content-Type: application/json' \
+  -d '{"aluno_id":"corpo-1","tipo_evento":"queda","localizacao":"sala-12"}'
+```
+
+Não use `curl.exe` com JSON no PowerShell: ele mexe nas aspas escapadas antes
+de o comando sair, o corpo chega vazio e o servidor responde `422`. As aspas
+simples do `Invoke-RestMethod` entregam o texto intacto.
 
 O e-mail deve chegar em segundos. Se não chegar:
 
