@@ -817,6 +817,16 @@ const QUEDA_EIXO = 0.60;
    dispara em 10% das não-quedas. Sozinho ele vale quase o que a rede vale, e
    custa uma divisão. */
 const QUEDA_PROP = 1.2;
+/* Descer devagar até o chão é queda também — de quem tropeça e escorrega, de
+   quem desmaia amparado, de quem senta porque as pernas falharam. A exigência
+   de descida BRUSCA do quadril (QUEDA_CAI) barrava todos esses: o Enzo foi ao
+   chão na frente da câmera com a caixa em 1,5 e nada disparou, porque o quadril
+   desceu devagar e o tronco ficou em pé.
+
+   Então a caixa muito deitada dispensa a descida brusca. O corte é mais alto
+   justamente porque ela passa a decidir sozinha: 1,4 pega 84% das quedas e
+   dispara em 5% das não-quedas, contra 10% em 1,2. Medido em treino/caixa.py. */
+const QUEDA_PROP_SO = 1.4;
 const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas   // tronco encolheu para menos disto do tamanho de antes
 
 /* O quadro não é quadrado, e isso muda as contas.
@@ -1233,12 +1243,12 @@ const ANOM_IDADE = 2000;
    regra geométrica — e com que folga. Sem isto, a alternativa é adivinhar
    mexendo em limiar, que é como se acerta um caso e se quebra dois. */
 function porqueQueda(t){
-  return (t.porRede ? 'rede ' + (t.notaQueda || 0).toFixed(2) + ' (limiar ' +
+  return (t.porRede ? 'rede ' + (t.notaArmou || 0).toFixed(2) + ' (limiar ' +
                       QUEDA_LIMIAR.toFixed(2) + ')'
                     : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
                       'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas, ' +
                       'caixa ' + (t.propQueda || 0).toFixed(1)) +
-         ' · rede ' + (t.notaQueda || 0).toFixed(2) +
+         ' · rede ' + (t.notaArmou || 0).toFixed(2) +
          ' · distância do treino ' + (t.foraQueda || 0).toFixed(1) +
          (t.foraQueda > QUEDA_FORA ? ' (FORA, rede ignorada)' : '');
 }
@@ -1413,7 +1423,8 @@ function analisar(t, lm, agora){
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
   const geo = demo
     ? (ang > DEMO_ANG || cx > DEMO_PROP)
-    : (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO || cx > QUEDA_PROP) && caiu;
+    : ((ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO || cx > QUEDA_PROP) && caiu)
+      || cx > QUEDA_PROP_SO;
   const rede = !demo && t.notaQueda >= QUEDA_LIMIAR;
 
   if((geo || rede) && !t.quedaDesde){
@@ -1426,6 +1437,10 @@ function analisar(t, lm, agora){
     t.caiuQueda = (q.y - antesQ) / alturaMax;
     t.foraQueda = t.foraDoTreino;
     t.propQueda = cx;
+    /* A nota também congela aqui. Ela era lida no momento do ALERTA, 1,2s
+       depois, quando já tinha caído — e o alerta saía dizendo "rede 0.08
+       (limiar 0.50)", um número que sozinho parecia impossível. */
+    t.notaArmou = t.notaQueda;
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
