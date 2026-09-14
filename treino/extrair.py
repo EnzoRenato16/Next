@@ -103,7 +103,10 @@ def caracteristicas(g, i0, i1):
     dt = 1.0 / FPS
 
     # queda do quadril: total na janela e a mais rapida em 0,5s
-    meia = max(2, int(FPS * 0.5))
+    # Arredonda como o JavaScript da Sala (Math.round), e nao trunca: com fps
+    # impar as duas contas davam janelas diferentes e o teste de porte acusava.
+    # Em 30fps as duas dao 15, entao o modelo ja treinado nao muda.
+    meia = max(2, int(FPS * 0.5 + 0.5))
     desc = max((hy[k] - hy[max(0, k - meia)]) for k in range(len(hy))) / reg
 
     return np.array([

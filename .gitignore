@@ -40,3 +40,6 @@ treino/__pycache__/
 go2rtc.yaml
 go2rtc.exe
 go2rtc
+
+# Amostras gravadas da câmera de casa: dados de ambiente privado
+treino/local/

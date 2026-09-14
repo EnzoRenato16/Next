@@ -246,6 +246,42 @@ def pagina() -> FileResponse:
     return FileResponse(PAGINA, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
+class QuadroAmostra(BaseModel):
+    corpo: int
+    t: float
+    qx: float; qy: float
+    ang: float; altura: float; eixo: float; ombro: float; prop: float
+    pxx: float; pxy: float; pdx: float; pdy: float
+
+
+class Amostra(BaseModel):
+    """Uma gravacao rotulada da camera desta sala.
+
+    Guarda a geometria do esqueleto, ja normalizada, e NADA de imagem: sem
+    quadro, sem rosto, sem nome. O arquivo fica fora do git — sao dados da casa
+    de alguem, com outras pessoas dentro."""
+    rotulo: str = Field(max_length=40)
+    sessao: int
+    fps: int = 30
+    quadros: list[QuadroAmostra] = Field(max_length=200000)
+
+
+AMOSTRAS = AQUI / "treino" / "local" / "amostras.jsonl"
+
+
+@app.post("/api/amostras")
+def gravar_amostra(a: Amostra) -> dict:
+    AMOSTRAS.parent.mkdir(parents=True, exist_ok=True)
+    with AMOSTRAS.open("a", encoding="utf-8") as f:
+        f.write(json.dumps({"rotulo": a.rotulo, "sessao": a.sessao, "fps": a.fps,
+                            "gravada": agora_iso(),
+                            "quadros": [q.model_dump() for q in a.quadros]},
+                           ensure_ascii=False) + "\n")
+    with AMOSTRAS.open(encoding="utf-8") as f:
+        total = sum(1 for _ in f)
+    return {"ok": True, "quadros": len(a.quadros), "total": total}
+
+
 @app.get("/vendor/{caminho:path}")
 def estatico(caminho: str) -> FileResponse:
     """Serve os modelos locais. So de dentro de vendor/, e so arquivo que existe."""

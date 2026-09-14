@@ -26,7 +26,9 @@ for(const c of provas.casos){
   /* os quadros vêm na mesma ordem e com os mesmos campos que a Sala guarda */
   const h = c.quadros.map(q => ({ qx:q[0], qy:q[1], altura:q[2], eixo:q[3],
                                   ang:q[4], ombro:q[5], prop:q[6] }));
-  const car = caracteristicasQueda(h, provas.fps);
+  /* Gravação própria pode ter taxa de quadros diferente da do dataset, então
+     cada caso carrega a sua; provas.fps é só o padrão antigo. */
+  const car = caracteristicasQueda(h, c.fps || provas.fps);
   if(!car){ console.log('FALHA: características nulas em ' + c.clipe); ruins++; continue; }
   for(let i = 0; i < car.length; i++){
     const e = Math.abs(car[i] - c.car[i]);

@@ -70,6 +70,32 @@ descartadas.
 Isto **reduz** o estrago de uma camera mal posicionada; nao conserta. O jeito
 de consertar continua sendo montar a camera de lado, como diz o CAMERA-IP.md.
 
+## Treinar com a camera de voces
+
+A base publica foi gravada noutro lugar, com outras camaras. A de voces ve
+outra sala, de outra altura. Da para somar as duas:
+
+1. Na Sala, escolha o rotulo ao lado do botao, clique **Gravar amostra**, faca
+   a acao, clique **Parar e salvar**. Vale gravar ~10 quedas, ~10 corridas e
+   uns 10 minutos de atividade normal.
+2. `python3 treino/local.py` — mede e mostra, sem alterar nada.
+3. `python3 treino/local.py --aplicar` — reescreve os pesos no
+   `auditix-sala.html` e refaz `provas.json`.
+4. `node testes/rede-queda.mjs` — confere que o JavaScript calcula o mesmo.
+
+**Somar, nao trocar.** Um modelo so do quarto de voces acerta tudo no quarto de
+voces e ninguem sabe o que faz na escola; um modelo so da base publica ja nos
+mostrou o que faz num angulo que nunca viu. O script junta os dois e mede
+separado: desempenho nos cenarios da base E nas gravacoes de voces.
+
+O que e gravado sao **numeros do esqueleto ja normalizados** — nenhuma imagem,
+nenhum rosto, nenhum nome. Fica em `treino/local/`, fora do git.
+
+Duas armadilhas que o script evita, e que custaram divergencia no teste de
+porte quando nao evitava: a janela e descrita pelo NUMERO DE AMOSTRAS (e assim
+que a Sala chama a funcao, e nao pelo fps medido), e gravacoes com menos de 8
+amostras por segundo sao descartadas, porque a Sala tambem as descarta.
+
 ## Reproduzir do zero
 
 ```bash

@@ -252,6 +252,14 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
       <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
       <button class="btn" id="btn-exemplo">Ver com exemplo</button>
+      <select id="rotulo" class="btn" disabled title="o que vai acontecer na frente da câmera">
+        <option value="normal">amostra: normal</option>
+        <option value="queda">amostra: queda</option>
+        <option value="corrida">amostra: corrida</option>
+        <option value="agachar">amostra: agachar/pegar algo</option>
+        <option value="deitar">amostra: deitar</option>
+      </select>
+      <button class="btn" id="btn-gravar" disabled>Gravar amostra</button>
       <button class="btn" id="btn-apagar" style="margin-left:auto"
         title="Cadastros também se apagam sozinhos: 365 dias de prazo, ou 90 dias sem ser reconhecido.">Apagar cadastros</button>
     </div>
@@ -582,6 +590,7 @@ async function ligar(){
     el('faixa').className = 'faixa on';
     el('desligar').disabled = false;
     el('btn-cad').disabled = false; el('btn-mapa').disabled = false;
+    el('btn-gravar').disabled = false; el('rotulo').disabled = false;
     mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
     rodando = true;
     trilhas = []; proxId = 1;
@@ -726,6 +735,8 @@ function desligar(){
   el('faixatxt').textContent = 'Câmera desligada';
   el('desligar').disabled = true;
   el('btn-cad').disabled = true; el('btn-mapa').disabled = true;
+  if(gravando) alternarGravacao();          // não perde o que já foi gravado
+  el('btn-gravar').disabled = true; el('rotulo').disabled = true;
   el('calor').getContext('2d').clearRect(0,0,el('calor').width,el('calor').height);
   trilhas = []; presentes = []; naoIdent = []; bufferRosto = [];
   fecharVivo(); pintarTudo();
@@ -1319,6 +1330,7 @@ function analisar(t, lm, agora){
   t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro, prop:cx,
                 px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
+  guardarQuadro(t, t.hist[t.hist.length - 1]);
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
   t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang;
   t.ox = o.x; t.oy = o.y;          // meio dos ombros: o alvo da mira
@@ -2173,6 +2185,7 @@ setInterval(expurgar, 3600000);   // sala fica aberta o dia todo; não espera F5
 el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
 el('btn-fonte').addEventListener('click', e => { e.preventDefault(); trocarFonte(); });
+el('btn-gravar').addEventListener('click', alternarGravacao);
 mostrarFonte();
 el('limpar').addEventListener('click', () => { eventos = []; pintarTudo(); });
 
@@ -2213,6 +2226,48 @@ function pintarTrilha(j){
 
 /* Só metadado sai daqui: id do corpo, tipo do evento e sala. Nenhum quadro,
    nenhum descritor de rosto, nenhuma assinatura de corpo vai para a rede. */
+/* ------------------------------- amostras locais ---------------------------
+   Grava o que a câmera DESTA sala vê, para treinar com dados daqui em vez de
+   só com os 4.509 clipes de outro lugar. O que sai daqui são números do
+   esqueleto, já normalizados pelo tamanho do corpo — nenhuma imagem, nenhum
+   rosto, nenhum nome. Fica em treino/local/, fora do git.
+
+   Gravamos a geometria CRUA por quadro, não os 12 atributos: assim dá para
+   mudar de ideia sobre os atributos sem precisar regravar tudo. */
+let gravando = null;
+
+function alternarGravacao(){
+  const b = el('btn-gravar');
+  if(gravando){
+    const { rotulo, sessao, quadros } = gravando;
+    gravando = null;
+    b.textContent = 'Gravar amostra'; b.classList.remove('on');
+    el('rotulo').disabled = false;
+    if(quadros.length < 10){ anotar('duv', 'Amostra curta demais, descartada.'); return; }
+    fetch('/api/amostras', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ rotulo, sessao, fps: PADRAO_FPS, quadros }) })
+      .then(r => r.ok ? r.json() : Promise.reject(r.status))
+      .then(d => anotar('ok', 'Amostra "' + rotulo + '" gravada: ' + quadros.length +
+                              ' quadros (' + d.total + ' no total).'))
+      .catch(e => anotar('mal', 'Não consegui gravar a amostra: ' + e));
+  }else{
+    gravando = { rotulo: el('rotulo').value, sessao: Date.now(), quadros: [] };
+    b.textContent = 'Parar e salvar'; b.classList.add('on');
+    el('rotulo').disabled = true;
+    anotar('duv', 'Gravando amostra "' + gravando.rotulo + '"…');
+  }
+}
+const PADRAO_FPS = 30;
+
+function guardarQuadro(t, h){
+  if(!gravando) return;
+  gravando.quadros.push({ corpo:t.id, t:Math.round(h.t), qx:+h.qx.toFixed(5),
+    qy:+h.qy.toFixed(5), ang:+h.ang.toFixed(2), altura:+h.altura.toFixed(5),
+    eixo:+h.eixo.toFixed(5), ombro:+h.ombro.toFixed(5), prop:+h.prop.toFixed(4),
+    pxx:+h.px.x.toFixed(5), pxy:+h.px.y.toFixed(5),
+    pdx:+h.pd.x.toFixed(5), pdy:+h.pd.y.toFixed(5) });
+}
+
 function mandarEvento(tipo, aluno){
   if(!servidorVivo) return;
   fetch('/api/evento', { method:'POST', headers:{'Content-Type':'application/json'},
