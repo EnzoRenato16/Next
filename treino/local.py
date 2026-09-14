@@ -287,6 +287,21 @@ def main():
             print(f"\nATENCAO: so {pos} quedas e {neg} nao-quedas suas no teste."
                   f" Um clipe muda a revocacao em {100/max(pos,1):.0f} pontos e a"
                   f" precisao em muito. Diferenca menor que isso e ruido, nao melhora.")
+    # A escolha do limiar e uma decisao de PRODUTO, nao de treino: pegar toda
+    # queda e trivial (alerte sempre) e inutil. Aqui esta o preco de cada ponto
+    # de revocacao a mais, medido na camera de quem vai usar.
+    if so_local.sum() and yte[so_local].sum():
+        yl, pl = yte[so_local], pte[so_local]
+        print(f"\nonde ficar na troca (sua camera: {int(yl.sum())} quedas,"
+              f" {int(len(yl)-yl.sum())} nao-quedas)")
+        print(f"  {'limiar':>7} {'quedas pegas':>13} {'alarmes falsos':>15}")
+        for t in (0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90):
+            m = T.medir(yl, pl, t)
+            marca = "  <- escolhido pelo treino" if abs(t - limiar) < 0.05 else ""
+            print(f"  {t:>7.2f} {m['vp']:>6} de {int(yl.sum()):<4}"
+                  f" {m['fp']:>10} de {int(len(yl)-yl.sum()):<4}{marca}")
+        print("  Pegar TODAS e sempre possivel: e so baixar ate alertar sempre.")
+        print("  O limiar fica em QUEDA_LIMIAR, no auditix-sala.html.")
     print("\nSo vale trocar se a SUA CAMERA melhorar sem a base piorar.")
 
     saida = os.path.join(AQUI, "local", "modelo.json")
