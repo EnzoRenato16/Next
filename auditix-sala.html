@@ -1335,14 +1335,19 @@ function caixaDaCabeca(lm, larg, alt){
   if(vis(lm[P.OMBRO_E]) >= VIS_MIN && vis(lm[P.OMBRO_D]) >= VIS_MIN){
     const ombros = Math.hypot(lm[P.OMBRO_E].x - lm[P.OMBRO_D].x,
                               lm[P.OMBRO_E].y - lm[P.OMBRO_D].y);
-    d = Math.max(d, ombros * 0.75);
+    /* Piso para quando a cabeça aparece por um ponto só (de costas, por
+       exemplo). Uma cabeça mede perto da metade do ombro a ombro — 0.75
+       cobria um terço do quadro numa pessoa perto da câmera. */
+    d = Math.max(d, ombros * 0.5);
   }
-  d = Math.max(d, 0.05);
-  /* Folga larga: cabelo, orelha e contorno do queixo também identificam, e os
-     pontos da pose param na linha dos olhos e da boca. */
-  const r = d * 0.95;
-  return { x:(cx - r) * larg, y:(cy - r * 1.15) * alt,
-           w: 2 * r * larg, h: 2 * r * 1.15 * alt };
+  d = Math.max(d, 0.04);
+  /* Folga só o suficiente: os pontos da pose vão de orelha a orelha e param na
+     boca, então falta cabelo em cima e queixo embaixo — ambos identificam. Mas
+     a folga tem preço: o que o mosaico cobre, ninguém confere. Ele esconde a
+     CABEÇA, e o corpo no chão, que é o que se vai olhar, fica à vista. */
+  const rx = d * 0.62, ry = d * 0.78;
+  return { x:(cx - rx) * larg, y:(cy - ry) * alt,
+           w: 2 * rx * larg, h: 2 * ry * alt };
 }
 
 function recortarCorpo(t){

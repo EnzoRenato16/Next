@@ -136,8 +136,23 @@ const r = await p.evaluate(async () => {
   const r4 = { a: cores(c4, 15, 15, 40), b: cores(c4, 135, 135, 40),
                meio: mudou(antes4, d4, c4, 85, 85, 30) };
 
+  /* 5. a caixa da cabeça não pode engolir o quadro. Aconteceu: com a pessoa
+        perto da câmera o mosaico cobria um terço da imagem, e o que o mosaico
+        cobre ninguém confere. */
+  const lm = [];
+  for(let i = 0; i < 33; i++) lm.push({ x:0.5, y:0.5, visibility:0 });
+  // cabeça de orelha a orelha: 10% da largura, centrada em 0.5 / 0.30
+  lm[0] = { x:0.50, y:0.30, visibility:1 };          // nariz
+  lm[7] = { x:0.45, y:0.29, visibility:1 };          // orelha esquerda
+  lm[8] = { x:0.55, y:0.29, visibility:1 };          // orelha direita
+  lm[11] = { x:0.38, y:0.45, visibility:1 };         // ombro
+  lm[12] = { x:0.62, y:0.45, visibility:1 };
+  const cx5 = caixaDaCabeca(lm, 1000, 1000);
+  const r5 = { larguraCabeca: 100, caixa: cx5.w, alturaCaixa: cx5.h,
+               cobre: (cx5.w * cx5.h) / (1000 * 1000) };
+
   trocar(original);
-  return { r1, r2, r3, r4 };
+  return { r1, r2, r3, r4, r5 };
 });
 
 if(erros.length){ console.error('erros na página:', erros); }
@@ -163,6 +178,11 @@ dizer(r.r3 === null,
 dizer(r.r4.a <= 40 && r.r4.b <= 40 && r.r4.meio < 1,
       'duas pessoas, as duas apagadas            (' + n(r.r4.a) + ' e ' + n(r.r4.b) +
       ' cores, meio intacto ' + n(r.r4.meio) + ')');
+
+dizer(r.r5.caixa < 190,
+      'a caixa não engole o quadro               (cabeça 100px -> caixa ' +
+      n(r.r5.caixa) + 'x' + n(r.r5.alturaCaixa) + ', ' +
+      (r.r5.cobre * 100).toFixed(1) + '% do quadro)');
 
 console.log(bem ? '\nO DESFOQUE DE ROSTO PASSOU' : '\nFALHOU');
 await nav.close();
