@@ -246,7 +246,8 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
           saber o que mudou nela. Nada é gravado enquanto nada acontece: só em
           <b>alerta grave</b> um recorte do instante é guardado, para a conferência
-          humana — ele se apaga sozinho e quem abrir fica registrado.</p>
+          humana — <b>com os rostos borrados</b>, apagando-se sozinho no prazo, e
+          quem abrir fica registrado.</p>
       </div>
     </div>
     <div class="pe">
@@ -1324,9 +1325,59 @@ function recortarCorpo(t){
   c.width = Math.max(1, Math.round(w * k));
   c.height = Math.max(1, Math.round(h * k));
   c.getContext('2d').drawImage(v, x, y, w, h, 0, 0, c.width, c.height);
-  /* Um fluxo de outra origem contaminaria o canvas e isto lançaria. A queda já
-     está gravada de qualquer jeito; só a imagem não vai. */
-  try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return null; }
+  return c;
+}
+
+/* Rosto borrado no recorte.
+
+   Para conferir se foi queda o que vale é a POSTURA — o corpo no chão, o
+   tronco tombado. O rosto não acrescenta informação nenhuma a essa pergunta;
+   acrescenta identificação. Então ele sai, e o recorte continua servindo para
+   o que foi feito, inclusive para quem só passava por ali e não tem nada a ver
+   com o alerta.
+
+   O detector é o tinyFaceDetector que já está carregado para o reconhecimento,
+   e roda UMA vez por alerta, não por quadro: o custo é de um alerta, não de um
+   laço. Se ele falhar, a imagem não vai — melhor perder o recorte do que
+   mandar rosto que eu prometi borrar. */
+/* A detecção sai numa variável à parte para o teste poder trocá-la: o
+   `faceapi` publica `detectAllFaces` como propriedade não configurável, então
+   não há como substituí-la de fora — e uma promessa de privacidade que não se
+   consegue testar é uma promessa que ninguém verifica. */
+let acharRostos = c => faceapi.detectAllFaces(c,
+  /* Limiar mais frouxo que o do reconhecimento de propósito: aqui um falso
+     positivo só borra um pedaço de parede, e um falso negativo entrega um
+     rosto. Os dois erros não custam a mesma coisa. */
+  new faceapi.TinyFaceDetectorOptions({ inputSize:320, scoreThreshold:.25 }));
+
+async function borrarRostos(c){
+  try{
+    const achados = await acharRostos(c);
+    if(achados.length){
+      const x = c.getContext('2d');
+      const copia = document.createElement('canvas');
+      copia.width = c.width; copia.height = c.height;
+      copia.getContext('2d').drawImage(c, 0, 0);
+      for(const a of achados){
+        const b = a.box;
+        /* Folga generosa: a caixa do detector corta testa e queixo, e cabelo e
+           contorno de rosto também identificam alguém. */
+        const fx = b.width * 0.35, fy = b.height * 0.35;
+        x.save();
+        x.beginPath();
+        x.rect(b.x - fx, b.y - fy, b.width + 2*fx, b.height + 2*fy);
+        x.clip();
+        x.filter = 'blur(' + Math.max(6, Math.round(b.width / 2.5)) + 'px)';
+        x.drawImage(copia, 0, 0);
+        x.restore();
+      }
+    }
+    return c.toDataURL('image/jpeg', 0.7);
+  }catch(e){
+    /* Canvas contaminado por fluxo de outra origem, ou detector fora do ar. A
+       queda já está gravada; só a imagem não vai. */
+    return null;
+  }
 }
 
 function registrarAnomalia(tipo, t, texto, porque){
@@ -1371,7 +1422,8 @@ function registrarAnomalia(tipo, t, texto, porque){
   anomalias = anomalias.slice(0, 20);
   anotar('mal', texto);
   /* Recorta AGORA, não depois da resposta do servidor: um segundo adiante a
-     pessoa já se mexeu, e a imagem deixaria de ser a do momento acusado. */
+     pessoa já se mexeu, e a imagem deixaria de ser a do momento acusado. O
+     desfoque vem depois, sobre o quadro já congelado. */
   mandarEvento(tipo, 'corpo-' + t.id, recortarCorpo(t));
 }
 
@@ -2508,9 +2560,12 @@ function mandarEvento(tipo, aluno, foto){
       /* A imagem vai DEPOIS e por fora: o evento já está na cadeia, e se o
          servidor recusar a foto (guarda desligada, tipo não grave) o registro
          continua de pé. O alerta nunca depende da imagem. */
-      if(foto) fetch('/api/foto', { method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ evento_id:ev.id, imagem:foto }) }).catch(() => {});
+      if(foto) borrarRostos(foto).then(img => {
+        if(!img) return;
+        return fetch('/api/foto', { method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ evento_id:ev.id, imagem:img }) });
+      }).catch(() => {});
       return fetch('/api/verificar').then(x => x.json()).then(pintarTrilha);
     })
     .catch(() => {});

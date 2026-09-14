@@ -915,7 +915,8 @@ async function abrirFoto(id){
     /* Dizer em voz alta o que acabou de acontecer: esta consulta virou linha no
        banco. É a contrapartida de a imagem existir. */
     el('visor-nota').textContent =
-      'Recorte do instante do alerta, guardado para conferência humana. ' +
+      'Recorte do instante do alerta, com os rostos borrados, guardado para ' +
+      'conferência humana. ' +
       'Apaga-se sozinho em ' + d.apaga_em_dias + ' dias. ' +
       'Esta consulta ficou registrada — é a ' + d.consultas + 'ª desta imagem.';
   }catch(err){
