@@ -1396,27 +1396,41 @@ function recortarCorpo(t){
    dá para saber de fora se ficou forte o bastante. Blocos de tamanho fixo em
    relação à cabeça são verificáveis: ou a informação foi embora, ou não foi. */
 function apagarRegiao(x, copia, b){
-  /* Cinco blocos atravessando a cabeça. Sete ainda deixava resíduo perto do
-     limite do teste, e num rosto o resíduo é justamente o contorno. */
-  const lado = Math.max(1, Math.round(Math.max(b.w, b.h) / 5));
-  const pq = document.createElement('canvas');
-  pq.width = Math.max(1, Math.round(b.w / lado));
-  pq.height = Math.max(1, Math.round(b.h / lado));
-  const pc = pq.getContext('2d');
-  pc.imageSmoothingEnabled = true;
-  /* Borra ANTES de reduzir. Uma redução de 9 para 1 não faz média no Chrome —
-     ela amostra, e amostrar preserva o detalhe fino em vez de destruí-lo: o
-     mosaico saía parecido com o original. O desfoque no destino (1px aqui é
-     quase um bloco inteiro lá) tira a alta frequência antes que ela possa
-     sobreviver à conta. */
-  pc.filter = 'blur(1.5px)';
-  pc.drawImage(copia, b.x, b.y, b.w, b.h, 0, 0, pq.width, pq.height);
+  const BLOCOS = 4;               // quantos quadrados atravessam a cabeça
+  let w = Math.max(1, Math.round(b.w)), h = Math.max(1, Math.round(b.h));
+  let atual = document.createElement('canvas');
+  atual.width = w; atual.height = h;
+  atual.getContext('2d').drawImage(copia, b.x, b.y, b.w, b.h, 0, 0, w, h);
+
+  /* Reduz PELA METADE de cada vez, até caber nos blocos.
+
+     Duas armadilhas vividas aqui, as duas invisíveis no código:
+
+     1. Reduzir de uma vez só (60px -> 5px) não faz média no Chrome, ele
+        amostra — e amostrar PRESERVA o detalhe fino em vez de destruí-lo.
+     2. A primeira correção foi borrar antes de reduzir, e foi pior: `filter`
+        com blur dilui o canal ALFA, e num quadrado de 5px quase todo pixel
+        ficou translúcido. O mosaico virou um véu, e o rosto aparecia por
+        baixo dele — exatamente o que este código existe para impedir.
+
+     Metade a metade cada passo faz média de 2x2 de verdade, sem filtro e sem
+     alfa: o resultado é opaco por construção. */
+  while(Math.max(w, h) > BLOCOS){
+    const nw = Math.max(1, Math.ceil(w / 2)), nh = Math.max(1, Math.ceil(h / 2));
+    const menor = document.createElement('canvas');
+    menor.width = nw; menor.height = nh;
+    const g = menor.getContext('2d');
+    g.imageSmoothingEnabled = true;
+    g.drawImage(atual, 0, 0, w, h, 0, 0, nw, nh);
+    atual = menor; w = nw; h = nh;
+  }
+
   x.save();
   x.beginPath();
   x.rect(b.x, b.y, b.w, b.h);
   x.clip();
-  x.imageSmoothingEnabled = false;          // a volta não inventa detalhe
-  x.drawImage(pq, 0, 0, pq.width, pq.height, b.x, b.y, b.w, b.h);
+  x.imageSmoothingEnabled = false;   // a volta não inventa detalhe
+  x.drawImage(atual, 0, 0, w, h, b.x, b.y, b.w, b.h);
   x.restore();
 }
 

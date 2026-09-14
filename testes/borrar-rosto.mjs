@@ -32,26 +32,54 @@ try{
 }catch{ await falhar('a sala não carregou'); }
 
 const r = await p.evaluate(async () => {
-  /* Tabuleiro FINO, de 2px: detalhe menor que o bloco do mosaico. A primeira
-     versão deste teste usava quadrados de 8px — do tamanho do bloco — e media
-     a si mesma: o mosaico copiava o tabuleiro e o teste dava FALHA num código
-     certo. */
+  /* RUÍDO por pixel, não tabuleiro.
+
+     Duas versões anteriores deste teste usaram tabuleiro e cada uma falhou de
+     um jeito: a de 8px tinha o tamanho do bloco do mosaico e media a si mesma;
+     a de 2px só tem DUAS cores, então "sobraram poucas cores" seria verdade
+     até para um véu translúcido por cima. Ruído tem milhares de cores e
+     detalhe em cada pixel — se sobrar estrutura, aparece. Semente fixa para o
+     teste não variar de rodada para rodada. */
   const desenhar = () => {
     const c = document.createElement('canvas');
     c.width = 200; c.height = 200;
     const x = c.getContext('2d');
-    for(let j = 0; j < 200; j += 2) for(let i = 0; i < 200; i += 2){
-      x.fillStyle = ((i + j) / 2) % 2 ? '#fff' : '#000';
-      x.fillRect(i, j, 2, 2);
+    const img = x.createImageData(200, 200);
+    let s = 12345;
+    for(let i = 0; i < img.data.length; i += 4){
+      /* Os bits BAIXOS de um LCG mal se mexem — a primeira versão gerou 11
+         cores em 1.600 pixels e o "ruído" era quase liso. Bits altos. */
+      s = (Math.imul(s, 1103515245) + 12345) & 0x7fffffff;
+      img.data[i]   = (s >>> 23) & 255;
+      img.data[i+1] = (s >>> 15) & 255;
+      img.data[i+2] = (s >>> 7)  & 255;
+      img.data[i+3] = 255;
     }
+    x.putImageData(img, 0, 0);
     return c;
   };
   const ler = c => c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
 
-  /* A pergunta certa não é "quanta textura sobrou" — num mosaico o contraste
-     ENTRE blocos é alto e isso não é vazamento. É "o que está aqui ainda se
-     parece com o que estava antes": diferença média por pixel contra o
-     original. Perto de zero = intacto. Alto = a informação foi embora. */
+  /* "Mudou muito" NÃO basta, e essa lição custou uma imagem com o rosto
+     visível: um véu cinza translúcido sobre o tabuleiro muda cada pixel em
+     mais de 80 e mesmo assim deixa enxergar tudo que está embaixo. Foi
+     exatamente o que aconteceu, e este teste aprovou.
+
+     O que um mosaico de verdade tem, e um véu não:
+       - POUCAS cores na região (uma por bloco, contra milhares);
+       - alfa 255 em todo pixel (véu é justamente alfa parcial).
+     As duas juntas não têm como passar com o original aparecendo. */
+  const cores = (c, x0, y0, lado) => {
+    const d = c.getContext('2d').getImageData(x0, y0, lado, lado).data;
+    const s = new Set();
+    for(let i = 0; i < d.length; i += 4) s.add(d[i] + ',' + d[i+1] + ',' + d[i+2]);
+    return s.size;
+  };
+  const opaco = (c, x0, y0, lado) => {
+    const d = c.getContext('2d').getImageData(x0, y0, lado, lado).data;
+    for(let i = 3; i < d.length; i += 4) if(d[i] !== 255) return false;
+    return true;
+  };
   const mudou = (antes, depois, c, x0, y0, lado) => {
     let s = 0, n = 0;
     for(let j = y0; j < y0 + lado; j++) for(let i = x0; i < x0 + lado; i++){
@@ -76,7 +104,10 @@ const r = await p.evaluate(async () => {
   const d1 = ler(c);
   const r1 = { url: String(url).slice(0, 22),
                dentro: mudou(antes1, d1, c, 75, 75, 50),
-               fora:   mudou(antes1, d1, c, 5, 5, 40) };
+               fora:   mudou(antes1, d1, c, 5, 5, 40),
+               cores:  cores(c, 75, 75, 50),
+               coresFora: cores(c, 5, 5, 40),
+               opaco:  opaco(c, 75, 75, 50) };
 
   /* 2. o detector acha alguém que a pose não viu — gente ao fundo, sem trilha */
   const c2 = desenhar();
@@ -86,7 +117,8 @@ const r = await p.evaluate(async () => {
   await borrarRostos(c2);
   const d2 = ler(c2);
   const r2 = { dentro: mudou(antes2, d2, c2, 35, 35, 40),
-               fora:   mudou(antes2, d2, c2, 150, 150, 40) };
+               fora:   mudou(antes2, d2, c2, 150, 150, 40),
+               cores:  cores(c2, 35, 35, 40) };
 
   /* 3. ninguém identificado por nenhum dos dois: NADA sai. */
   const c3 = desenhar();
@@ -101,8 +133,7 @@ const r = await p.evaluate(async () => {
   trocar(async () => []);
   await borrarRostos(c4);
   const d4 = ler(c4);
-  const r4 = { a: mudou(antes4, d4, c4, 15, 15, 40),
-               b: mudou(antes4, d4, c4, 135, 135, 40),
+  const r4 = { a: cores(c4, 15, 15, 40), b: cores(c4, 135, 135, 40),
                meio: mudou(antes4, d4, c4, 85, 85, 30) };
 
   trocar(original);
@@ -117,17 +148,21 @@ const dizer = (ok, msg) => { if(!ok) bem = false;
 const n = v => v.toFixed(0);
 
 dizer(r.r1.url === 'data:image/jpeg;base64', 'sai um JPEG                              (' + r.r1.url + ')');
-dizer(r.r1.dentro > 55,
-      'com o detector CAÍDO, a pose apaga        (mudou ' + n(r.r1.dentro) + ' por pixel)');
+dizer(r.r1.cores <= 40 && r.r1.coresFora > 500,
+      'com o detector CAÍDO, a pose apaga        (' + n(r.r1.cores) + ' cores, contra ' +
+      n(r.r1.coresFora) + ' fora)');
+dizer(r.r1.opaco,
+      'o mosaico é OPACO, não um véu por cima    (alfa 255 em tudo)');
 dizer(r.r1.fora < 1,
       'o resto do quadro fica intacto            (mudou ' + n(r.r1.fora) + ')');
-dizer(r.r2.dentro > 55 && r.r2.fora < 1,
-      'quem só o detector vê também some         (' + n(r.r2.dentro) + ' dentro, ' + n(r.r2.fora) + ' fora)');
+dizer(r.r2.cores <= 40 && r.r2.fora < 1,
+      'quem só o detector vê também some         (' + n(r.r2.cores) + ' cores dentro, ' +
+      n(r.r2.fora) + ' de mudança fora)');
 dizer(r.r3 === null,
       'ninguém identificado, imagem NÃO sai      (' + r.r3 + ')');
-dizer(r.r4.a > 55 && r.r4.b > 55 && r.r4.meio < 1,
+dizer(r.r4.a <= 40 && r.r4.b <= 40 && r.r4.meio < 1,
       'duas pessoas, as duas apagadas            (' + n(r.r4.a) + ' e ' + n(r.r4.b) +
-      ', meio ' + n(r.r4.meio) + ')');
+      ' cores, meio intacto ' + n(r.r4.meio) + ')');
 
 console.log(bem ? '\nO DESFOQUE DE ROSTO PASSOU' : '\nFALHOU');
 await nav.close();
