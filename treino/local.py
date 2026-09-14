@@ -144,6 +144,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--aplicar", action="store_true",
                     help="reescreve os pesos dentro do auditix-sala.html")
+    ap.add_argument("--limiar", type=float, default=None, metavar="X",
+                    help="usa este limiar em vez do escolhido no treino. Olhe a "
+                         "tabela 'onde ficar na troca' e escolha a linha. Cuidado: "
+                         "escolher olhando o teste e decorar a prova — confirme ao "
+                         "vivo antes de confiar")
     ap.add_argument("--listar", action="store_true",
                     help="mostra as gravacoes uma a uma, com numero para apagar")
     ap.add_argument("--apagar", default="", metavar="ALVOS",
@@ -242,6 +247,10 @@ def main():
     ptr = rede.nota_clipe(Xtr, dtr, len(idxtr))
     pte = rede.nota_clipe(Xte, dte, len(idxte))
     limiar = max(np.arange(0.05, 0.96, 0.01), key=lambda t: T.medir(ytr, ptr, t)["f1"])
+    if args.limiar is not None:
+        print(f"\nlimiar trocado a mao: {args.limiar:.2f} "
+              f"(o treino tinha escolhido {limiar:.2f})")
+        limiar = float(args.limiar)
 
     # O MODELO QUE JA ESTA NO AR, medido nos MESMOS clipes. Sem esta linha,
     # "71% na sua camera" nao quer dizer melhor nem pior — e trocar um modelo
