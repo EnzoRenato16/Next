@@ -319,9 +319,15 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
     <div class="cartao-topo">
       <h2>Mapa de calor</h2>
       <span class="sub" id="t-mapa">câmera sala-12</span>
+      <div class="dir">
+        <button class="btn" data-mapa="1">hoje</button>
+        <button class="btn" data-mapa="7" aria-pressed="true">7d</button>
+        <button class="btn" data-mapa="0">tudo</button>
+      </div>
     </div>
     <div class="corpo">
       <div id="mapa-plot"></div>
+      <div id="mapa-escala" style="margin-top:10px"></div>
       <p class="sub" style="margin:10px 0 0; color:var(--ink-3); font-size:12px;">
         Cada célula é uma passagem contada pela grade, não uma pessoa. Dá para ver
         onde a sala engarrafa sem saber quem passou por ali.</p>
@@ -407,7 +413,7 @@ const nome = t => ROTULO[t] || String(t).replace(/_/g,' ');
 const num = n => Number(n).toLocaleString('pt-BR');
 
 let estado = { serie:null, painel:null, mapa:null, eventos:null, pessoas:null,
-               dias:30, tabela:false, busca:'' };
+               dias:30, mapaDias:7, tabela:false, busca:'' };
 
 /* ------------------------------------------------------------- desenho --- */
 const cria = (tag, attrs={}) => {
@@ -729,37 +735,92 @@ function pintarLocal(){
 }
 
 /* ================================================== mapa de calor ======== */
+function tomDaCelula(n, cortes){
+  if(n <= 0) return 'var(--sunk)';
+  if(!cortes.length) return 'var(--s3)';
+  const i = cortes.reduce((a, c) => a + (n > c ? 1 : 0), 0);
+  return ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)'][i];
+}
+
 function pintarMapa(){
   const cx = el('mapa-plot');
   const d = estado.mapa; if(!d) return;
-  if(!d.celulas.length){ vazio(cx, 'A sala ainda não mandou grade de passagem.'); return; }
+  if(!d.celulas.length){
+    vazio(cx, 'A sala ainda não mandou grade de passagem nesta janela.');
+    el('mapa-escala').replaceChildren();
+    el('t-mapa').textContent = 'câmera ' + (d.camera || '—');
+    return;
+  }
 
   const mx = Math.max(...d.celulas.map(c => c.x)) + 1;
   const my = Math.max(...d.celulas.map(c => c.y)) + 1;
   const larg = Math.max(cx.clientWidth || 420, 260);
   const cel = Math.floor(larg / mx);
   const alt = cel * my;
+  const cortes = d.cortes || [];
 
   const svg = cria('svg', {viewBox:`0 0 ${cel*mx} ${alt}`, width:cel*mx, height:alt, class:'plot'});
   svg.setAttribute('role','img');
-  svg.setAttribute('aria-label', `Mapa de calor da câmera ${d.camera}, pico ${d.pico}`);
+  svg.setAttribute('aria-label', `Mapa de calor da câmera ${d.camera}, pico ${d.pico} passagens`);
 
-  const mapa = new Map(d.celulas.map(c => [c.x+','+c.y, c.n]));
+  const mapa = new Map(d.celulas.map(c => [c.x+','+c.y, c]));
+  /* Onde a pessoa mais ficou — a pergunta que o mapa existe para responder e
+     que a cor sozinha não responde, porque o tom mais forte é uma FAIXA e não
+     um ponto. */
+  const topo = d.celulas.reduce((a,b) => b.n > a.n ? b : a, d.celulas[0]);
+
   for(let y=0; y<my; y++) for(let x=0; x<mx; x++){
-    const n = mapa.get(x+','+y) || 0;
+    const c = mapa.get(x+','+y);
     /* 2px de folga: células coladas viram uma mancha só. */
     const r = cria('rect', {x:x*cel+1, y:y*cel+1, width:cel-2, height:cel-2, rx:3,
-      fill: n ? degrau(n, d.pico) : 'var(--sunk)'});
+      fill: tomDaCelula(c ? c.z : 0, cortes)});
     svg.appendChild(r);
+  }
+
+  /* O anel do pico entra depois de todas as células, senão a vizinha o cobre.
+     Dois traços: o de fora na cor da superfície, para o anel não sumir quando
+     cai justamente sobre o tom mais escuro — que é onde ele sempre cai. */
+  for(const [cor, esp] of [['var(--card)', 5], ['var(--ink)', 2]]){
+    svg.appendChild(cria('rect', {x:topo.x*cel-1, y:topo.y*cel-1,
+      width:cel+2, height:cel+2, rx:5, fill:'none', stroke:cor, 'stroke-width':esp}));
+  }
+
+  for(let y=0; y<my; y++) for(let x=0; x<mx; x++){
+    const n = (mapa.get(x+','+y) || {}).n || 0;
     const a = cria('rect', {x:x*cel, y:y*cel, width:cel, height:cel, fill:'transparent'});
     a.style.cursor='crosshair';
     a.addEventListener('mousemove', e => mostrarDica(e, `célula ${x}, ${y}`,
-      n ? '<b>' + num(n) + '</b> passagens' : 'nenhuma passagem'));
+      (n ? '<b>' + num(n) + '</b> passagens' : 'nenhuma passagem') +
+      (x === topo.x && y === topo.y ? '<br>é onde mais pararam' : '')));
     a.addEventListener('mouseleave', sumirDica);
     svg.appendChild(a);
   }
   cx.replaceChildren(svg);
-  el('t-mapa').textContent = 'câmera ' + d.camera + ' · pico ' + num(d.pico);
+
+  /* Legenda de escala. Os cortes são por quantil, então sem as faixas escritas
+     o leitor não teria como saber que o tom escuro vale 40 e não 400. */
+  const faixas = [];
+  for(let i=0; i<5; i++){
+    const de = i === 0 ? 1 : cortes[i-1];
+    const ate = i < cortes.length ? cortes[i] : null;
+    if(cortes.length && i > cortes.length) break;
+    faixas.push({tom:['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)'][i],
+                 txt: ate == null ? 'acima de ' + num(Math.round(de))
+                                  : 'até ' + num(Math.round(ate))});
+  }
+  const esc = document.createElement('div');
+  esc.className = 'legenda';
+  esc.style.fontSize = '11.5px';
+  esc.innerHTML = '<span style="color:var(--ink-3)">passagens na vizinhança</span>' +
+    faixas.map(f => '<span><i style="background:' + f.tom + '"></i>' + f.txt + '</span>').join('') +
+    '<span style="margin-left:auto; color:var(--ink-3)">' +
+    '<b style="color:var(--ink-2)">◻</b> onde mais pararam: ' + num(topo.n) + '</span>';
+  el('mapa-escala').replaceChildren(esc);
+
+  const janela = d.dias === 0 ? 'base inteira'
+    : d.dias === 1 ? 'hoje' : 'últimos ' + d.dias + ' dias';
+  el('t-mapa').textContent = 'câmera ' + d.camera + ' · ' + janela +
+    ' · ' + num(d.total) + ' passagens';
 }
 
 /* ================================================== tabela de eventos ==== */
@@ -873,6 +934,16 @@ document.addEventListener('click', e => {
   if(b) abrirFoto(+b.dataset.foto);
 });
 
+document.querySelectorAll('[data-mapa]').forEach(b => {
+  b.addEventListener('click', async () => {
+    document.querySelectorAll('[data-mapa]').forEach(o =>
+      o.setAttribute('aria-pressed', String(o === b)));
+    estado.mapaDias = +b.dataset.mapa;
+    estado.mapa = await pegar('/api/mapa?dias=' + estado.mapaDias);
+    pintarMapa();
+  });
+});
+
 el('busca-pessoa').addEventListener('input', e => {
   estado.busca = e.target.value;
   pintarPessoas();
@@ -946,7 +1017,7 @@ async function carregar(){
     const [serie, painel, mapa, eventos, pessoas] = await Promise.all([
       pegar('/api/serie?dias=' + estado.dias),
       pegar('/api/painel'),
-      pegar('/api/mapa'),
+      pegar('/api/mapa?dias=' + estado.mapaDias),
       pegar('/api/eventos?limite=25'),
       pegar('/api/pessoas'),
     ]);

@@ -621,16 +621,93 @@ def gravar_calor(c: Calor) -> dict:
 
 
 @app.get("/api/mapa")
-def mapa(camera: str = "sala-12") -> dict:
+def mapa(camera: str = "sala-12", dias: int = 0) -> dict:
+    """dias=0 e a base inteira. Uma janela importa mais do que parece aqui: a
+    grade soma para sempre, e um mes de transito afoga a aula de hoje — a sala
+    inteira acaba do mesmo tom e o mapa para de responder onde alguem ficou."""
     with cursor() as (cur, m):
         cur.execute(
-            f"""SELECT celula_x, celula_y, SUM(contagem) FROM mapa_calor
-                WHERE camera = {m} GROUP BY celula_x, celula_y""",
+            f"""SELECT celula_x, celula_y, contagem, momento FROM mapa_calor
+                WHERE camera = {m}""",
             (camera,),
         )
-        celulas = [{"x": r[0], "y": r[1], "n": int(r[2])} for r in cur.fetchall()]
-    return {"camera": camera, "celulas": celulas,
-            "pico": max((c["n"] for c in celulas), default=0)}
+        linhas = cur.fetchall()
+
+    corte = None
+    if dias > 0:
+        corte = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=dias)
+
+    soma: dict[tuple[int, int], int] = {}
+    for x, y, n, mom in linhas:
+        if corte is not None:
+            q = mom if not isinstance(mom, str) else _ler_momento(mom)
+            if q is None or q < corte:
+                continue
+        soma[(x, y)] = soma.get((x, y), 0) + int(n)
+
+    celulas = _suavizar(soma)
+    valores = sorted(c["z"] for c in celulas)
+    return {"camera": camera, "dias": dias, "celulas": celulas,
+            "total": sum(c["n"] for c in celulas),
+            "pico": max((c["n"] for c in celulas), default=0),
+            # Os cortes saem daqui porque so o servidor ve a distribuicao toda.
+            # Escala linear sobre o pico nao serve: numa sala real a cauda e
+            # longa e 95% das celulas caem no mesmo tom — o mapa vira um borrao.
+            "cortes": _cortes_escala(valores)}
+
+
+def _suavizar(soma: dict[tuple[int, int], int]) -> list[dict]:
+    """Media 3x3 com peso no centro. Uma celula sozinha e ruido: a pessoa nao
+    fica num quadradinho, ela ocupa uma regiao, e a grade so amostra isso. Sem
+    suavizar, o mapa vira confete e some justamente a pergunta que ele responde
+    — onde a sala para. A contagem CRUA continua em 'n', que e o que a dica
+    mostra; o tom sai de 'z'."""
+    if not soma:
+        return []
+    peso = ((1, 2, 1), (2, 4, 2), (1, 2, 1))
+    saida = []
+    for (x, y), n in sorted(soma.items()):
+        acc = tot = 0.0
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                w = peso[dy + 1][dx + 1]
+                # Vizinho fora da grade nao vira zero: isso puxaria a borda para
+                # baixo e inventaria um corredor frio em volta da sala inteira.
+                if (x + dx, y + dy) in soma:
+                    acc += w * soma[(x + dx, y + dy)]
+                    tot += w
+        saida.append({"x": x, "y": y, "n": n,
+                      "z": round(acc / tot, 1) if tot else float(n)})
+    return saida
+
+
+def _cortes_escala(valores: list) -> list:
+    """Quatro cortes em fracoes do percentil 95, sobre os valores suavizados.
+
+    As duas escolhas obvias falham aqui, e cada uma de um jeito:
+
+    - LINEAR SOBRE O PICO: numa sala real a cauda e longa, um unico canto
+      concentra tudo e o resto inteiro cai no tom mais fraco — ou, se o piso de
+      transito for alto, o mapa inteiro vira o mesmo tom medio. Foi o que
+      acontecia.
+    - QUANTIL: reparte as celulas em cinco grupos iguais, entao 20% delas
+      recebem o tom mais quente por definicao — mesmo quando 95% da sala e so
+      gente passando. O mapa fica bonito e mente.
+
+    O percentil 95 e a bussola certa porque ignora o extremo (um pico isolado
+    nao reescala a sala inteira) sem achatar o meio. Acima dele, tom cheio.
+    """
+    if not valores:
+        return []
+    p95 = valores[min(len(valores) - 1, int(0.95 * len(valores)))]
+    if p95 <= 0:
+        return []
+    cortes = []
+    for f in (0.25, 0.5, 0.75, 1.0):
+        c = round(p95 * f, 1)
+        if not cortes or c > cortes[-1]:
+            cortes.append(c)
+    return cortes
 
 
 @app.get("/api/serie")
