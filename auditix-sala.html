@@ -569,8 +569,12 @@ async function ligar(){
           await new Promise(r => setTimeout(r, 100));
         if(!window.__mp) throw { name:'SemBiblioteca', message:'vision_bundle.mjs' };
       })(), 12000);
+      /* Três minutos, e não um: nesta etapa o navegador baixa e COMPILA 9 MB de
+         WebAssembly, e numa máquina modesta depois de um Ctrl+Shift+R isso passa
+         de um minuto com folga. Um prazo que corta quem ia conseguir é pior que
+         esperar — o usuário vê a etapa na tela e sabe que está andando. */
       const visao = await etapa(5, 'motor de visão (9 MB)',
-        window.__mp.FilesetResolver.forVisionTasks('vendor/mediapipe/wasm'), 60000);
+        window.__mp.FilesetResolver.forVisionTasks('vendor/mediapipe/wasm'), 180000);
       const opcoes = delegado => ({
         baseOptions:{ modelAssetPath:'vendor/mediapipe/pose_landmarker_lite.task',
           delegate: delegado },
@@ -623,7 +627,10 @@ async function ligar(){
             'a pasta veio no <code>git clone</code> e se o servidor foi reiniciado depois.</small>'
         : n === 'Demorou'
           ? '<b>Travou na etapa ' + err.etapa + ' de ' + ETAPAS + ':</b> ' + err.message +
-            '.<br><small>Passou do prazo sem responder nem falhar. Me diga este número.</small>'
+            '.<br><small>Passou do prazo sem responder nem falhar. ' +
+            (err.etapa === 5 ? 'Tente <b>F5</b> em vez de Ctrl+Shift+R: o recarregamento ' +
+              'forte descarta o cache e obriga a rebaixar os 9 MB.' : 'Me diga este número.') +
+            '</small>'
         : n === 'PonteFora'
           ? '<b>A ponte go2rtc não respondeu</b> em ' + err.message +
             '.<br><small>Ela está aberta? E o go2rtc.yaml tem <code>api: { origin: "*" }</code>?</small>'
