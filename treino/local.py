@@ -80,9 +80,20 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--aplicar", action="store_true",
                     help="reescreve os pesos dentro do auditix-sala.html")
+    ap.add_argument("--ignorar", default="", metavar="ROTULOS",
+                    help="rotulos a deixar de fora, separados por virgula. "
+                         "'deitar' costuma ser o caso: deitado e caido tem a MESMA "
+                         "pose, e ensinar que um deles nao e queda tambem ensina a "
+                         "perder quedas de verdade")
     args = ap.parse_args()
 
     locais = ler_amostras()
+    ignorar = {x.strip() for x in args.ignorar.split(",") if x.strip()}
+    if ignorar:
+        antes_n = len(locais)
+        locais = [t for t in locais if t[0] not in ignorar]
+        print(f"ignorando {', '.join(sorted(ignorar))}: "
+              f"{antes_n - len(locais)} clipes fora\n")
     if not locais:
         print("nenhuma amostra local em treino/local/amostras.jsonl.")
         print("grave algumas na Sala primeiro — veja o cabecalho deste arquivo.")
@@ -157,18 +168,44 @@ def main():
     pte = rede.nota_clipe(Xte, dte, len(idxte))
     limiar = max(np.arange(0.05, 0.96, 0.01), key=lambda t: T.medir(ytr, ptr, t)["f1"])
 
+    # O MODELO QUE JA ESTA NO AR, medido nos MESMOS clipes. Sem esta linha,
+    # "71% na sua camera" nao quer dizer melhor nem pior — e trocar um modelo
+    # sem saber se melhorou e so trocar.
+    antes = os.path.join(AQUI, "modelo.json")
+    if os.path.exists(antes):
+        v = json.load(open(antes))
+        Zv = (X[selte] - np.array(v["mu"])) / np.array(v["sd"])
+        zv = np.tanh(Zv @ np.array(v["W1"]) + np.array(v["b1"])) @ np.array(v["W2"]) + v["b2"]
+        mxv = np.full(len(idxte), -1e30); np.maximum.at(mxv, dte, zv)
+        sv = np.zeros(len(idxte)); np.add.at(sv, dte, np.exp(T.TAU * (zv - mxv[dte])))
+        pv = 1/(1+np.exp(-(mxv + np.log(sv)/T.TAU)))
+    else:
+        pv = None
+
     print(f"\nAUC teste {T.auc(yte, pte):.3f}   limiar {limiar:.2f}")
     m = T.medir(yte, pte, limiar)
     print(f"  tudo junto        precisao {m['prec']:.0%}  revocacao {m['rec']:.0%}  F1 {m['f1']:.2f}")
     so_local = np.isin(idxte, locais_idx)
+
+    def linha(nome, y, p, pv_, lim_v):
+        m = T.medir(y, p, limiar)
+        txt = (f"  {nome:<18} precisao {m['prec']:.0%}  revocacao {m['rec']:.0%}"
+               f"   ({len(y)} clipes: {m['vp']} certos, {m['fp']} falsos, {m['fn']} perdidos)")
+        if pv_ is not None:
+            mv = T.medir(y, pv_, lim_v)
+            txt += (f"\n  {'  (o de hoje)':<18} precisao {mv['prec']:.0%}"
+                    f"  revocacao {mv['rec']:.0%}"
+                    f"   ({mv['vp']} certos, {mv['fp']} falsos, {mv['fn']} perdidos)")
+        return txt
+
+    lim_v = json.load(open(antes))["limiar"] if pv is not None else 0.5
     if so_local.sum():
-        ml = T.medir(yte[so_local], pte[so_local], limiar)
-        print(f"  SO a sua camera   precisao {ml['prec']:.0%}  revocacao {ml['rec']:.0%}"
-              f"  ({int(so_local.sum())} clipes: {ml['vp']} certos, {ml['fp']} falsos,"
-              f" {ml['fn']} perdidos)")
+        print(linha("SO a sua camera", yte[so_local], pte[so_local],
+                    pv[so_local] if pv is not None else None, lim_v))
     if (~so_local).sum():
-        mb = T.medir(yte[~so_local], pte[~so_local], limiar)
-        print(f"  SO a base publica precisao {mb['prec']:.0%}  revocacao {mb['rec']:.0%}")
+        print(linha("SO a base publica", yte[~so_local], pte[~so_local],
+                    pv[~so_local] if pv is not None else None, lim_v))
+    print("\nSo vale trocar se a SUA CAMERA melhorar sem a base piorar.")
 
     saida = os.path.join(AQUI, "local", "modelo.json")
     json.dump(dict(mu=mu.tolist(), sd=sd.tolist(), W1=rede.W1.tolist(),
