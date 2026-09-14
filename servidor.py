@@ -34,6 +34,7 @@ import json
 import os
 import sqlite3
 import sys
+import time
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -90,6 +91,17 @@ def carregar_env() -> None:
 carregar_env()
 URL_BANCO = os.environ.get("DATABASE_URL", "").strip()
 WEBHOOK = os.environ.get("WEBHOOK_URL", "").strip()
+# Segredo combinado com o outro lado. Uma URL de Lambda e publica: sem isto,
+# qualquer um que a descubra dispara e-mails em nome de voces — e paga.
+WEBHOOK_SEGREDO = os.environ.get("WEBHOOK_SEGREDO", "").strip()
+# Quais eventos viram e-mail. "graves" e o padrao; "todos" manda tudo, inclusive
+# cada pessoa que entra — util para testar, insuportavel em uso normal.
+ALERTA_TIPOS = os.environ.get("ALERTA_TIPOS", "graves").strip().lower()
+# Segundos de silencio por TIPO antes de mandar outro e-mail. Um alerta a cada
+# poucos segundos e a forma mais rapida de a caixa de entrada virar lixo e
+# ninguem mais ler nenhum.
+ALERTA_ESPERA = float(os.environ.get("ALERTA_ESPERA", "60"))
+_ultimo_alerta: dict[str, float] = {}
 
 # ---------------------------------------------------------------- banco -----
 # Postgres usa %s e SQLite usa ?. Em vez de espalhar if pelo código todo, o
@@ -314,11 +326,25 @@ def gravar_evento(ev: Evento) -> dict:
         )
         novo_id = cur.fetchone()[0] if USANDO_PG else cur.lastrowid
 
-    if WEBHOOK and ev.tipo_evento in GRAVES:
+    if WEBHOOK and deve_alertar(ev.tipo_evento):
         disparar_webhook(novo_id, momento, ev, atual)
 
     return {"id": novo_id, "timestamp": momento, "hash_anterior": anterior,
             "hash_atual": atual, "banco": "postgres" if USANDO_PG else "sqlite"}
+
+
+def deve_alertar(tipo: str) -> bool:
+    """Vale a pena acordar alguem por este evento, agora?"""
+    if ALERTA_TIPOS == "todos":
+        pass
+    elif tipo not in GRAVES:
+        return False
+    agora = time.monotonic()
+    ultimo = _ultimo_alerta.get(tipo)
+    if ultimo is not None and agora - ultimo < ALERTA_ESPERA:
+        return False
+    _ultimo_alerta[tipo] = agora
+    return True
 
 
 def disparar_webhook(novo_id, momento, ev: Evento, hash_atual: str) -> None:
@@ -332,9 +358,10 @@ def disparar_webhook(novo_id, momento, ev: Evento, hash_atual: str) -> None:
              "tipo_evento": ev.tipo_evento, "localizacao": ev.localizacao,
              "hash_atual": hash_atual,
              "texto": f"{ev.tipo_evento} em {ev.localizacao}, pendente de validação humana"}
+    cabecalhos = {"X-Auditix-Segredo": WEBHOOK_SEGREDO} if WEBHOOK_SEGREDO else {}
     try:
         with httpx.Client(timeout=5) as cli:
-            cli.post(WEBHOOK, json=corpo)
+            cli.post(WEBHOOK, json=corpo, headers=cabecalhos)
     except Exception as erro:  # noqa: BLE001
         print(f"[auditix] webhook falhou, evento gravado mesmo assim: {erro}")
 
