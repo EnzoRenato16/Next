@@ -72,14 +72,18 @@ de consertar continua sendo montar a camera de lado, como diz o CAMERA-IP.md.
 
 ## Treinar com a camera de voces
 
+Os scripts declaram a propria dependencia (numpy), entao rodam com `uv run` e
+ninguem precisa instalar Python separado — o `uv` que ja roda o servidor
+resolve.
+
 A base publica foi gravada noutro lugar, com outras camaras. A de voces ve
 outra sala, de outra altura. Da para somar as duas:
 
 1. Na Sala, escolha o rotulo ao lado do botao, clique **Gravar amostra**, faca
    a acao, clique **Parar e salvar**. Vale gravar ~10 quedas, ~10 corridas e
    uns 10 minutos de atividade normal.
-2. `python3 treino/local.py` — mede e mostra, sem alterar nada.
-3. `python3 treino/local.py --aplicar` — reescreve os pesos no
+2. `uv run treino/local.py` — mede e mostra, sem alterar nada.
+3. `uv run treino/local.py --aplicar` — reescreve os pesos no
    `auditix-sala.html` e refaz `provas.json`.
 4. `node testes/rede-queda.mjs` — confere que o JavaScript calcula o mesmo.
 
@@ -103,13 +107,13 @@ amostras por segundo sao descartadas, porque a Sala tambem as descarta.
 #    ids em treino/extrair.py, via https://dataverse.harvard.edu/api/access/datafile/<id>
 
 # 2. extrair as janelas  (~1 min)
-DADOS=/caminho/dos/csv python3 treino/extrair.py
+DADOS=/caminho/dos/csv uv run treino/extrair.py
 
 # 3. treinar  (~8 s, CPU, só numpy)
-python3 treino/treinar.py
+uv run treino/treinar.py
 
 # 4. gerar as provas do porte para JS
-DADOS=/caminho/dos/csv python3 treino/provas.py
+DADOS=/caminho/dos/csv uv run treino/provas.py
 
 # 5. conferir que o JavaScript calcula o mesmo que o Python
 node testes/rede-queda.mjs

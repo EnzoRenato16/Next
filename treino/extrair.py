@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy"]
+# ///
 """Transforma os CSVs de keypoints do Fall Vision em janelas com rótulo.
 
 O dataset (Harvard Dataverse, CC0) traz 17 pontos por quadro, no formato COCO.

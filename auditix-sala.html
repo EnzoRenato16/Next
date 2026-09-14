@@ -1910,7 +1910,9 @@ function resumir(){
   const pico = performance.now() - picoCorrida.t < 8000 && picoCorrida.quanto > 0.25
     ? 'movimento: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
     : '';
-  el('faixa-aviso').textContent = !cegos
+  if(recado && performance.now() > recadoAte) recado = '';
+  el('faixa-aviso').textContent = recado ? recado
+    : !cegos
     ? pico
     : cegos === firmes.length
       ? 'sem análise de queda: corpo cortado no quadro'
@@ -2235,6 +2237,12 @@ function pintarTrilha(j){
    Gravamos a geometria CRUA por quadro, não os 12 atributos: assim dá para
    mudar de ideia sobre os atributos sem precisar regravar tudo. */
 let gravando = null;
+/* Um recado curto na faixa, à vista de quem acabou de clicar. A confirmação de
+   gravação ia só para a lista de eventos, lá embaixo no painel da direita — o
+   usuário clicava, nada visível acontecia, e ele não tinha como saber se tinha
+   funcionado. Confirmação longe do botão é o mesmo que nenhuma. */
+let recado = '', recadoAte = 0;
+function dizer(txt, ms = 6000){ recado = txt; recadoAte = performance.now() + ms; }
 
 function alternarGravacao(){
   const b = el('btn-gravar');
@@ -2243,17 +2251,23 @@ function alternarGravacao(){
     gravando = null;
     b.textContent = 'Gravar amostra'; b.classList.remove('on');
     el('rotulo').disabled = false;
-    if(quadros.length < 10){ anotar('duv', 'Amostra curta demais, descartada.'); return; }
+    if(quadros.length < 10){
+      dizer('✗ amostra curta demais (' + quadros.length + ' quadros), descartada — ' +
+            'o corpo estava no quadro, com o quadril visível?', 10000);
+      anotar('duv', 'Amostra curta demais, descartada.'); return; }
     fetch('/api/amostras', { method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ rotulo, sessao, fps: PADRAO_FPS, quadros }) })
       .then(r => r.ok ? r.json() : Promise.reject(r.status))
-      .then(d => anotar('ok', 'Amostra "' + rotulo + '" gravada: ' + quadros.length +
-                              ' quadros (' + d.total + ' no total).'))
-      .catch(e => anotar('mal', 'Não consegui gravar a amostra: ' + e));
+      .then(d => { const m = 'amostra "' + rotulo + '" gravada: ' + quadros.length +
+                             ' quadros · ' + d.total + ' no total';
+                   dizer('✓ ' + m); anotar('ok', m[0].toUpperCase() + m.slice(1) + '.'); })
+      .catch(e => { dizer('✗ não consegui gravar a amostra: ' + e, 10000);
+                    anotar('mal', 'Não consegui gravar a amostra: ' + e); });
   }else{
     gravando = { rotulo: el('rotulo').value, sessao: Date.now(), quadros: [] };
     b.textContent = 'Parar e salvar'; b.classList.add('on');
     el('rotulo').disabled = true;
+    dizer('● gravando "' + gravando.rotulo + '"…', 3600000);
     anotar('duv', 'Gravando amostra "' + gravando.rotulo + '"…');
   }
 }

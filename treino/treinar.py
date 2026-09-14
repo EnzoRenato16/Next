@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy"]
+# ///
 """Treina o classificador de queda a partir das janelas extraidas.
 
 Rede minuscula de proposito: 12 entradas -> 8 -> 1. Sao 113 pesos, que cabem

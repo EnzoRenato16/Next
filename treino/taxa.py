@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy"]
+# ///
 """Quanto a taxa de quadros da camera custa em deteccao de queda.
 
 A rede foi treinada a 30 quadros por segundo. Camera domestica (Tapo C200,

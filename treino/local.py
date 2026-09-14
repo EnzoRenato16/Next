@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy"]
+# ///
 """Treina a rede de queda juntando a base publica com amostras da SUA camera.
 
 Por que juntar em vez de trocar: um modelo so do seu quarto acerta tudo no seu

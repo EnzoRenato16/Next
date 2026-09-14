@@ -1,3 +1,7 @@
+# /// script
+# requires-python = ">=3.10"
+# dependencies = ["numpy"]
+# ///
 """Gera o arquivo de provas que trava o porte para JavaScript.
 
 Sem isto, a unica forma de saber se a Sala calcula o mesmo que o treino seria
