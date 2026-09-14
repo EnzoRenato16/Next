@@ -245,9 +245,9 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
           style="color:inherit; opacity:.75; font-size:.85rem">fonte de vídeo: webcam</a></p>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
           saber o que mudou nela. Nada é gravado enquanto nada acontece: só em
-          <b>alerta grave</b> um recorte do instante é guardado, para a conferência
-          humana — <b>com os rostos borrados</b>, apagando-se sozinho no prazo, e
-          quem abrir fica registrado.</p>
+          <b>alerta grave</b> o quadro daquele instante é guardado, para a conferência
+          humana — <b>com o rosto de todos apagado</b>, apagando-se sozinho no prazo,
+          e quem abrir fica registrado.</p>
       </div>
     </div>
     <div class="pe">
@@ -1310,72 +1310,155 @@ const QUEDA_REARME = 3000;   // ms de silêncio antes de a próxima queda ser no
    com uma folga em volta, porque é o chão ao redor que deixa alguém conferir se
    aquilo foi mesmo uma queda. No servidor ele se apaga sozinho depois de alguns
    dias, e quem abrir fica registrado. */
-const FOTO_LADO = 360;
+const FOTO_LADO = 640;   // maior lado do quadro guardado
+
+/* Onde está a cabeça DESTA pessoa, em pixels do vídeo.
+
+   Sai da pose, não de um detector de rosto: os pontos 0 a 10 do MediaPipe
+   (nariz, olhos, orelhas, boca) são os mesmos que decidem a queda. Se o sistema
+   confia neles para acusar, pode confiar para esconder — e ao contrário do
+   detector de rosto, eles existem de perfil, de costas, no escuro e com o rosto
+   ocupando o quadro inteiro. */
+function caixaDaCabeca(lm, larg, alt){
+  let x0 = 1, y0 = 1, x1 = 0, y1 = 0, n = 0;
+  for(let i = 0; i <= 10; i++){
+    if(vis(lm[i]) < VIS_MIN) continue;
+    x0 = Math.min(x0, lm[i].x); x1 = Math.max(x1, lm[i].x);
+    y0 = Math.min(y0, lm[i].y); y1 = Math.max(y1, lm[i].y);
+    n++;
+  }
+  if(!n) return null;
+  let cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+  let d = Math.max(x1 - x0, y1 - y0);
+  /* Com um ponto só (nariz de costas, por exemplo) a caixa tem tamanho zero.
+     O ombro a ombro dá a escala: a cabeça mede uns dois terços dele. */
+  if(vis(lm[P.OMBRO_E]) >= VIS_MIN && vis(lm[P.OMBRO_D]) >= VIS_MIN){
+    const ombros = Math.hypot(lm[P.OMBRO_E].x - lm[P.OMBRO_D].x,
+                              lm[P.OMBRO_E].y - lm[P.OMBRO_D].y);
+    d = Math.max(d, ombros * 0.75);
+  }
+  d = Math.max(d, 0.05);
+  /* Folga larga: cabelo, orelha e contorno do queixo também identificam, e os
+     pontos da pose param na linha dos olhos e da boca. */
+  const r = d * 0.95;
+  return { x:(cx - r) * larg, y:(cy - r * 1.15) * alt,
+           w: 2 * r * larg, h: 2 * r * 1.15 * alt };
+}
+
 function recortarCorpo(t){
   const v = el('cam');
-  if(!v || !v.videoWidth || !t.box) return null;
-  const folga = 0.25;
-  let x = t.box.x - t.box.w * folga, y = t.box.y - t.box.h * folga;
-  let w = t.box.w * (1 + 2*folga), h = t.box.h * (1 + 2*folga);
-  x = Math.max(0, x); y = Math.max(0, y);
-  w = Math.min(v.videoWidth - x, w); h = Math.min(v.videoHeight - y, h);
-  if(w < 20 || h < 20) return null;
-  const k = Math.min(1, FOTO_LADO / Math.max(w, h));
+  if(!v || !v.videoWidth) return null;
+
+  /* O QUADRO INTEIRO, não o recorte da pessoa. Um pedaço fechado mostra um
+     corpo no chão e esconde o resto: se foi tropeço na mochila, se tem alguém
+     junto, se a sala está vazia. Quem vai conferir precisa da cena. */
+  const k = Math.min(1, FOTO_LADO / Math.max(v.videoWidth, v.videoHeight));
   const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(w * k));
-  c.height = Math.max(1, Math.round(h * k));
-  c.getContext('2d').drawImage(v, x, y, w, h, 0, 0, c.width, c.height);
+  c.width = Math.round(v.videoWidth * k);
+  c.height = Math.round(v.videoHeight * k);
+  const x = c.getContext('2d');
+  x.drawImage(v, 0, 0, c.width, c.height);
+
+  /* A cabeça de TODA pessoa no quadro, não só a de quem caiu: quadro inteiro
+     traz gente que não tem nada a ver com o alerta, e é justamente essa que
+     não pode ser identificada. */
+  c.cabecas = [];
+  for(const tr of trilhas){
+    if(!tr.det || !tr.det.lm) continue;
+    const b = caixaDaCabeca(tr.det.lm, v.videoWidth, v.videoHeight);
+    if(b) c.cabecas.push({ x:b.x * k, y:b.y * k, w:b.w * k, h:b.h * k });
+  }
+
+  /* Uma moldura em quem disparou o alerta. Sem ela, numa sala com gente, quem
+     abre a imagem não sabe para onde olhar. */
+  if(t && t.box){
+    x.strokeStyle = '#e4572e';
+    x.lineWidth = Math.max(2, Math.round(c.width / 200));
+    x.strokeRect(t.box.x * k, t.box.y * k, t.box.w * k, t.box.h * k);
+  }
   return c;
 }
 
-/* Rosto borrado no recorte.
+/* Rosto apagado no recorte.
 
    Para conferir se foi queda o que vale é a POSTURA — o corpo no chão, o
-   tronco tombado. O rosto não acrescenta informação nenhuma a essa pergunta;
-   acrescenta identificação. Então ele sai, e o recorte continua servindo para
-   o que foi feito, inclusive para quem só passava por ali e não tem nada a ver
-   com o alerta.
+   tronco tombado. O rosto não acrescenta nada a essa pergunta; acrescenta
+   identificação. Então ele sai, e o recorte continua servindo para o que foi
+   feito, inclusive para quem só passava por ali.
 
-   O detector é o tinyFaceDetector que já está carregado para o reconhecimento,
-   e roda UMA vez por alerta, não por quadro: o custo é de um alerta, não de um
-   laço. Se ele falhar, a imagem não vai — melhor perder o recorte do que
-   mandar rosto que eu prometi borrar. */
+   A primeira versão dependia SÓ do detector de rosto, e falhava aberto: quando
+   ele não achava — perfil, contraluz, rosto ocupando o quadro todo — a imagem
+   saía nítida, prometendo na tela o que não cumpria. Agora a cabeça vem da
+   pose, que é o que fez o alerta existir, e o detector de rosto entrou como
+   REFORÇO para quem aparece no fundo sem trilha própria. */
+
+/* Mosaico, não borrão. Desfoque gaussiano fraco ainda deixa reconhecer, e não
+   dá para saber de fora se ficou forte o bastante. Blocos de tamanho fixo em
+   relação à cabeça são verificáveis: ou a informação foi embora, ou não foi. */
+function apagarRegiao(x, copia, b){
+  /* Cinco blocos atravessando a cabeça. Sete ainda deixava resíduo perto do
+     limite do teste, e num rosto o resíduo é justamente o contorno. */
+  const lado = Math.max(1, Math.round(Math.max(b.w, b.h) / 5));
+  const pq = document.createElement('canvas');
+  pq.width = Math.max(1, Math.round(b.w / lado));
+  pq.height = Math.max(1, Math.round(b.h / lado));
+  const pc = pq.getContext('2d');
+  pc.imageSmoothingEnabled = true;
+  /* Borra ANTES de reduzir. Uma redução de 9 para 1 não faz média no Chrome —
+     ela amostra, e amostrar preserva o detalhe fino em vez de destruí-lo: o
+     mosaico saía parecido com o original. O desfoque no destino (1px aqui é
+     quase um bloco inteiro lá) tira a alta frequência antes que ela possa
+     sobreviver à conta. */
+  pc.filter = 'blur(1.5px)';
+  pc.drawImage(copia, b.x, b.y, b.w, b.h, 0, 0, pq.width, pq.height);
+  x.save();
+  x.beginPath();
+  x.rect(b.x, b.y, b.w, b.h);
+  x.clip();
+  x.imageSmoothingEnabled = false;          // a volta não inventa detalhe
+  x.drawImage(pq, 0, 0, pq.width, pq.height, b.x, b.y, b.w, b.h);
+  x.restore();
+}
+
 /* A detecção sai numa variável à parte para o teste poder trocá-la: o
    `faceapi` publica `detectAllFaces` como propriedade não configurável, então
    não há como substituí-la de fora — e uma promessa de privacidade que não se
    consegue testar é uma promessa que ninguém verifica. */
 let acharRostos = c => faceapi.detectAllFaces(c,
   /* Limiar mais frouxo que o do reconhecimento de propósito: aqui um falso
-     positivo só borra um pedaço de parede, e um falso negativo entrega um
-     rosto. Os dois erros não custam a mesma coisa. */
+     positivo apaga um pedaço de parede, e um falso negativo entrega um rosto.
+     Os dois erros não custam a mesma coisa. */
   new faceapi.TinyFaceDetectorOptions({ inputSize:320, scoreThreshold:.25 }));
 
 async function borrarRostos(c){
   try{
-    const achados = await acharRostos(c);
-    if(achados.length){
-      const x = c.getContext('2d');
-      const copia = document.createElement('canvas');
-      copia.width = c.width; copia.height = c.height;
-      copia.getContext('2d').drawImage(c, 0, 0);
-      for(const a of achados){
-        const b = a.box;
-        /* Folga generosa: a caixa do detector corta testa e queixo, e cabelo e
-           contorno de rosto também identificam alguém. */
-        const fx = b.width * 0.35, fy = b.height * 0.35;
-        x.save();
-        x.beginPath();
-        x.rect(b.x - fx, b.y - fy, b.width + 2*fx, b.height + 2*fy);
-        x.clip();
-        x.filter = 'blur(' + Math.max(6, Math.round(b.width / 2.5)) + 'px)';
-        x.drawImage(copia, 0, 0);
-        x.restore();
+    const x = c.getContext('2d');
+    const copia = document.createElement('canvas');
+    copia.width = c.width; copia.height = c.height;
+    copia.getContext('2d').drawImage(c, 0, 0);
+
+    const caixas = (c.cabecas || []).slice();
+    /* O detector é reforço e pode cair sem derrubar o resto: a cabeça da pose
+       já cobre a pessoa do alerta. */
+    try{
+      for(const a of await acharRostos(c)){
+        const f = a.box.width * 0.35, g = a.box.height * 0.35;
+        caixas.push({ x:a.box.x - f, y:a.box.y - g,
+                      w:a.box.width + 2*f, h:a.box.height + 2*g });
       }
+    }catch(e){}
+
+    if(!caixas.length) return null;   // nada identificado, nada enviado
+    for(const b of caixas){
+      const r = { x:Math.max(0, b.x), y:Math.max(0, b.y),
+                  w:Math.min(c.width, b.x + b.w) - Math.max(0, b.x),
+                  h:Math.min(c.height, b.y + b.h) - Math.max(0, b.y) };
+      if(r.w > 1 && r.h > 1) apagarRegiao(x, copia, r);
     }
     return c.toDataURL('image/jpeg', 0.7);
   }catch(e){
-    /* Canvas contaminado por fluxo de outra origem, ou detector fora do ar. A
-       queda já está gravada; só a imagem não vai. */
+    /* Canvas contaminado por fluxo de outra origem, ou erro de desenho. A
+       queda já está gravada; só a imagem não vai. Falhar fechado é o ponto. */
     return null;
   }
 }
