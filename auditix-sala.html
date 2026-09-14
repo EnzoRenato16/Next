@@ -252,6 +252,8 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
       <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
       <button class="btn" id="btn-exemplo">Ver com exemplo</button>
+      <button class="btn" id="btn-demo" aria-pressed="false"
+        title="Regras mais permissivas: pega mais quedas e alerta mais vezes.">Alta sensibilidade</button>
       <select id="rotulo" class="btn" disabled title="o que vai acontecer na frente da câmera">
         <option value="normal">amostra: normal</option>
         <option value="queda">amostra: queda</option>
@@ -783,6 +785,20 @@ const HIST_MS = 2500;      // memória de movimento de cada pessoa
    Quem não passa disso não é apagado — é marcado como objeto: sai da contagem
    e não gera alerta, mas continua desenhado, e volta a ser gente no instante em
    que se mexer. */
+/* ALTA SENSIBILIDADE. As regras viram as mais permissivas que ainda fazem
+   sentido: tronco deitado é queda, movimento brusco é corrida, e sem exigir que
+   a pessoa permaneça no chão. A rede treinada sai de cena — quem decide é só a
+   geometria, com folga.
+
+   Serve para demonstrar o fluxo inteiro em poucos segundos, e para ambientes
+   onde perder uma queda é inaceitável e alarme falso é tolerável. O preço é
+   real e conhecido: alerta demais. Em uso contínuo isso cansa quem olha, e a
+   sensibilidade normal existe por causa disso. */
+let demo = false;
+const DEMO_ANG = 50;      // graus de inclinação do tronco
+const DEMO_SEG = 300;     // ms deitado antes de acusar
+const DEMO_MOVE = 0.8;    // energia dos membros, metade do limiar normal
+
 const PARADO_JANELA = 5000;   // ms de observação antes de decidir
 const PARADO_MIN = 0.005;     // alturas de corpo de amplitude no período
 
@@ -1455,8 +1471,9 @@ function analisar(t, lm, agora){
   /* Fora do mundo do modelo, a nota dele não vale — e a geometria, que não
      aprendeu nada e só mede, continua valendo. */
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
-  const geo = (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu;
-  const rede = t.notaQueda >= QUEDA_LIMIAR;
+  const geo = demo ? ang > DEMO_ANG
+                   : (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu;
+  const rede = !demo && t.notaQueda >= QUEDA_LIMIAR;
 
   if((geo || rede) && !t.quedaDesde){
     t.quedaDesde = agora;
@@ -1470,10 +1487,10 @@ function analisar(t, lm, agora){
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
-  const noChao = t.quedaDesde &&
-    (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || t.notaQueda >= QUEDA_LIMIAR);
+  const noChao = t.quedaDesde && (demo ? ang > DEMO_ANG * 0.8
+    : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || t.notaQueda >= QUEDA_LIMIAR));
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
-  if(t.quedaDesde && agora - t.quedaDesde > QUEDA_SEG)
+  if(t.quedaDesde && agora - t.quedaDesde > (demo ? DEMO_SEG : QUEDA_SEG))
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
       (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
       porqueQueda(t));
@@ -1530,8 +1547,8 @@ function analisar(t, lm, agora){
     if(quanto > (picoCorrida.quanto || 0) || agora - picoCorrida.t > 8000)
       picoCorrida = { quanto, vel:t.vel, energia:t.energia, t:agora };
 
-    const corre = t.vel > CORRE_VEL || t.cresc > CORRE_CRESC;
-    const intenso = t.energia > MOVE_INTENSO;
+    const corre = t.vel > (demo ? CORRE_VEL / 2 : CORRE_VEL) || t.cresc > CORRE_CRESC;
+    const intenso = t.energia > (demo ? DEMO_MOVE : MOVE_INTENSO);
     if(corre || intenso){
       if(!t.correDesde){ t.correDesde = agora; t.porVel = corre; }
       else if(agora - t.correDesde > CORRE_SEG)
@@ -2273,6 +2290,12 @@ el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
 el('btn-fonte').addEventListener('click', e => { e.preventDefault(); trocarFonte(); });
 el('btn-gravar').addEventListener('click', alternarGravacao);
+el('btn-demo').addEventListener('click', () => {
+  demo = !demo;
+  el('btn-demo').setAttribute('aria-pressed', demo ? 'true' : 'false');
+  el('btn-demo').textContent = demo ? 'Sensibilidade normal' : 'Alta sensibilidade';
+  anotar('', demo ? 'Sensibilidade alta ligada.' : 'Sensibilidade normal.');
+});
 
 /* "Foi engano": a pessoa que está olhando a tela sabe o que aconteceu, e o
    sistema não. Esse clique manda a janela exata do alerta errado para o treino,
