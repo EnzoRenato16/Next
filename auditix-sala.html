@@ -2008,13 +2008,28 @@ function resumir(){
     ? 'movimento: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
     : '';
   if(recado && performance.now() > recadoAte) recado = '';
+  /* Os números ao vivo do corpo principal. Existe porque "não está pegando" tem
+     cinco causas diferentes — camada desligada, tronco que nunca inclina o
+     bastante, movimento abaixo do limiar, trilha que morre, corpo tratado como
+     objeto — e de fora todas parecem iguais. Um print desta linha separa as
+     cinco em um segundo. */
+  const alvo = firmes.find(t => t.analisavel !== false) || firmes[0];
+  const numeros = alvo ? [
+    'tronco ' + Math.round(alvo.ang || 0) + '°',
+    'queda ' + (alvo.notaQueda || 0).toFixed(2),
+    'membros ' + (alvo.energia || 0).toFixed(1),
+    'desloc ' + (alvo.vel || 0).toFixed(1),
+    alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
+    alvo.parado ? 'parado (objeto)' : null,
+  ].filter(Boolean).join(' · ') : '';
+
   el('faixa-aviso').textContent = recado ? recado
     : !cegos
-    ? pico
+    ? (numeros || pico)
     : cegos === firmes.length
       ? 'sem análise de queda: corpo cortado no quadro'
       : 'sem análise de queda em ' + cegos + ' de ' + firmes.length +
-        (pico ? ' · ' + pico : '');
+        (numeros ? ' · ' + numeros : '');
   pintarTudo();
 }
 
