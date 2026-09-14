@@ -31,6 +31,53 @@ MINIMO_AMOSTRAS = 8        # igual ao QUEDA_AMOSTRAS do auditix-sala.html
 MIN_CLIPES = 5             # por classe, antes de deixar aplicar na Sala
 
 
+def gravacoes():
+    if not os.path.exists(AMOSTRAS):
+        return []
+    return [json.loads(l) for l in open(AMOSTRAS, encoding="utf-8") if l.strip()]
+
+
+def listar():
+    gs = gravacoes()
+    if not gs:
+        print("nenhuma gravacao ainda.")
+        return 0
+    print(f"{'no':>3}  {'rotulo':<10} {'quando':<20} {'quadros':>8}  corpos")
+    for i, d in enumerate(gs, 1):
+        corpos = len({q["corpo"] for q in d["quadros"]})
+        print(f"{i:>3}  {d['rotulo']:<10} {d.get('gravada','?')[:19]:<20} "
+              f"{len(d['quadros']):>8}  {corpos}")
+    print(f"\n{len(gs)} gravacoes. apagar: --apagar 2,5  |  --apagar deitar  |  --apagar tudo")
+    return 0
+
+
+def apagar(alvos):
+    gs = gravacoes()
+    if not gs:
+        print("nao ha o que apagar.")
+        return 0
+    if alvos.strip() == "tudo":
+        fica = []
+    else:
+        pedidos = {x.strip() for x in alvos.split(",") if x.strip()}
+        numeros = {int(x) for x in pedidos if x.isdigit()}
+        rotulos = {x for x in pedidos if not x.isdigit()}
+        fica = [d for i, d in enumerate(gs, 1)
+                if i not in numeros and d["rotulo"] not in rotulos]
+    if len(fica) == len(gs):
+        print("nada correspondeu; nada foi apagado.")
+        return 1
+    # O que foi gravado nao volta: guarda o anterior antes de reescrever.
+    os.replace(AMOSTRAS, AMOSTRAS + ".anterior")
+    with open(AMOSTRAS, "w", encoding="utf-8") as f:
+        for d in fica:
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+    print(f"{len(gs) - len(fica)} gravacao(oes) apagada(s), {len(fica)} ficaram.")
+    print(f"o arquivo anterior ficou em {os.path.basename(AMOSTRAS)}.anterior, "
+          f"caso tenha sido engano.")
+    return 0
+
+
 def ler_amostras():
     """jsonl -> lista de (rotulo, sessao, janelas de 12 atributos)."""
     if not os.path.exists(AMOSTRAS):
@@ -94,12 +141,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--aplicar", action="store_true",
                     help="reescreve os pesos dentro do auditix-sala.html")
+    ap.add_argument("--listar", action="store_true",
+                    help="mostra as gravacoes uma a uma, com numero para apagar")
+    ap.add_argument("--apagar", default="", metavar="ALVOS",
+                    help="apaga gravacoes: numeros (1,4,7), um rotulo (deitar), "
+                         "ou 'tudo'. Mexeu na camera? o que foi gravado na posicao "
+                         "antiga ensina a posicao antiga")
     ap.add_argument("--ignorar", default="", metavar="ROTULOS",
                     help="rotulos a deixar de fora, separados por virgula. "
                          "'deitar' costuma ser o caso: deitado e caido tem a MESMA "
                          "pose, e ensinar que um deles nao e queda tambem ensina a "
                          "perder quedas de verdade")
     args = ap.parse_args()
+
+    if args.listar:
+        return listar()
+    if args.apagar:
+        return apagar(args.apagar)
 
     locais = ler_amostras()
     ignorar = {x.strip() for x in args.ignorar.split(",") if x.strip()}

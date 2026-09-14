@@ -100,6 +100,34 @@ porte quando nao evitava: a janela e descrita pelo NUMERO DE AMOSTRAS (e assim
 que a Sala chama a funcao, e nao pelo fps medido), e gravacoes com menos de 8
 amostras por segundo sao descartadas, porque a Sala tambem as descarta.
 
+## Mais dados melhoram? (treino/curva.py)
+
+| clipes de treino | precisao | revocacao | F1 |
+|---|---|---|---|
+| 20 | 93% | 87% | 0,89 |
+| 100 | 93% | 88% | 0,90 |
+| 500 | 94% | 89% | 0,91 |
+| 2.000 | 95% | 94% | 0,95 |
+| 3.489 | 98% | 89% | 0,94 |
+
+Com 20 clipes o modelo ja chega a 0,89; com 175 vezes mais dados, a 0,94. Sao
+113 pesos — ele satura cedo. **Quantidade nao e a alavanca.** O que rende e
+cobrir os casos em que ele erra, e o angulo da camera, que mudou mais o
+resultado do que qualquer treino nesta base.
+
+## Cuidar das gravacoes
+
+    uv run treino/local.py --listar          # numera todas
+    uv run treino/local.py --apagar 2,5      # apaga por numero
+    uv run treino/local.py --apagar deitar   # apaga por rotulo
+    uv run treino/local.py --apagar tudo     # recomeca do zero
+
+Mexeu na posicao da camera? **Apague o que foi gravado antes.** Gravacao da
+posicao antiga ensina a posicao antiga, e ainda estraga a medicao, porque o
+teste passa a conter duas cameras diferentes.
+
+O arquivo anterior fica como `amostras.jsonl.anterior`, caso tenha sido engano.
+
 ## Reproduzir do zero
 
 ```bash
