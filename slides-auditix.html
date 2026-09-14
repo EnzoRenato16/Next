@@ -189,6 +189,12 @@ p{ margin:0; }
 .par dt{ font-family:var(--sans); font-weight:600; font-size:1rem; letter-spacing:-.01em; }
 .par dd{ margin:0; color:var(--tinta-2); font-size:.99rem; }
 .par dd b{ color:var(--tinta); font-weight:400; }
+/* A rota que responde a pergunta, embaixo dela: é o que transforma "dashboard"
+   de palavra em fato verificável na frente da banca. */
+.par dt code{
+  display:block; margin-top:.28rem; font-family:var(--tipo-mono);
+  font-size:.7rem; font-weight:400; color:var(--verde); letter-spacing:.02em;
+}
 
 /* ---------------------------------------------------------------- cadeia -- */
 .cadeia{ display:flex; gap:.5rem; flex-wrap:wrap; margin-top:1.8rem; }
@@ -423,7 +429,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       <div class="par"><dt>Câmera IP</dt>
         <dd>RTSP → ponte local → WebRTC. <b>Fração de segundo</b> de atraso, e a
           imagem não sai da escola.</dd></div>
-      <div class="par"><dt>Painel</dt>
+      <div class="par"><dt>Dashboard</dt>
         <dd>Integridade da cadeia, série por dia, mapa de ocupação e <b>quem sumiu</b>.</dd></div>
       <div class="par"><dt>Aviso</dt>
         <dd>E-mail em segundos, com espera mínima entre avisos para a caixa
@@ -550,10 +556,12 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       <strong>e-mail em rajada</strong>.</p>
   </section>
 
-  <!-- ====================================================== 8. o painel -->
+  <!-- ================================================== 8. o dashboard -->
   <section class="slide" id="s8">
-    <p class="olho reveal">Para a coordenação, não para o TI</p>
-    <h2 class="reveal">O painel responde perguntas,<br>não exibe gráficos.</h2>
+    <p class="olho reveal">Dashboard ligado ao banco por API</p>
+    <h2 class="reveal">Um dashboard que lê o banco,<br>não um print de tela.</h2>
+    <p class="sub reveal det">Sete rotas em FastAPI sobre o PostgreSQL. A única que
+      escreve alguma coisa é a da imagem, e o que ela escreve é <strong>quem olhou</strong>.</p>
 
     <div class="duas reveal">
       <div class="palco">
@@ -575,15 +583,15 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
     </div>
 
     <dl class="pares reveal">
-      <div class="par"><dt>“Aconteceu alguma coisa?”</dt>
+      <div class="par"><dt>“Aconteceu alguma coisa?”<code>/api/painel</code></dt>
         <dd>Último evento, onde, há quanto tempo. E a corrente em uma palavra:
           <b>íntegra</b> ou <b>quebrada</b>.</dd></div>
-      <div class="par"><dt>“Onde a sala aperta?”</dt>
+      <div class="par"><dt>“Onde a sala aperta?”<code>/api/mapa</code></dt>
         <dd>Mapa suavizado por vizinhança, com um anel em <b>onde mais pararam</b>.</dd></div>
-      <div class="par"><dt>“Fulano sumiu?”</dt>
+      <div class="par"><dt>“Fulano sumiu?”<code>/api/pessoas</code></dt>
         <dd>Quem foi reconhecido e <b>há quantos dias não aparece</b>, entre quem se
           cadastrou na portaria.</dd></div>
-      <div class="par"><dt>“Posso confiar nisto?”</dt>
+      <div class="par"><dt>“Posso confiar nisto?”<code>/api/verificar</code></dt>
         <dd>A conferência recalcula a corrente <b>desde a gênese</b>, contra o hash
           recalculado e não contra o que está gravado.</dd></div>
     </dl>
@@ -689,7 +697,7 @@ addEventListener('keydown', e => {
 const slides = [...document.querySelectorAll('.slide')];
 const trilho = document.querySelector('.trilho');
 const titulos = ['Abertura','O problema','O que funciona','Por dentro','A prova',
-                 'Privacidade','O alerta','O painel','A rota','Fecho'];
+                 'Privacidade','O alerta','O dashboard','A rota','Fecho'];
 slides.forEach((s, i) => {
   const a = document.createElement('a');
   a.href = '#' + s.id;
@@ -916,7 +924,7 @@ pintarCadeia();
 /* ======================================================= o mapa de calor ==
    O segundo movimento, e ele também é o produto: a grade enche ao longo de uma
    manhã, as zonas de parada emergem sozinhas do trânsito e o anel cai em onde
-   mais pararam. A escala é a mesma do painel de verdade, cortada no percentil
+   mais pararam. A escala é a mesma do dashboard de verdade, cortada no percentil
    95 da vizinhança suavizada. */
 const calor = document.getElementById('calor');
 if(calor){
