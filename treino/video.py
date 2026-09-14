@@ -20,6 +20,11 @@ altura e outro angulo — treinar com ele ensina a camera errada, que e
 exatamente o erro que custou um dia inteiro neste projeto.
 
 Do video sai apenas geometria do esqueleto. Nenhum quadro e guardado.
+
+Medido num video real de 130s, 2160x3840, 30fps: 3.309 dos 3.913 quadros
+renderam esqueleto (2 minutos de processamento). Os 15% restantes eram quadros
+em que a pessoa estava perto demais e saia do enquadramento — o mesmo motivo
+que quebra a deteccao ao vivo.
 """
 import argparse, glob, json, os, sys
 import numpy as np
