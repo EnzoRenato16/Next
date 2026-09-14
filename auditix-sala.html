@@ -617,7 +617,7 @@ async function ligar(){
     el('btn-gravar').disabled = false; el('rotulo').disabled = false;
     mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
     rodando = true;
-    trilhas = []; proxId = 1; numeroDe.clear();
+    trilhas = []; proxId = 1; numeroDe.clear(); alertaDe.clear(); linhaDesde.clear();
     laco(); lacoRosto();
   }catch(err){
     const n = err && err.name ? err.name : 'erro';
@@ -1296,26 +1296,39 @@ function porqueQueda(t){
          (t.foraQueda > QUEDA_FORA ? ' (FORA, rede ignorada)' : '');
 }
 
+/* Quando cada pessoa foi acusada pela última vez, por tipo. Fora das trilhas de
+   propósito: a trilha é frágil, a pessoa não. */
+const alertaDe = new Map();
+const linhaDesde = new Map();
+const QUEDA_REARME = 3000;   // ms de silêncio antes de a próxima queda ser nova
+
 function registrarAnomalia(tipo, t, texto, porque){
+  const agora = performance.now();
   if(!t.firme) return;   // trilha provisória não acusa nada
   /* Objeto parado não cai, não corre e não se agita. E um casaco na cadeira com
      pose de deitado seria alerta de queda permanente. */
   if(t.parado) return;
-  if(performance.now() - t.nasceu < ANOM_IDADE) return;
-  /* Não repetir o mesmo alerta a cada quadro é necessário; não repetir NUNCA é
-     errado. A pessoa cai, levanta e cai de novo: são dois fatos, e o segundo
-     sumia porque o primeiro ainda estava na lista.
+  if(agora - t.nasceu < ANOM_IDADE) return;
+  /* UM alerta por episódio, e um episódio novo a cada REARME de silêncio.
 
-     O que libera um alerta novo é a condição ter CESSADO no meio — quem
-     levantou e caiu de novo caiu duas vezes. Sem isso, o alerta contínuo de
-     alguém deitado viraria uma enxurrada. */
-  if(t.acusando && t.acusando[tipo]){
-    const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
-    if(ja) ja.visto = Date.now();
+     A primeira tentativa prendia isso ao objeto da trilha, e não funcionou: na
+     borda do quadro a trilha morre e renasce a cada instante, e cada renascimento
+     era um objeto novo sem memória de já ter avisado. Deram 19 alertas na mesma
+     queda.
+
+     Agora a memória é da PESSOA e do RELÓGIO, que é o que a trilha não é:
+     enquanto a condição persiste, esta função é chamada a cada quadro e só
+     adia; quando a pessoa levanta, as chamadas param, o silêncio passa de
+     REARME, e a próxima queda é um episódio novo. */
+  const chave = tipo + ':' + t.id;
+  const ja = alertaDe.get(chave);
+  if(ja && agora - ja.visto < QUEDA_REARME){
+    ja.visto = agora;
+    const na = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
+    if(na) na.visto = Date.now();
     return;
   }
-  t.acusando = t.acusando || {};
-  t.acusando[tipo] = true;
+  alertaDe.set(chave, { visto: agora });
   anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, porque,
                       h:hora(), visto:Date.now(),
                       /* A janela que causou ESTE alerta, congelada. É com ela que
@@ -1352,18 +1365,20 @@ function analisar(t, lm, agora){
   t.cabecaY = cabecaY;
 
   if(linhaChao != null && cabecaY != null && cabecaY > linhaChao){
-    if(!t.linhaDesde) t.linhaDesde = agora;
-    else if(agora - t.linhaDesde > LINHA_SEG){
+    /* O relógio também é da PESSOA, não da trilha: na borda do quadro a trilha
+       renasce a cada instante, e um relógio preso a ela nunca chegava aos 400ms.
+       Um relógio que se zera sozinho nunca dispara — foi o mesmo motivo do
+       alerta repetido, visto do outro lado. */
+    const rel = 'linha:' + t.id;
+    if(!linhaDesde.has(rel)) linhaDesde.set(rel, agora);
+    else if(agora - linhaDesde.get(rel) > LINHA_SEG){
       t.porLinha = true;
       registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
         (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
         'cabeça a ' + Math.round(cabecaY * 100) + '% do quadro, abaixo da linha do chão a ' +
         Math.round(linhaChao * 100) + '%');
     }
-  } else {
-    t.linhaDesde = 0;
-    if(t.acusando) t.acusando.queda = false;   // levantou: a próxima queda é nova
-  }
+  } else linhaDesde.delete('linha:' + t.id);
 
   /* Com o quadril fora do quadro o modelo devolve os pontos de baixo mesmo
      assim: ele os INVENTA. Toda a camada de anomalia mede a partir do quadril e
@@ -1546,10 +1561,7 @@ function analisar(t, lm, agora){
     ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8 || baixo < DEMO_BAIXO * 1.2)
     : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || cx > QUEDA_PROP ||
        baixo < QUEDA_BAIXO * 1.2 || t.notaQueda >= QUEDA_LIMIAR));
-  if(t.quedaDesde && !noChao){
-    t.quedaDesde = 0;                                  // levantou, cancela
-    if(t.acusando) t.acusando.queda = false;           // e a próxima queda é nova
-  }
+  if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   const prazo = abaixoDaLinha ? LINHA_SEG : demo ? DEMO_SEG : QUEDA_SEG;
   if(t.quedaDesde && agora - t.quedaDesde > prazo)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +

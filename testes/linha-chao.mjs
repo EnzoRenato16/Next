@@ -56,6 +56,9 @@ const r = await p.evaluate(async () => {
 
   const rodar = async (cabecaY, quadrilVisivel, ms) => {
     anomalias = [];
+    /* Cada cenário é uma pessoa nova: sem isto o rearme do cenário anterior
+       engoliria o alerta do seguinte, e o teste mediria a própria bagunça. */
+    alertaDe.clear(); linhaDesde.clear();
     const t = { id:1, firme:true, nasceu:performance.now() - 60000, nome:null,
                 hist:[], lento:[], box:{ x:0, y:0, w:10, h:10 }, confirmado:-Infinity };
     const fim = performance.now() + ms;
@@ -66,10 +69,28 @@ const r = await p.evaluate(async () => {
     return anomalias.filter(a => a.tipo === 'queda').length;
   };
 
+  /* E o caso que deu 19 alertas na tela do Enzo: ficar caído com a trilha
+     renascendo o tempo todo, como acontece na borda do quadro. */
+  const comTrocaDeTrilha = async (cabecaY, ms) => {
+    anomalias = []; alertaDe.clear(); linhaDesde.clear();
+    const fim = performance.now() + ms;
+    let t = null;
+    const nasceu = performance.now() - 60000;
+    while(performance.now() < fim){
+      if(!t || Math.random() < 0.1)
+        t = { id:1, firme:true, nasceu, nome:null, hist:[], lento:[],
+              box:{ x:0, y:0, w:10, h:10 }, confirmado:-Infinity };
+      analisar(t, corpo(cabecaY, false), performance.now());
+      await new Promise(r => setTimeout(r, 30));
+    }
+    return anomalias.filter(a => a.tipo === 'queda').length;
+  };
+
   return {
     cortadoNoChao: await rodar(0.85, false, 1200),   // cabeça abaixo, sem quadril
     cortadoEmPe:   await rodar(0.20, false, 1200),   // cabeça acima, sem quadril
     inteiroNoChao: await rodar(0.85, true, 1200),    // cabeça abaixo, com quadril
+    caidoTrocando: await comTrocaDeTrilha(0.85, 3000),
   };
 });
 
@@ -81,6 +102,8 @@ bem &= dizer(r.cortadoEmPe === 0,
   'cabeça acima da linha, corpo cortado, não acusa nada    (' + r.cortadoEmPe + ')');
 bem &= dizer(r.inteiroNoChao > 0,
   'cabeça abaixo da linha com o corpo inteiro acusa queda  (' + r.inteiroNoChao + ')');
+bem &= dizer(r.caidoTrocando === 1,
+  '3s caído com a trilha renascendo dá UM alerta, não vários  (' + r.caidoTrocando + ')');
 if(erros.length){ console.error('\nERROS NA PÁGINA:\n' + erros.join('\n')); bem = false; }
 
 await nav.close();
