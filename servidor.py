@@ -487,11 +487,20 @@ def serie(dias: int = 30) -> dict:
             alvo_dia["graves"] += 1
             graves += 1
 
+    # Dia sem evento tem de sair como zero, nao sumir da lista: o grafico liga
+    # um ponto no outro por posicao, entao uma lacuna de quatro dias virava uma
+    # reta subindo — desenhando movimento onde nao houve nenhum.
+    hoje = datetime.now(timezone.utc).replace(tzinfo=None).date()
+    serie_dia = []
+    for i in range(dias - 1, -1, -1):
+        dia = (hoje - timedelta(days=i)).isoformat()
+        serie_dia.append(por_dia.get(dia, {"dia": dia, "total": 0, "graves": 0}))
+
     return {
         "dias": dias,
         "total": total,
         "graves": graves,
-        "por_dia": sorted(por_dia.values(), key=lambda d: d["dia"]),
+        "por_dia": serie_dia,
         "por_hora": [{"hora": h, "n": n} for h, n in enumerate(por_hora)],
     }
 
