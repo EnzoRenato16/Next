@@ -164,6 +164,7 @@ header .marca p{ margin:3px 0 0; color:var(--ink-2); font-size:13.5px; }
 /* -------------------------------------------------------------- legenda -- */
 .legenda{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--ink-2); }
 .legenda span{ display:inline-flex; align-items:center; gap:6px; }
+.legenda span[hidden]{ display:none; }
 .legenda i{ width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
 .legenda i.linha{ height:3px; border-radius:2px; }
 
@@ -242,7 +243,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
       <span class="pe" id="k-total-pe">na janela</span>
     </div>
     <div class="cartao kpi aviso">
-      <span class="rot">Graves</span>
+      <span class="rot" id="k-graves-rot">Graves</span>
       <span class="n" id="k-graves">—</span>
       <span class="pe" id="k-graves-pe">queda · agitação · objeto · patrimônio</span>
     </div>
@@ -274,7 +275,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   <div class="corpo">
     <div class="legenda" style="margin-bottom:10px">
       <span><i style="background:var(--s3)"></i>todos os eventos</span>
-      <span><i class="linha" style="background:var(--rubi)"></i>graves</span>
+      <span id="leg-graves"><i class="linha" style="background:var(--rubi)"></i>graves</span>
     </div>
     <div id="serie-plot"></div>
     <div id="serie-tabela" hidden class="rolagem" style="margin-top:8px"></div>
@@ -282,7 +283,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
 </div>
 
 <!-- ===================== hora + tipo ===================== -->
-<div class="grade g2" style="margin-bottom:14px">
+<div class="grade g2" style="margin-bottom:14px" id="grade-hora-tipo">
   <div class="cartao">
     <div class="cartao-topo">
       <h2>Onde o dia aperta</h2>
@@ -291,7 +292,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
     <div class="corpo"><div id="hora-plot"></div></div>
   </div>
 
-  <div class="cartao">
+  <div class="cartao" id="cartao-tipo">
     <div class="cartao-topo">
       <h2>Por tipo de evento</h2>
       <span class="sub">base inteira</span>
@@ -486,7 +487,11 @@ function pintarSerie(){
      nunca é só a cor dizendo o que é. */
   let lg = '';
   dados.forEach((p,i) => { lg += (i ? 'L' : 'M') + X(i) + ' ' + Y(p.graves); });
-  svg.appendChild(cria('path', {d:lg, fill:'none', stroke:'var(--rubi)',
+  /* Se todo evento visível é grave, as duas curvas são a mesma: desenhar as
+     duas sugere comparação onde não há nenhuma. */
+  const soGraves = d.total > 0 && d.graves === d.total;
+  el('leg-graves').hidden = soGraves;
+  if(!soGraves) svg.appendChild(cria('path', {d:lg, fill:'none', stroke:'var(--rubi)',
     'stroke-width':2, 'stroke-linejoin':'round', 'stroke-linecap':'round'}));
 
   /* Datas: quantas COUBEREM, não um número fixo. Cada rótulo "12/08" ocupa uns
@@ -524,10 +529,12 @@ function pintarSerie(){
     const p = dados[i];
     guia.setAttribute('x1', X(i)); guia.setAttribute('x2', X(i)); guia.setAttribute('opacity', 1);
     pt.setAttribute('cx', X(i)); pt.setAttribute('cy', Y(p.total)); pt.setAttribute('opacity',1);
-    ptg.setAttribute('cx', X(i)); ptg.setAttribute('cy', Y(p.graves)); ptg.setAttribute('opacity',1);
+    ptg.setAttribute('cx', X(i)); ptg.setAttribute('cy', Y(p.graves));
+    ptg.setAttribute('opacity', soGraves ? 0 : 1);
     const dt = new Date(p.dia + 'T12:00:00');
     mostrarDica(e, dt.toLocaleDateString('pt-BR', {day:'2-digit', month:'short'}),
-      'todos <b>' + num(p.total) + '</b><br>graves <b>' + num(p.graves) + '</b>');
+      soGraves ? '<b>' + num(p.total) + '</b>'
+               : 'todos <b>' + num(p.total) + '</b><br>graves <b>' + num(p.graves) + '</b>');
   });
   capa.addEventListener('mouseleave', () => {
     sumirDica(); guia.setAttribute('opacity',0);
@@ -648,8 +655,27 @@ function encurtar(nodo, maxLargura){
   nodo.textContent = cheio.slice(0, lo) + '…';
 }
 
+function desdeQuando(ts){
+  /* O banco grava sem fuso; tratar como local evita "há -3 h" na tela. */
+  const q = new Date(String(ts).replace(' ', 'T').split('.')[0]);
+  if(isNaN(q)) return '—';
+  const min = Math.max(0, Math.round((Date.now() - q.getTime()) / 60000));
+  if(min < 1) return 'agora';
+  if(min < 60) return 'há ' + min + ' min';
+  const h = Math.round(min / 60);
+  if(h < 24) return 'há ' + h + ' h';
+  return 'há ' + Math.round(h / 24) + ' d';
+}
+
 function pintarTipo(){
   const p = estado.painel; if(!p) return;
+  /* Com um tipo só, este cartão é uma barra sozinha repetindo o número que já
+     está no topo — e a grade de duas colunas fica com metade vazia. Some ele e
+     a outra ocupa a largura toda. */
+  const um = (p.por_tipo || []).length <= 1;
+  el('cartao-tipo').hidden = um;
+  el('grade-hora-tipo').style.gridTemplateColumns = um ? '1fr' : '';
+  if(um) return;
   /* O ▲ vem ANTES do nome de propósito: numa tela estreita o rótulo é aparado
      pelo fim, e um marcador no fim seria o primeiro a sumir — justo o de
      "objeto perigoso", que é onde ele importa. Aqui a magnitude é dita pela
@@ -743,9 +769,24 @@ function pintarTopo(){
   if(s){
     el('k-total').textContent = num(s.total);
     el('k-total-pe').textContent = 'nos últimos ' + s.dias + ' dias';
-    el('k-graves').textContent = num(s.graves);
-    const pct = s.total ? Math.round(s.graves / s.total * 100) : 0;
-    el('k-graves-pe').textContent = pct + '% do período · pendentes de conferência';
+    /* Com um tipo só de evento no painel, "graves" repetiria o número ao lado e
+       "100% do período" não diria nada. O que falta saber nessa hora é quando
+       foi a última — é isso que a coordenação pergunta. */
+    const soGraves = s.total > 0 && s.graves === s.total;
+    const ult = soGraves && estado.eventos && estado.eventos.length
+      ? estado.eventos[0] : null;
+    if(soGraves){
+      el('k-graves-rot').textContent = 'Último evento';
+      el('k-graves').textContent = ult ? desdeQuando(ult.timestamp) : '—';
+      el('k-graves-pe').textContent = ult
+        ? nome(ult.tipo_evento) + ' em ' + ult.localizacao + ' · pendente de conferência'
+        : 'nenhum na janela';
+    } else {
+      el('k-graves-rot').textContent = 'Graves';
+      el('k-graves').textContent = num(s.graves);
+      const pct = s.total ? Math.round(s.graves / s.total * 100) : 0;
+      el('k-graves-pe').textContent = pct + '% do período · pendentes de conferência';
+    }
 
     const pico = s.por_dia.reduce((a,b) => b.total > (a?.total ?? -1) ? b : a, null);
     if(pico){

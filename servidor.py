@@ -74,6 +74,14 @@ GENESE = "0" * 64
 GRAVES = {"queda", "agitacao", "objeto_perigoso",
           "patrimonio_sumiu"}
 
+# O que o painel MOSTRA. A Sala hoje se especializa em queda, e o banco ainda
+# guarda eventos das versoes anteriores (corrida, agitacao) e os reconhecimentos
+# de rosto. Eles continuam gravados e continuam sendo conferidos pela cadeia de
+# hash — apagar linha nenhuma, isso quebraria a corrente de proposito. O filtro
+# e so de leitura. Vazio mostra tudo.
+TIPOS_PAINEL = {x.strip() for x in
+                os.environ.get("PAINEL_TIPOS", "queda").split(",") if x.strip()}
+
 
 def carregar_env() -> None:
     """Lê um .env simples ao lado do script. Sem dependência extra para isso."""
@@ -406,13 +414,24 @@ def verificar() -> dict:
             "banco": "postgres" if USANDO_PG else "sqlite"}
 
 
+def filtro_tipos(m: str) -> tuple[str, tuple]:
+    """Cláusula WHERE do filtro do painel, ou nada quando ele está vazio."""
+    if not TIPOS_PAINEL:
+        return "", ()
+    tipos = sorted(TIPOS_PAINEL)
+    return f"WHERE tipo_evento IN ({', '.join([m] * len(tipos))})", tuple(tipos)
+
+
 @app.get("/api/eventos")
 def listar(limite: int = 50) -> list[dict]:
     with cursor() as (cur, m):
+        # O filtro vai no WHERE, nao depois: filtrar em Python devolveria menos
+        # linhas do que o limite pedido sempre que houvesse evento escondido.
+        onde, vals = filtro_tipos(m)
         cur.execute(
             f"""SELECT id, timestamp, aluno_id, tipo_evento, localizacao, hash_atual
-                FROM logs_seguranca_escola ORDER BY id DESC LIMIT {m}""",
-            (max(1, min(limite, 500)),),
+                FROM logs_seguranca_escola {onde} ORDER BY id DESC LIMIT {m}""",
+            (*vals, max(1, min(limite, 500))),
         )
         return [
             {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
@@ -475,6 +494,8 @@ def serie(dias: int = 30) -> dict:
     total = graves = 0
 
     for ts, tipo in linhas:
+        if TIPOS_PAINEL and tipo not in TIPOS_PAINEL:
+            continue
         momento = ts if not isinstance(ts, str) else _ler_momento(ts)
         if momento is None or momento < corte:
             continue
@@ -529,14 +550,15 @@ def pagina_painel() -> FileResponse:
 def painel() -> dict:
     """O que o Power BI consome. Agregado, nunca linha a linha de pessoa."""
     with cursor() as (cur, m):
+        onde, vals = filtro_tipos(m)
         cur.execute(
-            """SELECT tipo_evento, COUNT(*) FROM logs_seguranca_escola
-               GROUP BY tipo_evento ORDER BY COUNT(*) DESC"""
+            f"""SELECT tipo_evento, COUNT(*) FROM logs_seguranca_escola {onde}
+                GROUP BY tipo_evento ORDER BY COUNT(*) DESC""", vals
         )
         por_tipo = [{"tipo": r[0], "n": r[1]} for r in cur.fetchall()]
         cur.execute(
-            """SELECT localizacao, COUNT(*) FROM logs_seguranca_escola
-               GROUP BY localizacao ORDER BY COUNT(*) DESC"""
+            f"""SELECT localizacao, COUNT(*) FROM logs_seguranca_escola {onde}
+                GROUP BY localizacao ORDER BY COUNT(*) DESC""", vals
         )
         por_local = [{"local": r[0], "n": r[1]} for r in cur.fetchall()]
     return {"por_tipo": por_tipo, "por_local": por_local,
