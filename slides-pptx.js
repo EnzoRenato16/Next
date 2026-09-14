@@ -296,7 +296,88 @@ function rodape(s, n){
   rodape(s, 9);
 }
 
-/* ==================================================== 10. fecho ========== */
+/* ==================================================== 10. mercado ======== */
+{
+  const s = nova();
+  olho(s, 'Valor econômico e entrada no mercado');
+  titulo(s, 'O custo de cobrir mais\numa sala é uma câmera.');
+  apoio(s, 'O concorrente cobra licença mensal POR CÂMERA, porque o vídeo dele roda na nuvem dele. O nosso roda na borda, e o que sobe para a nuvem é uma linha de texto.', 2.75, 11.5);
+
+  /* coluna esquerda: o custo, que é o número que nós temos */
+  s.addText('O que custa', { x:M, y:3.55, w:5.6, h:0.35, isTextBox:true, margin:0,
+    fontFace:TIT, fontSize:18, bold:true, color:TINTA });
+  const custo = [['Câmera IP, por sala','R$ 200 a R$ 680', false],
+                 ['Servidor','1 PC comum por escola', false],
+                 ['Licença de software','R$ 0 por câmera', true],
+                 ['Nuvem do alerta','centavos por mês', true]];
+  custo.forEach((c, i) => {
+    const y = 4.05 + i * 0.52;
+    s.addShape(pres.ShapeType.line, { x:M, y, w:5.6, h:0, line:{ color:LINHA, width:1 } });
+    s.addText(c[0], { x:M, y:y+0.09, w:3.3, h:0.35, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:13, bold:true, color:TINTA });
+    s.addText(c[1], { x:M+3.3, y:y+0.11, w:2.3, h:0.32, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:11, color: c[2] ? VERDE : T2, align:'right' });
+  });
+  s.addShape(pres.ShapeType.line, { x:M, y:6.13, w:5.6, h:0, line:{ color:LINHA, width:1 } });
+  s.addText('sem placa de vídeo, sem custo por fluxo, sem mensalidade que cresce com a escola',
+    { x:M, y:6.22, w:5.6, h:0.4, isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3, lineSpacing:13 });
+
+  /* coluna direita: como se entra */
+  const XD = 7.1;
+  s.addText('Como entra no mercado', { x:XD, y:3.55, w:5.5, h:0.35, isTextBox:true, margin:0,
+    fontFace:TIT, fontSize:18, bold:true, color:TINTA });
+  const passos = [
+    ['Uma escola, de graça','Em troca do dado que falta: quantos alertas por dia a coordenação aguenta, e quantos foram engano.'],
+    ['O piloto vira carta','Um depoimento da coordenação abre a porta da segunda escola melhor que qualquer slide.'],
+    ['Vender para a rede','Grupo educacional tem dezenas de unidades e um decisor só. É para ele que custo marginal quase zero é irresistível.']
+  ];
+  passos.forEach((pa, i) => {
+    const y = 4.05 + i * 0.85;
+    /* o número do passo num círculo: em pptxgenjs o círculo é `ellipse`, não `oval` */
+    s.addShape(pres.ShapeType.ellipse,
+      { x:XD, y:y+0.02, w:0.32, h:0.32, fill:{ color:CHAO }, line:{ color:LINHA, width:1 } });
+    s.addText(String(i+1), { x:XD, y:y+0.05, w:0.32, h:0.26, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:10, color:VERDE, align:'center' });
+    s.addText(pa[0], { x:XD+0.5, y, w:5.0, h:0.3, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:14, bold:true, color:TINTA });
+    s.addText(pa[1], { x:XD+0.5, y:y+0.3, w:5.0, h:0.55, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:11.5, color:T2, lineSpacing:14 });
+  });
+  s.addText('Modelo: assinatura por escola, não por câmera. Expandir deixa de ser uma nova decisão de compra.',
+    { x:XD, y:6.22, w:5.5, h:0.4, isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3, lineSpacing:13 });
+
+  s.addNotes('Se perguntarem tamanho de mercado: dizer que o dado vem do Censo Escolar do INEP e que o preço praticado sai de conversa com escolas, e que nenhum dos dois foi estimado por nós.');
+  rodape(s, 10);
+}
+
+/* =============================================== 11. o que falta medir === */
+{
+  const s = nova();
+  olho(s, 'Honestidade intelectual', ALERTA);
+  titulo(s, 'O que ainda não medimos,\ne não vamos inventar.');
+  apoio(s, 'Três números que decidem se isto é negócio, e que nenhuma planilha nossa pode responder.', 2.8, 11.5);
+  const faltam = [
+    ['Quanto uma escola paga hoje','por monitoramento eletrônico','fonte: ligar para três escolas'],
+    ['Quantas escolas no recorte','rede, município ou grupo','fonte: Censo Escolar, INEP'],
+    ['Alertas por dia que se aguenta','e quantos foram engano','fonte: o piloto, e só ele']
+  ];
+  faltam.forEach((f, i) => {
+    const x = M + i * 4.03;
+    s.addShape(pres.ShapeType.roundRect, { x, y:3.5, w:3.73, h:2.1, rectRadius:0.10,
+      fill:{ color:CHAO }, line:{ color:LINHA, width:1, dashType:'dash' } });
+    s.addText(f[0], { x:x+0.3, y:3.78, w:3.15, h:0.6, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:15, bold:true, color:TINTA, lineSpacing:19 });
+    s.addText(f[1], { x:x+0.3, y:4.45, w:3.15, h:0.35, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:12, color:T2 });
+    s.addText(f[2], { x:x+0.3, y:4.95, w:3.15, h:0.45, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:9, color:ALERTA, lineSpacing:12 });
+  });
+  s.addText('Uma banca pergunta a fonte. “Estimativa nossa” derruba o slide, e com ele o resto da apresentação.',
+    { x:M, y:6.1, w:11.5, h:0.45, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, italic:true, color:T2 });
+  rodape(s, 11);
+}
+
+/* ==================================================== 12. fecho ========== */
 {
   const s = nova();
   olho(s, 'Para fechar');
