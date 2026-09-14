@@ -522,7 +522,9 @@ function textoSemAnomalia(){
         + 'para identificar as pessoas, mas não para afirmar o que está '
         + 'acontecendo. A câmera precisa pegar da cintura para baixo.';
   if(cegos)
-    return 'Nada fora do padrão em quem aparece inteiro. ' + cegos + ' de ' +
+    return (linhaChao != null
+      ? 'A linha do chão continua valendo para todos. '
+      : '') + 'Nada fora do padrão em quem aparece inteiro. ' + cegos + ' de ' +
       firmes.length + ' estão cortados no quadro e não foram avaliados.';
   return 'Nada fora do padrão na sala.';
 }
@@ -1320,6 +1322,34 @@ function registrarAnomalia(tipo, t, texto, porque){
 }
 
 function analisar(t, lm, agora){
+  /* A LINHA DO CHÃO VEM PRIMEIRO, e fora da trava do quadril.
+
+     Era aqui que ela morria: a análise inteira desiste quando o quadril não
+     aparece, e cabeça no chão é exatamente o enquadramento em que o quadril
+     some. A pessoa estava caída, com a cabeça abaixo da linha, e a tela dizia
+     "sem análise de queda: corpo cortado no quadro".
+
+     Mas a linha não precisa de quadril, de altura, de tronco nem de nada: ela
+     olha uma coisa só, onde está a cabeça no quadro. Então ela decide antes, e
+     sozinha. */
+  const nariz = vis(lm[P.NARIZ]) >= VIS_MIN ? lm[P.NARIZ].y : null;
+  const oe = vis(lm[P.OMBRO_E]) >= VIS_MIN ? lm[P.OMBRO_E].y : null;
+  const od = vis(lm[P.OMBRO_D]) >= VIS_MIN ? lm[P.OMBRO_D].y : null;
+  const cabecaY = nariz != null ? nariz
+    : oe != null && od != null ? (oe + od) / 2 : oe != null ? oe : od;
+  t.cabecaY = cabecaY;
+
+  if(linhaChao != null && cabecaY != null && cabecaY > linhaChao){
+    if(!t.linhaDesde) t.linhaDesde = agora;
+    else if(agora - t.linhaDesde > LINHA_SEG){
+      t.porLinha = true;
+      registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
+        (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
+        'cabeça a ' + Math.round(cabecaY * 100) + '% do quadro, abaixo da linha do chão a ' +
+        Math.round(linhaChao * 100) + '%');
+    }
+  } else t.linhaDesde = 0;
+
   /* Com o quadril fora do quadro o modelo devolve os pontos de baixo mesmo
      assim: ele os INVENTA. Toda a camada de anomalia mede a partir do quadril e
      normaliza pela altura do corpo, então quadril inventado vira gerador de
@@ -1402,7 +1432,6 @@ function analisar(t, lm, agora){
   guardarQuadro(t, t.hist[t.hist.length - 1]);
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
   t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang; t.prop = cx;
-  t.baixo = baixo;
   t.ox = o.x; t.oy = o.y;          // meio dos ombros: o alvo da mira
 
   /* --- queda ---
@@ -1421,6 +1450,7 @@ function analisar(t, lm, agora){
      estava em pé. */
   t.alturaTopo = Math.max(t.alturaTopo || 0, altura);
   const baixo = altura / Math.max(t.alturaTopo, 1e-6);
+  t.baixo = baixo;   // depois de existir: `const` antes da declaração é exceção
 
   /* E a descida é medida numa JANELA CURTA — é o que separa tombo de
      agachamento. Um tombo leva menos de meio segundo; agachar até o chão leva
@@ -1468,11 +1498,9 @@ function analisar(t, lm, agora){
   /* Fora do mundo do modelo, a nota dele não vale — e a geometria, que não
      aprendeu nada e só mede, continua valendo. */
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
-  /* A cabeça: o nariz quando aparece, senão o meio dos ombros. Nunca o quadril —
-     sentado numa cadeira o quadril já está baixo, e a cabeça não. */
-  const cabeca = vis(lm[P.NARIZ]) >= VIS_MIN ? lm[P.NARIZ].y : o.y;
-  t.cabecaY = cabeca;
-  const abaixoDaLinha = linhaChao != null && cabeca > linhaChao;
+  /* A linha já decidiu lá em cima, sozinha; aqui ela só mantém o relógio de
+     permanência coerente com o resto. */
+  const abaixoDaLinha = linhaChao != null && cabecaY != null && cabecaY > linhaChao;
 
   const geo = abaixoDaLinha || (demo
     ? (ang > DEMO_ANG || cx > DEMO_PROP || baixo < DEMO_BAIXO)
@@ -1940,14 +1968,15 @@ function resumir(){
      objeto — e de fora todas parecem iguais. Um print desta linha separa as
      cinco em um segundo. */
   const alvo = firmes.find(t => t.analisavel !== false) || firmes[0];
+  const daLinha = alvo && linhaChao != null && alvo.cabecaY != null
+    ? 'cabeça ' + Math.round(alvo.cabecaY * 100) + '% / linha ' +
+      Math.round(linhaChao * 100) + '%' : '';
   const numeros = alvo ? [
     'tronco ' + Math.round(alvo.ang || 0) + '°',
     'queda ' + (alvo.notaQueda || 0).toFixed(2),
     'caixa ' + (alvo.prop || 0).toFixed(1),
     'altura ' + Math.round((alvo.baixo != null ? alvo.baixo : 1) * 100) + '%',
-    linhaChao != null && alvo.cabecaY != null
-      ? 'cabeça ' + Math.round(alvo.cabecaY * 100) + '% / linha ' +
-        Math.round(linhaChao * 100) + '%' : null,
+    daLinha || null,
     alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
     alvo.parado ? 'parado (objeto)' : null,
   ].filter(Boolean).join(' · ') : '';
@@ -1956,7 +1985,8 @@ function resumir(){
     : !cegos
     ? numeros
     : cegos === firmes.length
-      ? 'sem análise de queda: corpo cortado no quadro'
+      ? 'sem análise de queda: corpo cortado no quadro' +
+        (daLinha ? ' · só a linha do chão vale · ' + daLinha : '')
       : 'sem análise de queda em ' + cegos + ' de ' + firmes.length +
         (numeros ? ' · ' + numeros : '');
   pintarTudo();
