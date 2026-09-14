@@ -1302,8 +1302,20 @@ function registrarAnomalia(tipo, t, texto, porque){
      pose de deitado seria alerta de queda permanente. */
   if(t.parado) return;
   if(performance.now() - t.nasceu < ANOM_IDADE) return;
-  const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
-  if(ja){ ja.visto = Date.now(); return; }
+  /* Não repetir o mesmo alerta a cada quadro é necessário; não repetir NUNCA é
+     errado. A pessoa cai, levanta e cai de novo: são dois fatos, e o segundo
+     sumia porque o primeiro ainda estava na lista.
+
+     O que libera um alerta novo é a condição ter CESSADO no meio — quem
+     levantou e caiu de novo caiu duas vezes. Sem isso, o alerta contínuo de
+     alguém deitado viraria uma enxurrada. */
+  if(t.acusando && t.acusando[tipo]){
+    const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
+    if(ja) ja.visto = Date.now();
+    return;
+  }
+  t.acusando = t.acusando || {};
+  t.acusando[tipo] = true;
   anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, porque,
                       h:hora(), visto:Date.now(),
                       /* A janela que causou ESTE alerta, congelada. É com ela que
@@ -1348,7 +1360,10 @@ function analisar(t, lm, agora){
         'cabeça a ' + Math.round(cabecaY * 100) + '% do quadro, abaixo da linha do chão a ' +
         Math.round(linhaChao * 100) + '%');
     }
-  } else t.linhaDesde = 0;
+  } else {
+    t.linhaDesde = 0;
+    if(t.acusando) t.acusando.queda = false;   // levantou: a próxima queda é nova
+  }
 
   /* Com o quadril fora do quadro o modelo devolve os pontos de baixo mesmo
      assim: ele os INVENTA. Toda a camada de anomalia mede a partir do quadril e
@@ -1531,7 +1546,10 @@ function analisar(t, lm, agora){
     ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8 || baixo < DEMO_BAIXO * 1.2)
     : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || cx > QUEDA_PROP ||
        baixo < QUEDA_BAIXO * 1.2 || t.notaQueda >= QUEDA_LIMIAR));
-  if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
+  if(t.quedaDesde && !noChao){
+    t.quedaDesde = 0;                                  // levantou, cancela
+    if(t.acusando) t.acusando.queda = false;           // e a próxima queda é nova
+  }
   const prazo = abaixoDaLinha ? LINHA_SEG : demo ? DEMO_SEG : QUEDA_SEG;
   if(t.quedaDesde && agora - t.quedaDesde > prazo)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
