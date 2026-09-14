@@ -593,7 +593,7 @@ async function ligar(){
     el('btn-gravar').disabled = false; el('rotulo').disabled = false;
     mapaCalor = new Float32Array(GX*GY);   // cada sessão tem o seu mapa
     rodando = true;
-    trilhas = []; proxId = 1;
+    trilhas = []; proxId = 1; numeroDe.clear();
     laco(); lacoRosto();
   }catch(err){
     const n = err && err.name ? err.name : 'erro';
@@ -1630,6 +1630,14 @@ const FRESCO_MS  = 6000;    // rosto conferido há pouco, o nome é afirmado
 const MORNO_MS   = 25000;   // passado isso, o nome cai para "provavelmente"
 
 let trilhas = [], proxId = 1;
+/* O numero que cada pessoa reconhecida ja teve. Sair do enquadramento e voltar
+   criava uma trilha nova, com numero novo — e o alerta de queda, que so evita
+   repetir para o MESMO corpo, disparava tudo de novo para a mesma pessoa. Numa
+   tela que mostra "corpo #89" isso ainda parece 89 pessoas na sala.
+
+   So vale para quem tem cadastro: sem rosto conhecido nao existe como saber que
+   e a mesma pessoa, e inventar isso seria pior que o numero novo. */
+const numeroDe = new Map();
 let ocupadoCorpo = false, ocupadoRosto = false, ultimoRosto = null;
 
 function iou(a, b){
@@ -1857,6 +1865,15 @@ function amarrar(achados){
       trilhas.forEach(t => {
         if(t !== alvo && t.nome === melhor.nome){ t.nome = null; t.confirmado = -Infinity; }
       });
+      /* Retoma o numero que esta pessoa ja teve, se nenhuma trilha viva estiver
+         usando ele — dois corpos com o mesmo numero seriam pior que o problema
+         que isto resolve. */
+      const antigo = numeroDe.get(melhor.nome);
+      if(antigo != null && antigo !== alvo.id &&
+         !trilhas.some(t => t !== alvo && t.id === antigo)){
+        alvo.id = antigo;
+      }
+      numeroDe.set(melhor.nome, alvo.id);
       anotar('', melhor.nome + ' reconhecido no corpo #' + alvo.id);
       mandarEvento('reconhecido', 'corpo-' + alvo.id);
     }
