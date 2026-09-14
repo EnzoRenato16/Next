@@ -544,6 +544,14 @@ if __name__ == "__main__":
 
     print(f"[auditix] sala   -> http://127.0.0.1:{porta}/")
     print(f"[auditix] painel -> http://127.0.0.1:{porta}/painel")
+    # Sem esta linha, um .env nao lido (ou salvo como .env.txt) some sem
+    # rastro: o servidor simplesmente nao avisa ninguem e a tela fica igual.
+    if WEBHOOK:
+        print(f"[auditix] alerta por e-mail LIGADO ({ALERTA_TIPOS}, "
+              f"espera {ALERTA_ESPERA:.0f}s)"
+              + ("" if WEBHOOK_SEGREDO else " — SEM SEGREDO, qualquer um pode disparar"))
+    else:
+        print("[auditix] alerta por e-mail DESLIGADO (falta WEBHOOK_URL no .env)")
     print("[auditix] deixe esta janela ABERTA. Ctrl+C encerra.")
 
     # log_level="info" de proposito: o uvicorn precisa dizer "estou de pe".
