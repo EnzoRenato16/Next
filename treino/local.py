@@ -204,7 +204,8 @@ def main():
     def linha(nome, y, p, pv_, lim_v):
         m = T.medir(y, p, limiar)
         txt = (f"  {nome:<18} precisao {m['prec']:.0%}  revocacao {m['rec']:.0%}"
-               f"   ({len(y)} clipes: {m['vp']} certos, {m['fp']} falsos, {m['fn']} perdidos)")
+               f"   ({int(y.sum())} quedas e {int(len(y)-y.sum())} nao-quedas:"
+               f" {m['vp']} certos, {m['fp']} falsos, {m['fn']} perdidos)")
         if pv_ is not None:
             mv = T.medir(y, pv_, lim_v)
             txt += (f"\n  {'  (o de hoje)':<18} precisao {mv['prec']:.0%}"
@@ -219,6 +220,15 @@ def main():
     if (~so_local).sum():
         print(linha("SO a base publica", yte[~so_local], pte[~so_local],
                     pv[~so_local] if pv is not None else None, lim_v))
+    # Porcentagem de amostra pequena engana: com 5 quedas no teste, um clipe
+    # vale 20 pontos. Duas vezes hoje eu li diferenca onde havia ruido — a conta
+    # tem que dizer isso sozinha, em vez de depender de quem esta lendo lembrar.
+    if so_local.sum():
+        pos = int(yte[so_local].sum()); neg = int(so_local.sum() - pos)
+        if pos < 15 or neg < 15:
+            print(f"\nATENCAO: so {pos} quedas e {neg} nao-quedas suas no teste."
+                  f" Um clipe muda a revocacao em {100/max(pos,1):.0f} pontos e a"
+                  f" precisao em muito. Diferenca menor que isso e ruido, nao melhora.")
     print("\nSo vale trocar se a SUA CAMERA melhorar sem a base piorar.")
 
     saida = os.path.join(AQUI, "local", "modelo.json")
