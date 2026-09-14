@@ -244,7 +244,9 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
         <p style="margin:.2rem 0 0"><a href="#" id="btn-fonte"
           style="color:inherit; opacity:.75; font-size:.85rem">fonte de vídeo: webcam</a></p>
         <p id="desltxt">A câmera fica <b>parada</b>, olhando a sala. É isso que permite
-          saber o que mudou nela. Nenhuma imagem é guardada.</p>
+          saber o que mudou nela. Nada é gravado enquanto nada acontece: só em
+          <b>alerta grave</b> um recorte do instante é guardado, para a conferência
+          humana — ele se apaga sozinho e quem abrir fica registrado.</p>
       </div>
     </div>
     <div class="pe">
@@ -1302,6 +1304,31 @@ const alertaDe = new Map();
 const linhaDesde = new Map();
 const QUEDA_REARME = 3000;   // ms de silêncio antes de a próxima queda ser nova
 
+/* O recorte do instante do alerta. Não é vigilância contínua: só sai quando um
+   evento grave já virou registro, e só do pedaço do quadro onde está a pessoa —
+   com uma folga em volta, porque é o chão ao redor que deixa alguém conferir se
+   aquilo foi mesmo uma queda. No servidor ele se apaga sozinho depois de alguns
+   dias, e quem abrir fica registrado. */
+const FOTO_LADO = 360;
+function recortarCorpo(t){
+  const v = el('cam');
+  if(!v || !v.videoWidth || !t.box) return null;
+  const folga = 0.25;
+  let x = t.box.x - t.box.w * folga, y = t.box.y - t.box.h * folga;
+  let w = t.box.w * (1 + 2*folga), h = t.box.h * (1 + 2*folga);
+  x = Math.max(0, x); y = Math.max(0, y);
+  w = Math.min(v.videoWidth - x, w); h = Math.min(v.videoHeight - y, h);
+  if(w < 20 || h < 20) return null;
+  const k = Math.min(1, FOTO_LADO / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * k));
+  c.height = Math.max(1, Math.round(h * k));
+  c.getContext('2d').drawImage(v, x, y, w, h, 0, 0, c.width, c.height);
+  /* Um fluxo de outra origem contaminaria o canvas e isto lançaria. A queda já
+     está gravada de qualquer jeito; só a imagem não vai. */
+  try{ return c.toDataURL('image/jpeg', 0.7); }catch(e){ return null; }
+}
+
 function registrarAnomalia(tipo, t, texto, porque){
   const agora = performance.now();
   if(!t.firme) return;   // trilha provisória não acusa nada
@@ -1343,7 +1370,9 @@ function registrarAnomalia(tipo, t, texto, porque){
                         pdx:+h.pd.x.toFixed(5), pdy:+h.pd.y.toFixed(5) })) });
   anomalias = anomalias.slice(0, 20);
   anotar('mal', texto);
-  mandarEvento(tipo, 'corpo-' + t.id);
+  /* Recorta AGORA, não depois da resposta do servidor: um segundo adiante a
+     pessoa já se mexeu, e a imagem deixaria de ser a do momento acusado. */
+  mandarEvento(tipo, 'corpo-' + t.id, recortarCorpo(t));
 }
 
 function analisar(t, lm, agora){
@@ -1934,7 +1963,11 @@ function amarrar(achados){
       }
       numeroDe.set(melhor.nome, alvo.id);
       anotar('', melhor.nome + ' reconhecido no corpo #' + alvo.id);
-      mandarEvento('reconhecido', 'corpo-' + alvo.id);
+      /* Aqui vai o NOME, não o número do corpo: é o único evento em que a
+         pessoa se cadastrou de próprio punho na Portaria, e é o que permite ao
+         painel responder "há quantos dias fulano não aparece". Para queda
+         continua indo "corpo-N" — lá ninguém consentiu com nada. */
+      mandarEvento('reconhecido', melhor.nome);
     }
     alvo.nome = melhor.nome; alvo.turma = melhor.turma || '';
     alvo.dist = dist; alvo.confirmado = agora;
@@ -2402,8 +2435,14 @@ function pintarTrilha(j){
     (j.banco === 'postgres' ? 'PostgreSQL na AWS' : 'SQLite local, o Postgres não respondeu');
 }
 
-/* Só metadado sai daqui: id do corpo, tipo do evento e sala. Nenhum quadro,
-   nenhum descritor de rosto, nenhuma assinatura de corpo vai para a rede. */
+/* O que sai daqui, e nada além disso:
+
+   - sempre: id do corpo (ou o nome, no reconhecimento), tipo do evento e sala;
+   - em evento GRAVE: o recorte do instante, para a conferência humana.
+
+   Descritor de rosto e assinatura de corpo NÃO saem — eles são o que permitiria
+   reidentificar alguém depois, e ficam nesta máquina. O recorte é o contrário:
+   um quadro só, do momento que já virou registro, com prazo para sumir. */
 /* ------------------------------- amostras locais ---------------------------
    Grava o que a câmera DESTA sala vê, para treinar com dados daqui em vez de
    só com os 4.509 clipes de outro lugar. O que sai daqui são números do
@@ -2458,12 +2497,22 @@ function guardarQuadro(t, h){
     pdx:+h.pd.x.toFixed(5), pdy:+h.pd.y.toFixed(5) });
 }
 
-function mandarEvento(tipo, aluno){
+function mandarEvento(tipo, aluno, foto){
   if(!servidorVivo) return;
   fetch('/api/evento', { method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ aluno_id:String(aluno).slice(0,50), tipo_evento:tipo,
                            localizacao:LOCAL_CAMERA }) })
-    .then(r => r.ok && fetch('/api/verificar').then(x => x.json()).then(pintarTrilha))
+    .then(r => r.ok ? r.json() : null)
+    .then(ev => {
+      if(!ev) return;
+      /* A imagem vai DEPOIS e por fora: o evento já está na cadeia, e se o
+         servidor recusar a foto (guarda desligada, tipo não grave) o registro
+         continua de pé. O alerta nunca depende da imagem. */
+      if(foto) fetch('/api/foto', { method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ evento_id:ev.id, imagem:foto }) }).catch(() => {});
+      return fetch('/api/verificar').then(x => x.json()).then(pintarTrilha);
+    })
     .catch(() => {});
 }
 

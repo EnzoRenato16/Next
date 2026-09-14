@@ -39,7 +39,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
@@ -67,7 +67,11 @@ TIPOS = {
     ".task": "application/octet-stream",
     ".bin":  "application/octet-stream",
 }
-SQLITE = AQUI / "auditix.db"
+# O caminho do SQLite é trocável para que teste não escreva no banco de quem
+# está usando o sistema: sem isso, cada rodada de teste enche a sala de quedas
+# que nunca aconteceram.
+SQLITE = Path(os.environ["SQLITE_ARQUIVO"]) if os.environ.get("SQLITE_ARQUIVO") \
+    else AQUI / "auditix.db"
 GENESE = "0" * 64
 
 # eventos que merecem acordar alguém na hora
@@ -81,6 +85,17 @@ GRAVES = {"queda", "agitacao", "objeto_perigoso",
 # e so de leitura. Vazio mostra tudo.
 TIPOS_PAINEL = {x.strip() for x in
                 os.environ.get("PAINEL_TIPOS", "queda").split(",") if x.strip()}
+
+# Foto do momento do alerta, so em evento GRAVE. Nao e vigilancia continua: e o
+# recorte de um instante que ja virou registro, para que a conferencia humana
+# que o alerta pede possa acontecer sem ninguem ter de correr ate a sala.
+FOTOS = os.environ.get("FOTOS", "1").strip().lower() not in ("0", "nao", "não", "false", "")
+# Depois disto a imagem se apaga sozinha. O registro do evento fica; a imagem
+# nao — ela e a parte que identifica uma pessoa, e nao precisa durar.
+FOTO_DIAS = float(os.environ.get("FOTO_DIAS", "7"))
+# Um recorte de 320px em JPEG da uns 20 KB. O teto existe para o endpoint nao
+# virar porta de entrada de arquivo grande.
+FOTO_MAX = 400_000
 
 
 def carregar_env() -> None:
@@ -189,6 +204,23 @@ def criar_tabelas() -> None:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_logs_tipo ON logs_seguranca_escola (tipo_evento)"
         )
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS fotos_evento (
+                   evento_id INTEGER PRIMARY KEY,
+                   momento {ts} DEFAULT CURRENT_TIMESTAMP,
+                   imagem TEXT NOT NULL)"""
+        )
+        # Quem olhou a imagem de quem, e quando. Sem login o servidor conhece a
+        # maquina, nao a pessoa — o registro diz de onde veio a consulta, e isso
+        # e o que ele pode honestamente afirmar.
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS acessos_foto (
+                   id {serial},
+                   momento {ts} DEFAULT CURRENT_TIMESTAMP,
+                   evento_id INTEGER NOT NULL,
+                   origem VARCHAR(60) NOT NULL,
+                   agente VARCHAR(200) NOT NULL)"""
+        )
 
 
 # ------------------------------------------------------------ cadeia --------
@@ -234,6 +266,11 @@ class Evento(BaseModel):
     aluno_id: str = Field(max_length=50)
     tipo_evento: str = Field(max_length=100)
     localizacao: str = Field(max_length=100)
+
+
+class Foto(BaseModel):
+    evento_id: int
+    imagem: str = Field(max_length=FOTO_MAX)
 
 
 class Celula(BaseModel):
@@ -433,11 +470,138 @@ def listar(limite: int = 50) -> list[dict]:
                 FROM logs_seguranca_escola {onde} ORDER BY id DESC LIMIT {m}""",
             (*vals, max(1, min(limite, 500))),
         )
+        linhas = cur.fetchall()
+        # Quais destes têm imagem guardada — o painel precisa saber para mostrar
+        # o botão só onde ele funciona.
+        ids = [r[0] for r in linhas]
+        com_foto: set[int] = set()
+        if ids:
+            cur.execute(
+                f"""SELECT evento_id FROM fotos_evento
+                    WHERE evento_id IN ({', '.join([m] * len(ids))})""",
+                tuple(ids),
+            )
+            com_foto = {r[0] for r in cur.fetchall()}
         return [
             {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
-             "tipo_evento": r[3], "localizacao": r[4], "hash_atual": r[5]}
-            for r in cur.fetchall()
+             "tipo_evento": r[3], "localizacao": r[4], "hash_atual": r[5],
+             "tem_foto": r[0] in com_foto}
+            for r in linhas
         ]
+
+
+def limpar_fotos() -> int:
+    """Apaga as imagens vencidas. A comparacao sai em Python porque TIMESTAMP no
+    Postgres e TEXT no SQLite nao se comparam com a mesma sintaxe, e uma consulta
+    que so roda num dos dois falharia justamente no fallback."""
+    if FOTO_DIAS <= 0:
+        return 0
+    corte = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=FOTO_DIAS)
+    with cursor(escrita=True) as (cur, m):
+        cur.execute("SELECT evento_id, momento FROM fotos_evento")
+        velhas = []
+        for eid, mom in cur.fetchall():
+            q = mom if not isinstance(mom, str) else _ler_momento(mom)
+            if q is None or q < corte:
+                velhas.append(eid)
+        for eid in velhas:
+            cur.execute(f"DELETE FROM fotos_evento WHERE evento_id = {m}", (eid,))
+    return len(velhas)
+
+
+@app.post("/api/foto")
+def guardar_foto(f: Foto) -> dict:
+    """A imagem do instante do alerta. So entra se o evento existir E for grave:
+    sem esta conferencia o endpoint viraria um album de qualquer quadro que
+    alguem quisesse mandar, que e exatamente o que este projeto nao faz."""
+    if not FOTOS:
+        raise HTTPException(403, "guarda de imagem desligada (FOTOS=0)")
+    if not f.imagem.startswith("data:image/jpeg;base64,"):
+        raise HTTPException(400, "só JPEG em data URL")
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(
+            f"SELECT tipo_evento FROM logs_seguranca_escola WHERE id = {m}",
+            (f.evento_id,),
+        )
+        linha = cur.fetchone()
+        if not linha:
+            raise HTTPException(404, "evento não existe")
+        if linha[0] not in GRAVES:
+            raise HTTPException(403, f"'{linha[0]}' não é evento grave")
+        cur.execute(f"DELETE FROM fotos_evento WHERE evento_id = {m}", (f.evento_id,))
+        cur.execute(
+            f"INSERT INTO fotos_evento (evento_id, momento, imagem) VALUES ({m}, {m}, {m})",
+            (f.evento_id, agora_iso(), f.imagem),
+        )
+    limpar_fotos()
+    return {"guardada": f.evento_id, "apaga_em_dias": FOTO_DIAS}
+
+
+@app.get("/api/foto/{evento_id}")
+def ler_foto(evento_id: int, req: Request) -> dict:
+    """Devolve a imagem E registra a consulta. Ver quem caiu e um ato que deixa
+    rastro: sem isso, 'acesso registrado' seria so uma frase bonita na tela."""
+    limpar_fotos()
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(f"SELECT imagem, momento FROM fotos_evento WHERE evento_id = {m}",
+                    (evento_id,))
+        linha = cur.fetchone()
+        if not linha:
+            raise HTTPException(404, "sem imagem para este evento (ou já venceu)")
+        cur.execute(
+            f"""INSERT INTO acessos_foto (momento, evento_id, origem, agente)
+                VALUES ({m}, {m}, {m}, {m})""",
+            (agora_iso(), evento_id,
+             (req.client.host if req.client else "?")[:60],
+             req.headers.get("user-agent", "?")[:200]),
+        )
+        cur.execute(f"SELECT COUNT(*) FROM acessos_foto WHERE evento_id = {m}",
+                    (evento_id,))
+        vistas = cur.fetchone()[0]
+    return {"evento_id": evento_id, "imagem": linha[0],
+            "momento": str(linha[1]), "consultas": vistas,
+            "apaga_em_dias": FOTO_DIAS}
+
+
+@app.get("/api/pessoas")
+def pessoas() -> dict:
+    """Quem foi reconhecido, quando pela ultima vez e ha quanto tempo sumiu.
+
+    So aparece aqui quem foi cadastrado na Portaria, de proprio punho. Nao ha
+    descoberta de gente nova: o painel conta o que ja foi consentido."""
+    with cursor() as (cur, m):
+        cur.execute(
+            f"""SELECT aluno_id, timestamp, localizacao FROM logs_seguranca_escola
+                WHERE tipo_evento = {m} ORDER BY id""",
+            ("reconhecido",),
+        )
+        linhas = cur.fetchall()
+
+    agora = datetime.now(timezone.utc).replace(tzinfo=None)
+    quem: dict[str, dict] = {}
+    for nome, ts, local in linhas:
+        # "corpo-3" e o anonimo que a Sala mandava antes de o nome vir junto.
+        # Nao e pessoa: e o numero de uma trilha que morreu no fim daquele dia.
+        if not nome or nome.startswith("corpo-"):
+            continue
+        momento = ts if not isinstance(ts, str) else _ler_momento(ts)
+        if momento is None:
+            continue
+        a = quem.setdefault(nome, {"nome": nome, "vezes": 0,
+                                   "ultima": None, "onde": None})
+        a["vezes"] += 1
+        if a["ultima"] is None or momento > a["ultima"]:
+            a["ultima"] = momento
+            a["onde"] = local
+
+    saida = []
+    for a in quem.values():
+        horas = (agora - a["ultima"]).total_seconds() / 3600
+        saida.append({"nome": a["nome"], "vezes": a["vezes"],
+                      "onde": a["onde"], "ultima": a["ultima"].isoformat(sep=" "),
+                      "horas": round(horas, 1), "dias": int(horas // 24)})
+    saida.sort(key=lambda x: x["horas"])
+    return {"pessoas": saida, "total": len(saida)}
 
 
 @app.post("/api/calor")

@@ -165,6 +165,10 @@ header .marca p{ margin:3px 0 0; color:var(--ink-2); font-size:13.5px; }
 .legenda{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; font-size:12px; color:var(--ink-2); }
 .legenda span{ display:inline-flex; align-items:center; gap:6px; }
 .legenda span[hidden]{ display:none; }
+/* display: flex vence o atributo hidden — sem esta regra o visor fechado
+   continua por cima da página inteira, invisível, comendo todo clique. */
+#visor{ display:flex; }
+#visor[hidden]{ display:none; }
 .legenda i{ width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
 .legenda i.linha{ height:3px; border-radius:2px; }
 
@@ -325,6 +329,25 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   </div>
 </div>
 
+<!-- ===================== pessoas ===================== -->
+<div class="cartao" style="margin-bottom:14px">
+  <div class="cartao-topo">
+    <h2>Pessoas</h2>
+    <span class="sub" id="t-pessoas">quem foi reconhecido e quando</span>
+    <div class="dir">
+      <input id="busca-pessoa" type="search" placeholder="buscar por nome"
+             aria-label="Buscar pessoa pelo nome"
+             style="font:inherit; font-size:13px; padding:6px 10px; border-radius:8px;
+                    border:1px solid var(--line); background:var(--card); color:inherit; width:190px">
+    </div>
+  </div>
+  <div class="corpo"><div class="rolagem"><div id="pessoas"></div></div>
+    <p class="nota" style="margin:10px 0 0">Só entra aqui quem se cadastrou na
+      Portaria, de próprio punho. O painel não descobre gente nova — ele conta o
+      que já foi consentido.</p>
+  </div>
+</div>
+
 <!-- ===================== últimos eventos ===================== -->
 <div class="cartao">
   <div class="cartao-topo">
@@ -332,6 +355,21 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
     <span class="sub">com o hash que fecha cada elo</span>
   </div>
   <div class="corpo"><div class="rolagem"><div id="tabela"></div></div></div>
+</div>
+
+<!-- visor da imagem do alerta -->
+<div id="visor" hidden style="position:fixed; inset:0; z-index:60; background:rgba(0,0,0,.62);
+     align-items:center; justify-content:center; padding:18px">
+  <div class="cartao" style="max-width:min(560px,94vw); margin:0">
+    <div class="cartao-topo">
+      <h2 id="visor-tit">Imagem do alerta</h2>
+      <div class="dir"><button class="btn" id="visor-fechar">Fechar</button></div>
+    </div>
+    <div class="corpo">
+      <img id="visor-img" alt="Recorte do instante do alerta" style="width:100%; border-radius:8px; display:block">
+      <p class="nota" id="visor-nota" style="margin:10px 0 0"></p>
+    </div>
+  </div>
 </div>
 
 <p class="rodape">
@@ -368,7 +406,8 @@ const ROTULO = {
 const nome = t => ROTULO[t] || String(t).replace(/_/g,' ');
 const num = n => Number(n).toLocaleString('pt-BR');
 
-let estado = { serie:null, painel:null, mapa:null, eventos:null, dias:30, tabela:false };
+let estado = { serie:null, painel:null, mapa:null, eventos:null, pessoas:null,
+               dias:30, tabela:false, busca:'' };
 
 /* ------------------------------------------------------------- desenho --- */
 const cria = (tag, attrs={}) => {
@@ -729,7 +768,7 @@ function pintarTabela(){
   if(!evs.length){ vazio(el('tabela'), 'Nenhum evento gravado ainda.'); return; }
   el('tabela').innerHTML =
     '<table><thead><tr><th>#</th><th>Quando</th><th>Tipo</th><th>Local</th>' +
-    '<th>Aluno</th><th>Hash</th></tr></thead><tbody>' +
+    '<th>Aluno</th><th>Hash</th><th>Imagem</th></tr></thead><tbody>' +
     evs.map(e => {
       const grave = GRAVES.has(e.tipo_evento);
       const q = new Date(e.timestamp.replace(' ','T') + 'Z');
@@ -742,9 +781,102 @@ function pintarTabela(){
           : '<span class="marca-comum">' + nome(e.tipo_evento) + '</span>') + '</td>' +
         '<td>' + e.localizacao + '</td>' +
         '<td class="hash">' + e.aluno_id + '</td>' +
-        '<td><span class="hash">' + e.hash_atual.slice(0,12) + '…</span></td></tr>';
+        '<td><span class="hash">' + e.hash_atual.slice(0,12) + '…</span></td>' +
+        /* O botão só aparece onde existe imagem: oferecer um que abre "não tem
+           nada aqui" é pior do que não oferecer nada. */
+        '<td>' + (e.tem_foto
+          ? '<button class="btn" data-foto="' + e.id + '">ver</button>'
+          : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
     }).join('') + '</tbody></table>';
 }
+
+/* ================================================== pessoas ============== */
+function pintarPessoas(){
+  const d = estado.pessoas; if(!d) return;
+  const cx = el('pessoas');
+  const busca = estado.busca.trim().toLowerCase();
+  const lista = busca
+    ? d.pessoas.filter(p => p.nome.toLowerCase().includes(busca))
+    : d.pessoas;
+
+  el('t-pessoas').textContent = d.total
+    ? d.total + (d.total === 1 ? ' pessoa reconhecida' : ' pessoas reconhecidas')
+    : 'quem foi reconhecido e quando';
+
+  if(!d.pessoas.length){
+    vazio(cx, 'Ninguém foi reconhecido ainda. O cadastro é feito na Portaria.');
+    return;
+  }
+  if(!lista.length){ vazio(cx, 'Nenhum nome com “' + estado.busca + '”.'); return; }
+
+  cx.innerHTML =
+    '<table><thead><tr><th>Nome</th><th>Última vez</th><th>Onde</th>' +
+    '<th>Há quanto tempo</th><th class="num">Registros</th></tr></thead><tbody>' +
+    lista.map(p => {
+      const q = new Date(p.ultima.replace(' ','T') + 'Z');
+      const quando = isNaN(q) ? p.ultima
+        : q.toLocaleString('pt-BR', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
+      /* Sumido há dias é o caso que importa — e é justamente o que some numa
+         lista longa se não tiver marca própria. */
+      const sumido = p.dias >= 3;
+      return '<tr><td><b>' + esc(p.nome) + '</b></td>' +
+        '<td>' + quando + '</td>' +
+        '<td>' + esc(p.onde || '—') + '</td>' +
+        '<td>' + (sumido
+          ? '<span class="marca-grave">▲ ' + desdeHoras(p.horas) + '</span>'
+          : desdeHoras(p.horas)) + '</td>' +
+        '<td class="num">' + num(p.vezes) + '</td></tr>';
+    }).join('') + '</tbody></table>';
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"]/g, c =>
+    ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+function desdeHoras(h){
+  if(h < 1) return 'há ' + Math.max(1, Math.round(h * 60)) + ' min';
+  if(h < 24) return 'há ' + Math.round(h) + ' h';
+  const d = Math.round(h / 24);
+  return 'há ' + d + (d === 1 ? ' dia' : ' dias');
+}
+
+/* ================================================== visor da imagem ====== */
+async function abrirFoto(id){
+  const v = el('visor');
+  el('visor-tit').textContent = 'Imagem do evento #' + id;
+  el('visor-img').removeAttribute('src');
+  el('visor-nota').textContent = 'abrindo…';
+  v.hidden = false;
+  try{
+    const d = await pegar('/api/foto/' + id);
+    el('visor-img').src = d.imagem;
+    /* Dizer em voz alta o que acabou de acontecer: esta consulta virou linha no
+       banco. É a contrapartida de a imagem existir. */
+    el('visor-nota').textContent =
+      'Recorte do instante do alerta, guardado para conferência humana. ' +
+      'Apaga-se sozinho em ' + d.apaga_em_dias + ' dias. ' +
+      'Esta consulta ficou registrada — é a ' + d.consultas + 'ª desta imagem.';
+  }catch(err){
+    el('visor-nota').textContent = 'Sem imagem para este evento (ou o prazo já venceu).';
+  }
+}
+
+el('visor-fechar').addEventListener('click', () => { el('visor').hidden = true; });
+el('visor').addEventListener('click', e => {
+  if(e.target === el('visor')) el('visor').hidden = true;
+});
+addEventListener('keydown', e => { if(e.key === 'Escape') el('visor').hidden = true; });
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-foto]');
+  if(b) abrirFoto(+b.dataset.foto);
+});
+
+el('busca-pessoa').addEventListener('input', e => {
+  estado.busca = e.target.value;
+  pintarPessoas();
+});
 
 /* ================================================== cabeçalho ============ */
 function pintarTopo(){
@@ -811,13 +943,14 @@ async function pegar(url){
 
 async function carregar(){
   try{
-    const [serie, painel, mapa, eventos] = await Promise.all([
+    const [serie, painel, mapa, eventos, pessoas] = await Promise.all([
       pegar('/api/serie?dias=' + estado.dias),
       pegar('/api/painel'),
       pegar('/api/mapa'),
       pegar('/api/eventos?limite=25'),
+      pegar('/api/pessoas'),
     ]);
-    Object.assign(estado, {serie, painel, mapa, eventos});
+    Object.assign(estado, {serie, painel, mapa, eventos, pessoas});
     pintarTudo();
   }catch(e){
     /* A página é servida pelo servidor.py. Aberta como arquivo solto ela não
@@ -834,7 +967,7 @@ async function carregar(){
 
 function pintarTudo(){
   pintarTopo(); pintarSerie(); pintarHora();
-  pintarTipo(); pintarLocal(); pintarMapa(); pintarTabela();
+  pintarTipo(); pintarLocal(); pintarMapa(); pintarTabela(); pintarPessoas();
 }
 
 /* Redesenha no tamanho real em vez de esticar o SVG: texto esticado fica
