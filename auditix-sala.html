@@ -629,6 +629,9 @@ async function ligar(){
   }finally{ b.disabled = false; b.textContent = 'Abrir a sala'; }
 }
 
+/* PARADO: medido, não arbitrado. treino/parado.py roda a conta nos clipes de
+   pessoas reais do dataset e imprime quanto cada corte custaria. */
+
 /* --------------------------- fonte de vídeo ---------------------------
    A webcam serve para demonstrar; numa sala de verdade a câmera fica no alto,
    no canto, e é uma câmera IP. Navegador nenhum abre RTSP — quem traduz é o
@@ -754,6 +757,20 @@ const P = { NARIZ:0, OMBRO_E:11, OMBRO_D:12, COTOV_E:13, COTOV_D:14,
 
 const VIS_MIN = 0.40;      // abaixo disso o ponto é chute do modelo, não medida
 const HIST_MS = 2500;      // memória de movimento de cada pessoa
+/* PESSOA NENHUMA FICA IMÓVEL. Um casaco na cadeira tem ombros, tronco e a
+   silhueta certa — o detector de pose aceita, e como ele nunca se mexe, nenhuma
+   das defesas de tempo pega: ele só fica ali, contando como gente e podendo
+   virar alerta de queda.
+
+   Medido nos clipes de pessoas reais do dataset: numa janela de 5 segundos, a
+   pessoa MAIS parada de todas ainda desloca o quadril 0,008 alturas de corpo.
+   Um corte em 0,005 não descartou uma única pessoa real em 530 janelas.
+
+   Quem não passa disso não é apagado — é marcado como objeto: sai da contagem
+   e não gera alerta, mas continua desenhado, e volta a ser gente no instante em
+   que se mexer. */
+const PARADO_JANELA = 5000;   // ms de observação antes de decidir
+const PARADO_MIN = 0.005;     // alturas de corpo de amplitude no período
 
 /* Queda. Tronco deitado não basta: quem se abaixa para pegar a borracha também
    deita o tronco. O que separa é o quadril despencar E a pessoa continuar lá. */
@@ -1258,6 +1275,9 @@ function porqueQueda(t){
 
 function registrarAnomalia(tipo, t, texto, porque){
   if(!t.firme) return;   // trilha provisória não acusa nada
+  /* Objeto parado não cai, não corre e não se agita. E um casaco na cadeira com
+     pose de deitado seria alerta de queda permanente. */
+  if(t.parado) return;
   if(performance.now() - t.nasceu < ANOM_IDADE) return;
   const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
   if(ja){ ja.visto = Date.now(); return; }
@@ -1330,6 +1350,24 @@ function analisar(t, lm, agora){
   t.hist.push({ t:agora, qx:q.x, qy:q.y, ang, altura, eixo, ombro, prop:cx,
                 px:{ x:lm[P.PULSO_E].x, y:lm[P.PULSO_E].y },
                 pd:{ x:lm[P.PULSO_D].x, y:lm[P.PULSO_D].y } });
+  /* Uma amostra a cada 250ms: a janela longa não cabe em t.hist, e guardar
+     todo quadro por 5s só para medir amplitude seria desperdício. */
+  t.lento = t.lento || [];
+  if(!t.lento.length || agora - t.lento[t.lento.length - 1].t > 250)
+    t.lento.push({ t:agora, x:q.x, y:q.y, a:altura });
+  t.lento = t.lento.filter(h => agora - h.t < PARADO_JANELA);
+  const velho = t.lento[0];
+  if(velho && agora - velho.t >= PARADO_JANELA * 0.8 && t.lento.length >= 8){
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, alt = 0;
+    for(const h of t.lento){
+      x0 = Math.min(x0, h.x); x1 = Math.max(x1, h.x);
+      y0 = Math.min(y0, h.y); y1 = Math.max(y1, h.y); alt = Math.max(alt, h.a);
+    }
+    t.amplitude = alt > 1e-6
+      ? Math.hypot((x1 - x0) * aspecto, y1 - y0) / alt : 0;
+    t.parado = t.amplitude < PARADO_MIN;
+  }
+
   guardarQuadro(t, t.hist[t.hist.length - 1]);
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
   t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang;
@@ -1906,6 +1944,7 @@ function resumir(){
   presentes = []; naoIdent = [];
   trilhas.forEach(t => {
     if(!t.firme) return;          // provisória não conta como pessoa na sala
+    if(t.parado && !t.nome) return;   // imóvel há 5s e sem rosto: é objeto
     const r = rotuloDe(t, agora);
     if(t.nome) presentes.push({ id:t.id, nome:t.nome, turma:t.turma,
                                 firme:r.ok && !t.porAssinatura,
@@ -1945,11 +1984,16 @@ function desenhar(){
   x.font = '500 ' + alt + 'px system-ui';
   trilhas.forEach(t => {
     if(!t.firme) return;
-    const r = rotuloDe(t, agora), cor = r.ok ? '#3E9E8B' : '#DFA94E';
+    const r = rotuloDe(t, agora);
+    /* O objeto parado continua desenhado, em cinza: esconder seria fingir que a
+       imagem não tem nada ali, e quem está olhando precisa poder discordar. */
+    const objeto = t.parado && !t.nome;
+    const cor = objeto ? '#7A7A7A' : r.ok ? '#3E9E8B' : '#DFA94E';
     x.strokeStyle = cor; x.lineWidth = Math.max(2, v.videoWidth/380);
     x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
 
-    const rot = '#' + t.id + '  ' + r.txt + '  ' + idadeTxt(r.s);
+    const rot = objeto ? 'parado há 5s — tratado como objeto'
+                       : '#' + t.id + '  ' + r.txt + '  ' + idadeTxt(r.s);
     const topo = Math.max(0, t.box.y - alt*1.7);
     x.fillStyle = cor;
     x.fillRect(t.box.x, topo, x.measureText(rot).width + 16, alt*1.6);
