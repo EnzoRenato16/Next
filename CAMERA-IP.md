@@ -107,6 +107,22 @@ abaixo do botão, e escreva:
 Clique em **Abrir a sala**. A escolha fica salva no navegador; para voltar à
 webcam, é só apagar o campo.
 
+## A linha do chão
+
+Com a câmera fixa, o chão fica sempre na mesma altura da imagem. O botão
+**Linha do chão** deixa marcar essa altura com um clique na própria imagem, e a
+partir dali **cabeça abaixo da linha é queda** — direto, sem depender do ângulo
+do tronco, da forma da caixa nem de quanto a pessoa encolheu.
+
+É o sinal mais confiável que existe para uma câmera parada, e o mais limitado:
+vale só para **esta** câmera, nesta posição. Mexeu nela, marque de novo. Por
+isso não vem ligada e não substitui o resto — soma.
+
+Onde marcar: na altura em que a cabeça de alguém **deitado no chão** estaria.
+Na prática, um pouco acima do chão visível no fundo da imagem. A linha aparece
+tracejada na tela, e a faixa mostra a altura da cabeça ao lado da altura da
+linha, para conferir sem adivinhar.
+
 ## Quando não funciona
 
 | A tela diz | O que é |

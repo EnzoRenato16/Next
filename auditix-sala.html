@@ -252,6 +252,8 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
       <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
       <button class="btn" id="btn-exemplo">Ver com exemplo</button>
+      <button class="btn" id="btn-linha"
+        title="Marca a altura do chão na imagem. Cabeça abaixo dela é queda.">Linha do chão</button>
       <button class="btn" id="btn-demo" aria-pressed="false"
         title="Regras mais permissivas: pega mais quedas e alerta mais vezes.">Alta sensibilidade</button>
       <select id="rotulo" class="btn" disabled title="o que vai acontecer na frente da câmera">
@@ -850,7 +852,21 @@ const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas
    e o sistema não tem como saber que ali tinha uma cadeira. Por isso o corte
    folgado fica na alta sensibilidade. */
 const QUEDA_BAIXO = 0.40;
-const DEMO_BAIXO = 0.55;   // tronco encolheu para menos disto do tamanho de antes
+const DEMO_BAIXO = 0.55;
+
+/* A LINHA DO CHÃO. Com a câmera fixa, o chão fica sempre na mesma altura da
+   imagem — então "a cabeça passou desta linha" é uma afirmação direta sobre a
+   sala, não uma inferência sobre a pose. Ela não se importa se o tronco está
+   reto, se a caixa deitou ou de que ângulo a câmera olha: as três coisas que
+   falharam aqui.
+
+   O preço, e é grande: vale para ESTA câmera, nesta posição. Mexeu na câmera,
+   marca de novo. Por isso ela não vem ligada e não substitui o resto — soma. */
+const LINHA_SEG = 400;        // ms com a cabeça abaixo antes de acusar
+let linhaChao = null;         // 0 a 1 da altura do quadro, ou null
+let marcandoLinha = false;
+try{ const g = localStorage.getItem('auditix.linha');
+     if(g) linhaChao = parseFloat(g); }catch(e){}   // tronco encolheu para menos disto do tamanho de antes
 
 /* O quadro não é quadrado, e isso muda as contas.
 
@@ -1266,6 +1282,7 @@ const ANOM_IDADE = 2000;
    regra geométrica — e com que folga. Sem isto, a alternativa é adivinhar
    mexendo em limiar, que é como se acerta um caso e se quebra dois. */
 function porqueQueda(t){
+  if(t.porLinha) return 'cabeça abaixo da linha do chão';
   return (t.porRede ? 'rede ' + (t.notaArmou || 0).toFixed(2) + ' (limiar ' +
                       QUEDA_LIMIAR.toFixed(2) + ')'
                     : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
@@ -1451,10 +1468,16 @@ function analisar(t, lm, agora){
   /* Fora do mundo do modelo, a nota dele não vale — e a geometria, que não
      aprendeu nada e só mede, continua valendo. */
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
-  const geo = demo
+  /* A cabeça: o nariz quando aparece, senão o meio dos ombros. Nunca o quadril —
+     sentado numa cadeira o quadril já está baixo, e a cabeça não. */
+  const cabeca = vis(lm[P.NARIZ]) >= VIS_MIN ? lm[P.NARIZ].y : o.y;
+  t.cabecaY = cabeca;
+  const abaixoDaLinha = linhaChao != null && cabeca > linhaChao;
+
+  const geo = abaixoDaLinha || (demo
     ? (ang > DEMO_ANG || cx > DEMO_PROP || baixo < DEMO_BAIXO)
     : ((ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO || cx > QUEDA_PROP) && caiu)
-      || cx > QUEDA_PROP_SO || baixo < QUEDA_BAIXO;
+      || cx > QUEDA_PROP_SO || baixo < QUEDA_BAIXO);
   const rede = !demo && t.notaQueda >= QUEDA_LIMIAR;
 
   if((geo || rede) && !t.quedaDesde){
@@ -1468,6 +1491,7 @@ function analisar(t, lm, agora){
     t.foraQueda = t.foraDoTreino;
     t.propQueda = cx;
     t.baixoQueda = baixo;
+    t.porLinha = abaixoDaLinha;
     /* A nota também congela aqui. Ela era lida no momento do ALERTA, 1,2s
        depois, quando já tinha caído — e o alerta saía dizendo "rede 0.08
        (limiar 0.50)", um número que sozinho parecia impossível. */
@@ -1475,12 +1499,13 @@ function analisar(t, lm, agora){
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
-  const noChao = t.quedaDesde && (demo
+  const noChao = t.quedaDesde && (abaixoDaLinha || demo
     ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8 || baixo < DEMO_BAIXO * 1.2)
     : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || cx > QUEDA_PROP ||
        baixo < QUEDA_BAIXO * 1.2 || t.notaQueda >= QUEDA_LIMIAR));
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
-  if(t.quedaDesde && agora - t.quedaDesde > (demo ? DEMO_SEG : QUEDA_SEG))
+  const prazo = abaixoDaLinha ? LINHA_SEG : demo ? DEMO_SEG : QUEDA_SEG;
+  if(t.quedaDesde && agora - t.quedaDesde > prazo)
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
       (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
       porqueQueda(t));
@@ -1920,6 +1945,9 @@ function resumir(){
     'queda ' + (alvo.notaQueda || 0).toFixed(2),
     'caixa ' + (alvo.prop || 0).toFixed(1),
     'altura ' + Math.round((alvo.baixo != null ? alvo.baixo : 1) * 100) + '%',
+    linhaChao != null && alvo.cabecaY != null
+      ? 'cabeça ' + Math.round(alvo.cabecaY * 100) + '% / linha ' +
+        Math.round(linhaChao * 100) + '%' : null,
     alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
     alvo.parado ? 'parado (objeto)' : null,
   ].filter(Boolean).join(' · ') : '';
@@ -1939,6 +1967,23 @@ function desenhar(){
   x.clearRect(0, 0, x.canvas.width, x.canvas.height);
   const alt = Math.max(13, v.videoWidth/44);
   x.font = '500 ' + alt + 'px system-ui';
+
+  /* A linha do chão, desenhada. Uma regra invisível que decide alerta é uma
+     regra que ninguém consegue conferir nem corrigir. */
+  if(linhaChao != null || marcandoLinha){
+    const y = (linhaChao != null ? linhaChao : 0.75) * x.canvas.height;
+    x.save();
+    x.strokeStyle = marcandoLinha ? '#E06C5A' : 'rgba(224,108,90,.55)';
+    x.lineWidth = Math.max(2, v.videoWidth/420);
+    x.setLineDash([x.canvas.width/60, x.canvas.width/90]);
+    x.beginPath(); x.moveTo(0, y); x.lineTo(x.canvas.width, y); x.stroke();
+    x.setLineDash([]);
+    x.fillStyle = marcandoLinha ? '#E06C5A' : 'rgba(224,108,90,.75)';
+    x.fillText(marcandoLinha ? 'clique na altura do chão' : 'linha do chão',
+               x.canvas.width/70, y - alt/2);
+    x.restore();
+  }
+
   trilhas.forEach(t => {
     if(!t.firme) return;
     const r = rotuloDe(t, agora);
@@ -2206,6 +2251,33 @@ el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
 el('btn-fonte').addEventListener('click', e => { e.preventDefault(); trocarFonte(); });
 el('btn-gravar').addEventListener('click', alternarGravacao);
+if(linhaChao != null) el('btn-linha').textContent = 'Tirar a linha';
+el('btn-linha').addEventListener('click', () => {
+  if(linhaChao != null && !marcandoLinha){
+    linhaChao = null;
+    try{ localStorage.removeItem('auditix.linha'); }catch(e){}
+    el('btn-linha').textContent = 'Linha do chão';
+    dizer('linha do chão removida', 4000);
+    return;
+  }
+  marcandoLinha = !marcandoLinha;
+  el('btn-linha').textContent = marcandoLinha ? 'Cancelar' : 'Linha do chão';
+  if(marcandoLinha) dizer('clique na imagem, na altura do chão', 20000);
+});
+
+/* Marcar clicando na própria imagem: a altura do chão é uma coisa que se vê,
+   não um número que se digita. */
+el('over').addEventListener('click', e => {
+  if(!marcandoLinha) return;
+  const r = el('over').getBoundingClientRect();
+  linhaChao = Math.min(0.98, Math.max(0.05, (e.clientY - r.top) / r.height));
+  try{ localStorage.setItem('auditix.linha', String(linhaChao)); }catch(err){}
+  marcandoLinha = false;
+  el('btn-linha').textContent = 'Tirar a linha';
+  dizer('linha do chão marcada a ' + Math.round(linhaChao * 100) + '% da altura', 6000);
+  anotar('', 'Linha do chão marcada a ' + Math.round(linhaChao * 100) + '% da altura do quadro.');
+});
+
 el('btn-demo').addEventListener('click', () => {
   demo = !demo;
   el('btn-demo').setAttribute('aria-pressed', demo ? 'true' : 'false');
