@@ -36,6 +36,7 @@ def ler_amostras():
     if not os.path.exists(AMOSTRAS):
         return []
     fora = []
+    descartados = [0]
     for linha in open(AMOSTRAS, encoding="utf-8"):
         linha = linha.strip()
         if not linha:
@@ -45,6 +46,16 @@ def ler_amostras():
         porcorpo = {}
         for q in d["quadros"]:
             porcorpo.setdefault(q["corpo"], []).append(q)
+        # UM rotulo positivo vale para UMA pessoa. Se havia mais gente na sala
+        # durante a gravacao de uma queda, cada corpo virava um clipe rotulado
+        # "queda" — inclusive quem estava sentado do outro lado. Isso ensina
+        # coisa errada E estraga a medicao, porque o rotulo do teste tambem fica
+        # errado. Num rotulo negativo o problema nao existe: ninguem ali caiu,
+        # entao todos os corpos sao exemplos validos de "nao e queda".
+        if d["rotulo"] in QUEDA and len(porcorpo) > 1:
+            principal = max(porcorpo, key=lambda c: len(porcorpo[c]))
+            descartados[0] += len(porcorpo) - 1
+            porcorpo = {principal: porcorpo[principal]}
         for corpo, qs in porcorpo.items():
             qs.sort(key=lambda q: q["t"])
             if len(qs) < E.JANELA // 2:
@@ -73,6 +84,9 @@ def ler_amostras():
             w = [x for x in w if x is not None and np.isfinite(x).all()]
             if w:
                 fora.append((d["rotulo"], f'{d["sessao"]}-{corpo}', np.array(w, np.float32)))
+    if descartados[0]:
+        print(f"{descartados[0]} corpo(s) acompanhante(s) descartado(s) de gravacoes de "
+              f"queda: o rotulo vale para quem caiu, nao para quem estava junto.\n")
     return fora
 
 
