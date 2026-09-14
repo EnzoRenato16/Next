@@ -369,20 +369,20 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       <article class="camada">
         <span class="ord">falha 1</span>
         <h3>Ninguém olha ao vivo</h3>
-        <p>Uma pessoa não acompanha dezenas de câmeras. O vídeo só é aberto
-          <em>depois</em> que alguém reclama, quando o socorro já não é socorro.</p>
+        <p>O vídeo só é aberto <em>depois</em> que alguém reclama. Aí o socorro
+          já não é socorro.</p>
       </article>
       <article class="camada">
         <span class="ord">falha 2</span>
         <h3>O registro é frágil</h3>
-        <p>Arquivo de vídeo se apaga, se corta, se sobrescreve. Numa disputa entre
-          a escola e a família, ele vale o quanto a confiança nele permitir.</p>
+        <p>Vídeo se apaga, se corta, se sobrescreve. Numa disputa, ele vale o quanto
+          a confiança nele permitir.</p>
       </article>
       <article class="camada">
         <span class="ord">falha 3</span>
         <h3>Vigiar é caro e invasivo</h3>
-        <p>A saída comum é gravar mais e guardar mais, de todos, o tempo todo.
-          Mais risco para o aluno, sem nenhuma resposta a mais.</p>
+        <p>A saída comum é gravar mais, de todos, o tempo todo. Mais risco para o
+          aluno, nenhuma resposta a mais.</p>
       </article>
     </div>
 
@@ -394,8 +394,8 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s3">
     <p class="olho reveal">Não é maquete, está rodando</p>
     <h2 class="reveal">O que já funciona hoje</h2>
-    <p class="sub reveal det">Números medidos nos 4.509 clipes do Fall Vision
-      (Harvard Dataverse, CC0), 2.680 deles com queda. Nada aqui é estimativa.</p>
+    <p class="sub reveal det">Medido nos 4.509 clipes do Fall Vision
+      (Harvard Dataverse, CC0). Nada aqui é estimativa.</p>
 
     <div class="grade g4 reveal">
       <div class="num forte">
@@ -418,16 +418,16 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
 
     <dl class="pares reveal">
       <div class="par"><dt>Sala auditada</dt>
-        <dd>Pose de até 6 pessoas, reconhecimento por rosto e por assinatura de corpo,
-          linha do chão calibrável e <b>um alerta por queda</b>, não dezenove.</dd></div>
+        <dd>Pose de até 6 pessoas, linha do chão calibrável, e <b>um alerta por
+          queda</b>, não dezenove.</dd></div>
       <div class="par"><dt>Câmera IP</dt>
-        <dd>RTSP → ponte local → WebRTC no navegador. <b>Atraso de fração de segundo</b>,
-          e a imagem não sai da rede da escola.</dd></div>
+        <dd>RTSP → ponte local → WebRTC. <b>Fração de segundo</b> de atraso, e a
+          imagem não sai da escola.</dd></div>
       <div class="par"><dt>Painel</dt>
-        <dd>Cadeia de integridade, série por dia, mapa de ocupação e <b>quem não aparece há dias</b>.</dd></div>
+        <dd>Integridade da cadeia, série por dia, mapa de ocupação e <b>quem sumiu</b>.</dd></div>
       <div class="par"><dt>Aviso</dt>
-        <dd>E-mail em segundos por função na AWS, com espera mínima entre avisos
-          para a caixa de entrada <b>continuar sendo lida</b>.</dd></div>
+        <dd>E-mail em segundos, com espera mínima entre avisos para a caixa
+          <b>continuar sendo lida</b>.</dd></div>
     </dl>
   </section>
 
@@ -435,36 +435,34 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s4">
     <p class="olho reveal">Por dentro</p>
     <h2 class="reveal">Quatro camadas, e nenhuma<br>delas confia sozinha.</h2>
-    <p class="sub reveal det">Cada uma erra de um jeito diferente. É por isso que são quatro,
-      e é por isso que cada corte abaixo foi medido, não escolhido no olho.</p>
+    <p class="sub reveal det">Cada uma erra de um jeito diferente. Por isso são quatro,
+      e por isso cada corte foi medido, não escolhido no olho.</p>
 
     <div class="grade g4 reveal">
       <article class="camada">
         <span class="ord">camada 1 · pose</span>
         <h3>33 pontos do corpo</h3>
-        <p>Ombro, quadril, joelho. A imagem vira geometria e a pessoa deixa de ser
-          pixel antes de qualquer decisão.</p>
+        <p>Ombro, quadril, joelho. A imagem vira geometria antes de qualquer decisão.</p>
         <p class="medida">nenhum quadro é guardado nesta etapa</p>
       </article>
       <article class="camada">
         <span class="ord">camada 2 · regras</span>
         <h3>Tronco, altura, proporção</h3>
-        <p>Caixa mais larga que alta, corpo abaixo da própria altura, tronco fora da
-          vertical. Regras simples com corte calibrado.</p>
+        <p>Caixa mais larga que alta, corpo abaixo da própria altura, tronco fora
+          da vertical.</p>
         <p class="medida">caixa &gt; 1,2 → 89% das quedas, 10% de falso</p>
       </article>
       <article class="camada">
         <span class="ord">camada 3 · rede</span>
         <h3>Uma rede pequena</h3>
-        <p>12 atributos, 113 pesos. Quando a cena foge do que ela viu no treino,
-          ela <em>se cala</em> em vez de chutar.</p>
+        <p>12 atributos, 113 pesos. Fora do que viu no treino, ela <em>se cala</em>
+          em vez de chutar.</p>
         <p class="medida">o freio de segurança custa 0,2 ponto de revocação</p>
       </article>
       <article class="camada">
         <span class="ord">camada 4 · chão</span>
         <h3>A linha do chão</h3>
-        <p>Com a câmera fixa, cabeça abaixo da linha é queda. Direto, sem depender
-          de ângulo nem de quanto a pessoa encolheu.</p>
+        <p>Com a câmera fixa, cabeça abaixo da linha é queda. Sem depender de mais nada.</p>
         <p class="medida">vale por câmera; mexeu nela, marca de novo</p>
       </article>
     </div>
@@ -479,20 +477,20 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s5">
     <p class="olho reveal">A parte que ninguém copia</p>
     <h2 class="reveal">Cada evento fecha o anterior.</h2>
-    <p class="sub reveal det">O registro guarda o resumo da linha anterior junto com a sua.
-      Alterar uma linha antiga não muda só ela: <strong>quebra a corrente dali para a
-      frente</strong>, e o painel acende. <em>Clique num elo para tentar adulterar.</em></p>
+    <p class="sub reveal det">Cada linha guarda o resumo da anterior. Adulterar uma antiga
+      <strong>quebra a corrente dali para a frente</strong>.
+      <em>Clique num elo para tentar.</em></p>
 
     <div class="cadeia reveal" id="cadeia"></div>
     <p class="cadeia-nota reveal" id="cadeia-nota">corrente íntegra · 5 elos recalculados desde a gênese</p>
 
     <dl class="pares reveal">
       <div class="par"><dt>Onde fica</dt>
-        <dd>PostgreSQL na nuvem. Se ele não responder, o sistema <b>cai sozinho para o banco
-          local e avisa na tela</b>. A demonstração não morre por causa da internet.</dd></div>
+        <dd>PostgreSQL na nuvem. Se ele cair, o sistema <b>vai para o banco local e avisa
+          na tela</b>.</dd></div>
       <div class="par"><dt>Para que serve</dt>
-        <dd>Numa disputa, a escola não pede confiança: ela <b>mostra a conta</b>. E se alguém
-          de dentro mexer, a própria conta denuncia.</dd></div>
+        <dd>A escola não pede confiança: ela <b>mostra a conta</b>. Se alguém de dentro
+          mexer, a conta denuncia.</dd></div>
     </dl>
   </section>
 
@@ -500,28 +498,24 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s6">
     <p class="olho reveal">Privacidade por construção</p>
     <h2 class="reveal">A imagem só existe<br>quando alguém precisa julgar.</h2>
-    <p class="sub reveal det">Enquanto nada acontece, nada é gravado. Em alerta grave, um quadro
-      é guardado para a conferência humana, e ele já nasce limitado.</p>
+    <p class="sub reveal det">Enquanto nada acontece, nada é gravado. Em alerta grave, o
+      quadro é guardado já limitado.</p>
 
     <dl class="pares reveal">
       <div class="par"><dt>Rosto apagado</dt>
-        <dd>Mosaico de 4 blocos sobre a cabeça de <b>todas</b> as pessoas do quadro, feito no
-          navegador antes de sair. A postura, que é o que se vai conferir, fica à vista.</dd></div>
+        <dd>Mosaico sobre a cabeça de <b>todas</b> as pessoas, feito antes de a imagem sair.
+          A postura, que é o que se confere, fica à vista.</dd></div>
       <div class="par"><dt>Falha fechado</dt>
-        <dd>Se o sistema não conseguir localizar ninguém para apagar, <b>a imagem não é
-          enviada</b>. Perder o registro visual é melhor do que quebrar a promessa.</dd></div>
+        <dd>Se não conseguir localizar ninguém para apagar, <b>a imagem não é enviada</b>.</dd></div>
       <div class="par"><dt>Prazo curto</dt>
-        <dd>A imagem <b>se apaga sozinha</b> em 7 dias. O evento e o hash ficam: o que
-          identifica uma pessoa é a imagem, e ela não precisa durar.</dd></div>
+        <dd>A imagem <b>se apaga sozinha</b> em 7 dias. O evento e o hash ficam.</dd></div>
       <div class="par"><dt>Acesso registrado</dt>
-        <dd>Abrir a imagem <b>vira linha no banco</b>. Ver quem caiu é um ato, e atos deixam
-          rastro, inclusive os de quem administra.</dd></div>
+        <dd>Abrir a imagem <b>vira linha no banco</b>, inclusive para quem administra.</dd></div>
       <div class="par"><dt>Biometria com prazo</dt>
-        <dd>O cadastro do rosto é feito com consentimento e <b>vence sozinho</b>: 365 dias, ou
-          90 sem a pessoa aparecer. Biometria de menor não fica guardada para sempre.</dd></div>
+        <dd>Com consentimento, e <b>vence sozinho</b>: 365 dias, ou 90 sem a pessoa aparecer.</dd></div>
       <div class="par"><dt>Mapa sem nome</dt>
-        <dd>O mapa de ocupação conta <b>passagens por célula, não pessoas</b>. Dá para ver onde
-          a sala engarrafa sem saber quem passou por ali.</dd></div>
+        <dd>Conta <b>passagens por célula, não pessoas</b>. Dá para ver onde a sala engarrafa
+          sem saber quem passou.</dd></div>
     </dl>
   </section>
 
@@ -534,30 +528,26 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       <article class="camada">
         <span class="ord">na sala</span>
         <h3>A queda vira evento</h3>
-        <p>O alerta aparece na tela e o evento entra na corrente de integridade
-          <em>antes</em> de qualquer tentativa de avisar alguém.</p>
+        <p>O evento entra na corrente <em>antes</em> de qualquer tentativa de avisar alguém.</p>
         <p class="medida">o registro nunca depende da nuvem estar de pé</p>
       </article>
       <article class="camada">
         <span class="ord">na nuvem</span>
         <h3>Uma função envia</h3>
-        <p>A máquina da escola não guarda senha de e-mail nenhuma. Quem envia é uma
-          função na AWS, com credencial que não existe como arquivo.</p>
+        <p>A escola não guarda senha de e-mail nenhuma. A credencial não existe como arquivo.</p>
         <p class="medida">segredo compartilhado barra quem descobrir a URL</p>
       </article>
       <article class="camada">
         <span class="ord">na coordenação</span>
         <h3>Um e-mail que se lê</h3>
-        <p>Diz o que houve, onde, quando, e que é um <em>pedido de conferência</em>, não
-          uma acusação. Com espera mínima entre avisos.</p>
+        <p>O que houve, onde, quando, e que é um <em>pedido de conferência</em>.</p>
         <p class="medida">um aviso a cada poucos segundos é um aviso que ninguém lê</p>
       </article>
     </div>
 
-    <p class="sub reveal det" style="margin-top:2rem">O caminho inteiro tem teste automático,
-      incluindo a parte que custa caro quando falha: <strong>e-mail sem segredo</strong>, que
-      deixaria qualquer um gastar a conta da escola, e <strong>e-mail em rajada</strong>, que faz
-      todo mundo parar de ler os alertas.</p>
+    <p class="sub reveal det" style="margin-top:2rem">O caminho tem teste automático, inclusive
+      o que custa caro quando falha: <strong>e-mail sem segredo</strong> e
+      <strong>e-mail em rajada</strong>.</p>
   </section>
 
   <!-- ====================================================== 8. o painel -->
@@ -578,26 +568,24 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       <div>
         <h3>Onde a sala para</h3>
         <p class="sub det" style="font-size:1rem; margin-top:.6rem">Cada célula conta
-          <em>passagens</em>, nunca uma pessoa. A cor não sai do pico: sai do
-          <strong>percentil 95</strong> da vizinhança, porque um canto isolado não pode
-          reescalar a sala inteira e deixar todo o resto do mesmo tom.</p>
+          <em>passagens</em>, nunca uma pessoa. A cor sai do <strong>percentil 95</strong>
+          da vizinhança: um canto isolado não reescala a sala inteira.</p>
         <p class="nota" style="margin-top:1rem">célula sozinha é ruído · região é informação</p>
       </div>
     </div>
 
     <dl class="pares reveal">
       <div class="par"><dt>“Aconteceu alguma coisa?”</dt>
-        <dd>Último evento, há quanto tempo, em que sala, e a corrente de integridade
-          em uma palavra: <b>íntegra</b> ou <b>quebrada</b>.</dd></div>
+        <dd>Último evento, onde, há quanto tempo. E a corrente em uma palavra:
+          <b>íntegra</b> ou <b>quebrada</b>.</dd></div>
       <div class="par"><dt>“Onde a sala aperta?”</dt>
-        <dd>Mapa de ocupação suavizado por vizinhança, com a escala cortada no percentil 95
-          e um anel em <b>onde mais pararam</b>. Célula sozinha é ruído; região é informação.</dd></div>
+        <dd>Mapa suavizado por vizinhança, com um anel em <b>onde mais pararam</b>.</dd></div>
       <div class="par"><dt>“Fulano sumiu?”</dt>
-        <dd>Quem foi reconhecido, quando, onde, e <b>há quantos dias não aparece</b>,
-          entre apenas quem se cadastrou de próprio punho na portaria.</dd></div>
+        <dd>Quem foi reconhecido e <b>há quantos dias não aparece</b>, entre quem se
+          cadastrou na portaria.</dd></div>
       <div class="par"><dt>“Posso confiar nisto?”</dt>
-        <dd>A conferência recalcula a corrente <b>desde a gênese</b>, linha por linha, contra
-          o hash recalculado, não contra o que está gravado.</dd></div>
+        <dd>A conferência recalcula a corrente <b>desde a gênese</b>, contra o hash
+          recalculado e não contra o que está gravado.</dd></div>
     </dl>
 
     <p class="nota reveal" style="margin-top:1.6rem">
@@ -617,34 +605,31 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
         <span class="quando">hoje</span>
         <div>
           <h3>Uma sala, uma câmera, um alerta<span class="marca-estado">de pé</span></h3>
-          <p>Queda detectada ao vivo, evento na corrente, e-mail na coordenação, imagem
-            com rosto apagado e prazo. Roda sem internet e numa máquina comum.</p>
+          <p>Queda ao vivo, evento na corrente, e-mail na coordenação, imagem com rosto
+            apagado. Roda sem internet, numa máquina comum.</p>
         </div>
       </div>
       <div class="etapa">
         <span class="quando">próximo</span>
         <div>
           <h3>Escola-piloto<span class="marca-estado futuro">a validar</span></h3>
-          <p>Uma escola real, câmeras nos corredores e no pátio, e a medida que ainda
-            não temos: <em>quantos alertas por dia a coordenação aguenta</em>. É esse número,
-            e não a revocação, que decide se o sistema é usável.</p>
+          <p>A medida que ainda não temos: <em>quantos alertas por dia a coordenação
+            aguenta</em>. É esse número, e não a revocação, que decide se é usável.</p>
         </div>
       </div>
       <div class="etapa">
         <span class="quando">depois</span>
         <div>
           <h3>Várias câmeras, uma corrente só<span class="marca-estado futuro">a construir</span></h3>
-          <p>Cada sala com seu detector na borda, todas escrevendo na mesma trilha
-            auditável. A conta continua fechando de ponta a ponta.</p>
+          <p>Cada sala com seu detector na borda, todas na mesma trilha auditável.</p>
         </div>
       </div>
       <div class="etapa">
         <span class="quando">a tese</span>
         <div>
           <h3>A mesma base, outros lugares<span class="marca-estado futuro">em estudo</span></h3>
-          <p>Borda que decide + prova que não se altera serve onde o registro vale tanto
-            quanto o ato: portaria com consentimento, e o <b>SVATech&nbsp;Health</b>, com a
-            caixa-preta cirúrgica de OPME.</p>
+          <p>Borda que decide mais prova que não se altera serve onde o registro vale tanto
+            quanto o ato: portaria com consentimento, e o <b>SVATech&nbsp;Health</b>.</p>
         </div>
       </div>
     </div>
@@ -656,10 +641,10 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
     <h2 class="reveal" style="font-size:var(--d1); letter-spacing:-.035em">
       Um sistema que avisa<br>e responde pelo que disse.</h2>
     <p class="sub reveal" style="font-size:clamp(1.05rem,2vw,1.35rem)">
-      Detectar queda é a parte fácil, existe modelo pronto para isso. O que torna o
-      Auditix defensável numa escola é o que vem junto: <strong>o registro que denuncia
-      adulteração</strong>, <strong>a imagem que se apaga</strong>, <strong>o acesso que fica
-      gravado</strong> e <strong>o alerta que pede conferência em vez de afirmar culpa</strong>.</p>
+      Detectar queda é a parte fácil. O que torna o Auditix defensável numa escola é o
+      que vem junto: <strong>o registro que denuncia adulteração</strong>,
+      <strong>a imagem que se apaga</strong>, <strong>o acesso que fica gravado</strong> e
+      <strong>o alerta que pede conferência em vez de afirmar culpa</strong>.</p>
 
     <p class="tese reveal" style="margin-top:2.4rem; font-size:clamp(1.15rem,2.3vw,1.6rem)">
       Alerta não é acusação.
@@ -683,8 +668,10 @@ const verDetalhe = v => {
   btModo.setAttribute('aria-pressed', String(v));
   btModo.textContent = v ? 'só títulos' : 'detalhes';
 };
-let detalhe = false;
-try{ detalhe = localStorage.getItem('auditix.detalhe') === '1'; }catch(e){}
+/* O texto de apoio vem LIGADO: o link circula depois do pitch e o slide
+   precisa se defender sozinho. Quem vai apresentar desliga uma vez. */
+let detalhe = true;
+try{ detalhe = localStorage.getItem('auditix.detalhe') !== '0'; }catch(e){}
 verDetalhe(detalhe);
 btModo.addEventListener('click', () => {
   detalhe = !detalhe;
