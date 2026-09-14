@@ -239,6 +239,35 @@ p{ margin:0; }
 }
 .marca-estado.futuro{ border-color:var(--linha); color:var(--tinta-3); }
 
+/* --------------------------------------------------------- dois modos ----
+   Num pitch, quem explica é a voz: o slide dá o título e cala a boca. Mas o
+   link circula depois, e aí o mesmo slide precisa defender o argumento
+   sozinho. Então o texto de apoio não é apagado, é desligável. O deck abre no
+   modo de apresentação. */
+body:not(.detalhado) .det,
+body:not(.detalhado) .camada p:not(.medida),
+body:not(.detalhado) .par dd,
+body:not(.detalhado) .etapa p,
+body:not(.detalhado) .nota{ display:none; }
+
+/* Sem o texto de apoio, a lista de rótulos vira a mensagem: uma coluna só,
+   maior, com mais ar entre as linhas. */
+body:not(.detalhado) .par{ grid-template-columns:1fr; padding:.82rem 0; }
+body:not(.detalhado) .par dt{ font-size:clamp(1.05rem,1.9vw,1.3rem); }
+body:not(.detalhado) .camada{ gap:.8rem; }
+body:not(.detalhado) .etapa{ padding:1rem 0; }
+
+.modo{
+  position:fixed; top:clamp(.7rem,1.8vw,1.3rem); right:clamp(.7rem,1.8vw,1.3rem);
+  z-index:6; font-family:var(--tipo-mono); font-size:.72rem; letter-spacing:.1em;
+  text-transform:uppercase; padding:.5rem .9rem; border-radius:999px;
+  border:1px solid var(--linha); background:#0B100EE6; color:var(--tinta-3);
+  cursor:pointer; transition:color .2s, border-color .2s;
+}
+.modo:hover{ color:var(--tinta); border-color:var(--tinta-3); }
+.modo[aria-pressed="true"]{ color:var(--verde); border-color:var(--verde); }
+.modo:focus-visible{ outline:2px solid var(--verde); outline-offset:3px; }
+
 /* --------------------------------------------------------------- trilho -- */
 .trilho{
   position:fixed; right:clamp(.6rem,1.6vw,1.4rem); top:50%; transform:translateY(-50%);
@@ -292,6 +321,8 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
 }
 </style>
 
+<button class="modo" id="modo" type="button" aria-pressed="false"
+        title="Mostrar ou esconder o texto de apoio (tecla D)">detalhes</button>
 <nav class="trilho" aria-label="Navegar pelos slides"></nav>
 
 <main class="deck" id="deck">
@@ -332,7 +363,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s2">
     <p class="olho aviso reveal">O que existe hoje numa escola</p>
     <h2 class="reveal">Câmera não é vigilância.<br>É arquivo morto.</h2>
-    <p class="sub reveal">Três coisas falham juntas, e sempre na mesma ordem.</p>
+    <p class="sub reveal det">Três coisas falham juntas, e sempre na mesma ordem.</p>
 
     <div class="grade g3 reveal">
       <article class="camada">
@@ -355,7 +386,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       </article>
     </div>
 
-    <p class="sub reveal" style="margin-top:2rem"><strong>A pergunta que guiou o projeto:</strong>
+    <p class="sub reveal det" style="margin-top:2rem"><strong>A pergunta que guiou o projeto:</strong>
       dá para avisar na hora <em>sem</em> transformar a sala num estúdio de gravação?</p>
   </section>
 
@@ -363,7 +394,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s3">
     <p class="olho reveal">Não é maquete, está rodando</p>
     <h2 class="reveal">O que já funciona hoje</h2>
-    <p class="sub reveal">Números medidos nos 4.509 clipes do Fall Vision
+    <p class="sub reveal det">Números medidos nos 4.509 clipes do Fall Vision
       (Harvard Dataverse, CC0), 2.680 deles com queda. Nada aqui é estimativa.</p>
 
     <div class="grade g4 reveal">
@@ -404,7 +435,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s4">
     <p class="olho reveal">Por dentro</p>
     <h2 class="reveal">Quatro camadas, e nenhuma<br>delas confia sozinha.</h2>
-    <p class="sub reveal">Cada uma erra de um jeito diferente. É por isso que são quatro,
+    <p class="sub reveal det">Cada uma erra de um jeito diferente. É por isso que são quatro,
       e é por isso que cada corte abaixo foi medido, não escolhido no olho.</p>
 
     <div class="grade g4 reveal">
@@ -448,7 +479,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s5">
     <p class="olho reveal">A parte que ninguém copia</p>
     <h2 class="reveal">Cada evento fecha o anterior.</h2>
-    <p class="sub reveal">O registro guarda o resumo da linha anterior junto com a sua.
+    <p class="sub reveal det">O registro guarda o resumo da linha anterior junto com a sua.
       Alterar uma linha antiga não muda só ela: <strong>quebra a corrente dali para a
       frente</strong>, e o painel acende. <em>Clique num elo para tentar adulterar.</em></p>
 
@@ -469,7 +500,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
   <section class="slide" id="s6">
     <p class="olho reveal">Privacidade por construção</p>
     <h2 class="reveal">A imagem só existe<br>quando alguém precisa julgar.</h2>
-    <p class="sub reveal">Enquanto nada acontece, nada é gravado. Em alerta grave, um quadro
+    <p class="sub reveal det">Enquanto nada acontece, nada é gravado. Em alerta grave, um quadro
       é guardado para a conferência humana, e ele já nasce limitado.</p>
 
     <dl class="pares reveal">
@@ -523,7 +554,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       </article>
     </div>
 
-    <p class="sub reveal" style="margin-top:2rem">O caminho inteiro tem teste automático,
+    <p class="sub reveal det" style="margin-top:2rem">O caminho inteiro tem teste automático,
       incluindo a parte que custa caro quando falha: <strong>e-mail sem segredo</strong>, que
       deixaria qualquer um gastar a conta da escola, e <strong>e-mail em rajada</strong>, que faz
       todo mundo parar de ler os alertas.</p>
@@ -546,7 +577,7 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
       </div>
       <div>
         <h3>Onde a sala para</h3>
-        <p class="sub" style="font-size:1rem; margin-top:.6rem">Cada célula conta
+        <p class="sub det" style="font-size:1rem; margin-top:.6rem">Cada célula conta
           <em>passagens</em>, nunca uma pessoa. A cor não sai do pico: sai do
           <strong>percentil 95</strong> da vizinhança, porque um canto isolado não pode
           reescalar a sala inteira e deixar todo o resto do mesmo tom.</p>
@@ -644,6 +675,28 @@ html.js .slide:not(.on) .reveal{ opacity:0; transform:translateY(14px); }
 
 <script>
 document.documentElement.classList.add('js');
+
+/* --------------------------------------------------------- dois modos ---- */
+const btModo = document.getElementById('modo');
+const verDetalhe = v => {
+  document.body.classList.toggle('detalhado', v);
+  btModo.setAttribute('aria-pressed', String(v));
+  btModo.textContent = v ? 'só títulos' : 'detalhes';
+};
+let detalhe = false;
+try{ detalhe = localStorage.getItem('auditix.detalhe') === '1'; }catch(e){}
+verDetalhe(detalhe);
+btModo.addEventListener('click', () => {
+  detalhe = !detalhe;
+  verDetalhe(detalhe);
+  try{ localStorage.setItem('auditix.detalhe', detalhe ? '1' : '0'); }catch(e){}
+});
+addEventListener('keydown', e => {
+  if(e.key === 'd' || e.key === 'D'){
+    if(/^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName)) return;
+    btModo.click();
+  }
+});
 
 /* ------------------------------------------------------------- trilho ---- */
 const slides = [...document.querySelectorAll('.slide')];
