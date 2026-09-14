@@ -28,6 +28,7 @@ AMOSTRAS = os.path.join(AQUI, "local", "amostras.jsonl")
 SALA = os.path.join(os.path.dirname(AQUI), "auditix-sala.html")
 QUEDA = {"queda"}          # o resto e tudo exemplo de "nao e queda"
 MINIMO_AMOSTRAS = 8        # igual ao QUEDA_AMOSTRAS do auditix-sala.html
+MIN_CLIPES = 5             # por classe, antes de deixar aplicar na Sala
 
 
 def ler_amostras():
@@ -92,8 +93,26 @@ def main():
     for r, n in sorted(conta.items()):
         janelas = sum(len(w) for rr, _, w in locais if rr == r)
         print(f"  {r:<10} {n:3d} clipes, {janelas:5d} janelas")
-    if conta.get("queda", 0) < 3:
-        print("\nAVISO: menos de 3 clipes de queda. O modelo vai aprender pouco daqui.")
+    # Uma classe só não ensina nada: com apenas quedas, o modelo aprende
+    # "o que vem desta câmera é queda", e a métrica local sai 100% porque não
+    # existe um único exemplo em que ele poderia errar. Já vi isso parecer um
+    # ótimo resultado nesta mesma tela.
+    quedas = conta.get("queda", 0)
+    outras = sum(n for r, n in conta.items() if r not in QUEDA)
+    falta = []
+    if quedas < MIN_CLIPES:
+        falta.append(f"quedas: {quedas} de {MIN_CLIPES}")
+    if outras < MIN_CLIPES:
+        falta.append(f"não-quedas (normal, agachar, deitar…): {outras} de {MIN_CLIPES}")
+    if falta:
+        print("\nDADOS INSUFICIENTES — " + "; ".join(falta))
+        print("As duas classes precisam existir, e o 'normal' é o que mais importa:")
+        print("é ele que ensina o modelo a NÃO disparar. Grave também os casos")
+        print("difíceis de propósito: agachar, amarrar o sapato, deitar, sentar.")
+        if args.aplicar:
+            print("\n--aplicar recusado. Nada foi alterado.")
+            return 1
+        print("Seguindo só para mostrar os números — eles não valem muito ainda.\n")
 
     # ---- junta com a base publica -------------------------------------------
     d = np.load(os.path.join(AQUI, "janelas.npz"), allow_pickle=True)
