@@ -128,6 +128,20 @@ Um clique num alerta errado produz exatamente o exemplo que falta.
 Medido nesta base: a quantidade satura (veja curva.py), a cobertura nao. Vinte
 janelas de erro valem mais que duzentas gravacoes genericas.
 
+## Aproveitar video que ja existe
+
+    uv run treino/video.py queda caminho/do/video.mp4
+    uv run treino/video.py normal "C:/videos/*.mp4"
+
+Usa o MESMO detector de pose da Sala e escreve no MESMO arquivo, entao o
+resultado e indistinguivel do botao "Gravar amostra". Do video sai apenas
+geometria do esqueleto; nenhum quadro e guardado.
+
+**So vale se o video vier da camera que vai ser usada, no lugar onde ela vai
+ficar.** Video de celular tem outra lente, outra altura e outro angulo —
+treinar com ele ensina a camera errada, que e exatamente o erro que custou um
+dia inteiro neste projeto.
+
 ## Cuidar das gravacoes
 
     uv run treino/local.py --listar          # numera todas
