@@ -1,4 +1,4 @@
-/* Teste das camadas de QUEDA e CORRIDA — node testes/queda-corrida.mjs
+/* Teste da camada de QUEDA — node testes/queda.mjs
  *
  * Mesmo método do teste de agitação: cenários sintéticos a 30fps, em
  * coordenadas normalizadas como as do MediaPipe, medindo o MESMO número que a
@@ -309,20 +309,6 @@ const CENARIOS = [
       const k = (ms-500)/450;
       return { quadrilY: suave(0.55,0.80,k), incl: suave(0,80,k), visPe:false }; } },
 
-  { nome:'corrida sem os pés no quadro', espera:['corrida'], dur:3000, cena: ms =>
-      ({ x: 0.12 + Math.min(0.80, ms/1000*0.73), visPe:false }) },
-
-  /* O CASO QUE VEIO DE UM VÍDEO DE VERDADE, não da minha imaginação.
-
-     A pessoa se abaixou até o chão de frente para a câmera e levantou. A tela
-     registrou CORRIDA — durante o levantar. A causa é o sinal de aproximação
-     que eu mesmo tinha acabado de acrescentar: abaixado, o tronco aparece
-     encurtado por perspectiva; ao levantar, ele cresce depressa na imagem, e
-     crescer era lido como "vindo em direção à lente".
-
-     Nenhum cenário sintético meu pegava isso, porque todos inclinavam o tronco
-     NO PLANO da imagem (deslocando em x), onde o comprimento pela diagonal não
-     muda. Faltava justamente a inclinação para a câmera. */
   { nome:'cai de frente e levanta', espera:['queda'], dur:6000, cena: ms => {
       /* Vai ao chão em 0,45s (tombo), fica ~1,5s, levanta em 1,1s. A QUEDA tem
          que ser vista; a subida NÃO pode virar corrida. */
@@ -366,15 +352,6 @@ const CENARIOS = [
      ~4,1m na horizontal (quadro 4:3). Correr a 3 m/s é 0,73 dessas larguras por
      segundo. Vale escrever a conta porque a primeira versão deste cenário usava
      0,42 — que é trote, não corrida — e fazia a regra parecer quebrada. */
-  { nome:'correndo de lado', espera:['corrida'], dur:3000, cena: ms => {
-      return { x: 0.12 + Math.min(0.80, ms/1000 * 0.73) }; } },
-
-  { nome:'correndo em direção à câmera', espera:['corrida'], dur:3000, cena: ms => {
-      /* Sem deslocamento lateral nenhum: só o corpo crescendo no quadro. */
-      const k = Math.min(1, ms/1800);
-      return { escala: suave(0.20,0.75,k), quadrilY: suave(0.50,0.66,k) }; } },
-
-  /* --- NÃO deve disparar --- */
   { nome:'andando normal', espera:[], dur:3000, cena: ms => ({ x: 0.25 + ms/1000*0.10 }) },
   { nome:'andando rápido', espera:[], dur:3000, cena: ms => ({ x: 0.20 + ms/1000*0.18 }) },
   { nome:'parado gesticulando', espera:[], dur:3000, cena: ms =>
@@ -404,7 +381,6 @@ const CENARIOS = [
   const conferir = {
     QUEDA_ANG:N_QUEDA_ANG, QUEDA_CAI:N_QUEDA_CAI, QUEDA_SEG:N_QUEDA_SEG,
     QUEDA_EIXO:N_QUEDA_TRONCO, QUEDA_JANELA:N_QUEDA_JANELA,
-    CORRE_VEL:N_CORRE_VEL, CORRE_SEG:N_CORRE_SEG, CORRE_CRESC:N_CORRE_CRESC,
   };
   const fora = Object.entries(conferir)
     .filter(([nome, aqui]) => daSala(nome) !== aqui)

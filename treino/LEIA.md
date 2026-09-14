@@ -52,6 +52,24 @@ mede o fps em vez de presumir — e por isso que a queda e pequena.
 O que 15fps quase quebrou foi o codigo, nao o modelo: a janela exigia 15
 amostras, e 15fps entrega ~15. Ver `QUEDA_AMOSTRAS` no `auditix-sala.html`.
 
+## A caixa mais larga que alta
+
+Quem esta no chao ocupa um retangulo deitado, venha a camera de onde vier. Esse
+sinal nao depende do eixo do tronco (que a perspectiva encurta) nem do angulo
+(que uma camera alta distorce) — as duas coisas que falharam na pratica.
+
+Medido por clipe nos 4.509 (`uv run treino/caixa.py`):
+
+| corte | pega das quedas | dispara em nao-quedas |
+|---|---|---|
+| 1,0 | 93% | 19% |
+| **1,2** | **89%** | **10%** |
+| 1,4 | 84% | 5% |
+
+Sozinho vale quase o que a rede vale, e custa uma divisao. Entrou na regra
+geometrica como terceiro caminho, ao lado do angulo e do encurtamento do
+tronco.
+
 ## Fora do que o modelo viu
 
 Um modelo nao avisa quando esta fora do seu mundo: responde com a mesma

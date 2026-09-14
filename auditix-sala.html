@@ -257,7 +257,6 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       <select id="rotulo" class="btn" disabled title="o que vai acontecer na frente da câmera">
         <option value="normal">amostra: normal</option>
         <option value="queda">amostra: queda</option>
-        <option value="corrida">amostra: corrida</option>
         <option value="agachar">amostra: agachar/pegar algo</option>
         <option value="deitar">amostra: deitar</option>
       </select>
@@ -289,8 +288,9 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       as poucas pessoas da cena</b>, não identificação: não serve para achar um
       aluno entre quinhentos, e por isso o nome recolado fica marcado como
       <b>"por assinatura"</b> até um rosto confirmar. A camada 4 usa a mesma pose
-      para ver queda, corrida e agitação. <b>Agitação não é briga</b>, é um pedido
-      de conferência humana.</p>
+      para ver <b>queda</b>, e só isso: o sistema faz uma coisa e responde por
+      ela. Nenhum alerta afirma o que aconteceu — todos pedem conferência
+      humana.</p>
   </section>
 
   <!-- --------------------------------- camadas -------------------------------- -->
@@ -482,7 +482,7 @@ function pintarTudo(){
   /* O rótulo curto de cada tipo. O `|| 'Alerta'` existe para que um tipo novo
      apareça feio, e não quebrado — foi assim que a lista chegou a escrever
      "undefined" na frente de um alerta. */
-  const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
+  const ICONE = { queda:'Queda' };
   pintar('l-anomalias', anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em>' +
@@ -493,7 +493,7 @@ function pintarTudo(){
           : a.corrigido ? ' <small style="opacity:.5">✓ virou exemplo</small>' : '') +
         '</span><span class="hr">' + a.h + '</span></div>').join('')
     : '<div class="vazio">' + (rodando ? textoSemAnomalia() :
-        'Quedas, corridas e agitação aparecem aqui.') + '</div>');
+        'Quedas aparecem aqui.') + '</div>');
 
   pintar('l-eventos', eventos.length
     ? eventos.slice(0,10).map(e => '<div class="linha"><span class="pino ' + e.p + '"></span>' +
@@ -502,7 +502,7 @@ function pintarTudo(){
 }
 /* "Nada fora do padrão" só pode ser dito quando houve como olhar.
 
-   A camada de queda, corrida e agitação mede tudo a partir do quadril, e sem o
+   A camada de queda mede tudo a partir do quadril, e sem o
    quadril no quadro ela não roda — de propósito, porque o modelo INVENTA os
    pontos que não vê e quadril inventado vira alarme falso. Mas calar sobre isso
    é pior que o alarme falso: a tela dizia "nada fora do padrão" quando a
@@ -514,7 +514,7 @@ function textoSemAnomalia(){
   if(cegos === firmes.length)
     return firmes.length === 1
       ? 'Corpo cortado no enquadramento: dá para identificar a pessoa, mas não '
-        + 'para afirmar queda, corrida ou agitação. A câmera precisa pegar da '
+        + 'para afirmar queda. A câmera precisa pegar da '
         + 'cintura para baixo.'
       : 'Nenhum dos ' + firmes.length + ' corpos aparece inteiro no quadro: dá '
         + 'para identificar as pessoas, mas não para afirmar o que está '
@@ -786,9 +786,9 @@ const HIST_MS = 2500;      // memória de movimento de cada pessoa
    e não gera alerta, mas continua desenhado, e volta a ser gente no instante em
    que se mexer. */
 /* ALTA SENSIBILIDADE. As regras viram as mais permissivas que ainda fazem
-   sentido: tronco deitado é queda, movimento brusco é corrida, e sem exigir que
-   a pessoa permaneça no chão. A rede treinada sai de cena — quem decide é só a
-   geometria, com folga.
+   sentido: tronco deitado ou caixa mais larga que alta já é queda, sem exigir
+   que a pessoa permaneça no chão. A rede treinada sai de cena — quem decide é
+   só a geometria, com folga.
 
    Serve para demonstrar o fluxo inteiro em poucos segundos, e para ambientes
    onde perder uma queda é inaceitável e alarme falso é tolerável. O preço é
@@ -797,7 +797,6 @@ const HIST_MS = 2500;      // memória de movimento de cada pessoa
 let demo = false;
 const DEMO_ANG = 50;      // graus de inclinação do tronco
 const DEMO_SEG = 300;     // ms deitado antes de acusar
-const DEMO_MOVE = 0.8;    // energia dos membros, metade do limiar normal
 
 const PARADO_JANELA = 5000;   // ms de observação antes de decidir
 const PARADO_MIN = 0.005;     // alturas de corpo de amplitude no período
@@ -808,93 +807,33 @@ const QUEDA_ANG = 55;      // graus fora da vertical
 const QUEDA_CAI = 0.35;    // queda do quadril em ALTURAS DE CORPO
 const QUEDA_SEG = 1200;    // ms deitado para virar alerta
 const QUEDA_JANELA = 500;  // ms: um tombo cabe aqui, um agachamento não
-const QUEDA_EIXO = 0.60;   // tronco encolheu para menos disto do tamanho de antes
+const QUEDA_EIXO = 0.60;
+/* A CAIXA MAIS LARGA QUE ALTA. Quem está no chão ocupa um retângulo deitado,
+   venha a câmera de onde vier — e é por isso que este sinal existe: ele não
+   depende do eixo do tronco, que a perspectiva encurta, nem do ângulo, que uma
+   câmera alta distorce. Foram as duas coisas que falharam nesta sala.
+
+   Medido nos 4.509 clipes, por clipe: um corte em 1,2 pega 89% das quedas e
+   dispara em 10% das não-quedas. Sozinho ele vale quase o que a rede vale, e
+   custa uma divisão. */
+const QUEDA_PROP = 1.2;
+const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas   // tronco encolheu para menos disto do tamanho de antes
 
 /* O quadro não é quadrado, e isso muda as contas.
 
    As coordenadas do MediaPipe são normalizadas SEPARADAMENTE por largura e por
    altura: 0,1 em x e 0,1 em y não são a mesma distância na sala. Dividir um
    deslocamento HORIZONTAL pela altura do corpo (que é VERTICAL) subestimava a
-   velocidade pelo fator do formato. Numa câmera 4:3 isso é 1,33x: uma corrida
-   real de 3 m/s aparecia como 1,33 alturas por segundo em vez de 1,77 e ficava
-   logo abaixo do limiar de 1,5 — ou seja, corrida nenhuma era detectada. */
+   velocidade pelo fator do formato. Numa câmera 4:3 isso é 1,33x, e todo
+   deslocamento medido saía encolhido em um terço. */
 let aspecto = 4/3;
 
-/* Corrida, medida em alturas-de-corpo por segundo e não em pixels, senão quem
-   está longe da câmera nunca corre e quem está perto está sempre correndo. */
-const CORRE_VEL = 1.5;
-const CORRE_SEG = 400;
-const CORRE_CRESC = 0.55;  // o corpo CRESCE no quadro a esta taxa por segundo
 
-/* Agitação. Não é detector de briga e não vai ser chamado disso. É gente perto
-   demais mexendo os braços rápido demais, o que pede olho humano. */
-const AGITA_PERTO = 0.9;   // distância entre quadris, em alturas-de-corpo
-const AGITA_ENER  = 1.1;   // energia dos punhos, em alturas-de-corpo por segundo
-/* Movimento intenso de UMA pessoa: braços em excesso, correr no lugar, gesto
-   agitado. Existe porque atravessar o quadro é a definição errada de corrida
-   numa sala pequena ou com a câmera no alto — a pessoa nunca percorre distância
-   suficiente, e o alerta nunca vem.
 
-   O valor sai das medições de agitação feitas com vídeo real nesta mesma
-   escala: soco 2,41 e empurrão 1,62 de um lado; aceno 0,61, dança 0,49 e
-   abraço 0,27 do outro. 1,5 passa longe dos dois grupos.
-
-   É um valor PROVISÓRIO até ser medido na câmera de vocês: a faixa mostra o
-   quanto cada movimento atingiu, justamente para poder ajustar com número em
-   vez de impressão. */
-const MOVE_INTENSO = 1.5;
-const AGITA_SEG   = 700;
-
-/* O sinal que separa briga de abraço, dança e brincadeira.
-
-   A regra antiga era só "duas pessoas perto, as duas mexendo os braços" —
-   o que também é comemoração de gol e amigo se cumprimentando, e era a maior
-   fonte de alarme falso desta camada.
-
-   Duas tentativas de conserto foram TESTADAS e reprovadas, e vale registrar
-   porque as duas parecem certas no papel:
-
-     · "punho apontado para o outro" (cosseno da direção) reprova: num abraço
-       os braços vão um para o outro o tempo todo. Deu 0.97 no teste — mais
-       dirigido que um soco.
-     · "pico de aceleração do punho" reprova: dançar oscilando gera pico alto
-       sem nada acontecer. Deu 15.9 num cenário de comemoração.
-
-   O que separa os três é a COMBINAÇÃO, não cada um sozinho: a velocidade do
-   punho NA DIREÇÃO do tronco do outro. Medida como o encurtamento da distância
-   entre o punho e o tronco alheio, em alturas-de-corpo por segundo:
-
-       soco    rápido  e dirigido  -> alto
-       abraço  dirigido mas lento  -> baixo
-       dança   rápido, não dirigido -> perto de zero
-
-   Medir encurtamento de distância, em vez de cosseno vezes módulo, também
-   evita o caso degenerado do punho que chega ao alvo: ali a direção fica
-   indefinida e o cosseno desaba justo no impacto.
-
-   AGITA_FECHA não decide nada, só entra no texto: aproximar-se rápido também
-   é abraço. Serve para quem for conferir entender o que aconteceu.
-
-   O limiar 1.0 não é chute: `node testes/agitacao.mjs` mede sete cenários e
-   mostra onde cada um cai. Há folga dos dois lados —
-
-       DISPARA    soco 1.86 · empurrão rápido 1.22
-       não        aceno 0.76 · dança 0.62 · empurrão lento 0.46 · abraço 0.20
-
-   Antes desta mudança, SEIS dos sete disparavam: só quem estava parado
-   escapava. Agora só os dois que deveriam.
-
-   Limite honesto: os cenários são sintéticos. Provam que a fórmula separa os
-   casos, não que o número bate com gente de verdade na sua sala. Para calibrar
-   no real, faça os gestos na frente da câmera — quando o par está perto e
-   agitado mas não dispara, o console imprime o valor medido. */
-const AGITA_GOLPE = 1.0;   // alturas-de-corpo por segundo, punho rumo ao outro
-const AGITA_FECHA = 0.6;
 
 const GX = 32, GY = 24;    // grade do mapa de calor
 let mapaCalor = new Float32Array(GX*GY), mostrarMapa = false;
-let redePose = null, anomalias = [], limbo = [], agitacao = {};
-let picoCorrida = { quanto:0, vel:0, t:0 };
+let redePose = null, anomalias = [], limbo = [];
 
 const vis = p => (p && p.visibility != null) ? p.visibility : 1;
 /* Nariz, olhos, orelhas e boca: os índices 0 a 10 do MediaPipe. */
@@ -1181,8 +1120,8 @@ function ombroPx(d, larg, alt){
 }
 
 /* O detector às vezes devolve duas ou três poses para a MESMA pessoa, ou para
-   um pedaço dela. Sem podar isso vira três corpos na lista, os IDs disparam e a
-   agitação acusa alguém brigando consigo mesmo.
+   um pedaço dela. Sem podar isso vira três corpos na lista, os IDs disparam e
+   um braço solto pode gerar alerta sozinho.
 
    Duas decisões diferentes, e a diferença importa:
      · mesma pessoa duas vezes  -> fica a pose mais NÍTIDA;
@@ -1281,7 +1220,7 @@ function tentarRecolar(t, agora){
 
    E o argumento não é estatístico, é físico: não se observa uma QUEDA sem ter
    visto o antes. Uma trilha que existe há meio segundo não tem "antes" — o que
-   ela mede é o próprio nascimento dela. O mesmo vale para corrida e agitação,
+   ela mede é o próprio nascimento dela. O mesmo vale para tudo que
    que são medidas de movimento ao longo do tempo.
 
    O preço é honesto: uma queda de verdade nos primeiros 2s de quem acabou de
@@ -1297,7 +1236,8 @@ function porqueQueda(t){
   return (t.porRede ? 'rede ' + (t.notaQueda || 0).toFixed(2) + ' (limiar ' +
                       QUEDA_LIMIAR.toFixed(2) + ')'
                     : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
-                      'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas') +
+                      'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas, ' +
+                      'caixa ' + (t.propQueda || 0).toFixed(1)) +
          ' · rede ' + (t.notaQueda || 0).toFixed(2) +
          ' · distância do treino ' + (t.foraQueda || 0).toFixed(1) +
          (t.foraQueda > QUEDA_FORA ? ' (FORA, rede ignorada)' : '');
@@ -1355,8 +1295,8 @@ function analisar(t, lm, agora){
 
      O modelo devolve os 33 pontos sempre, inclusive os que estão fora do
      quadro: num close ele INVENTA os tornozelos. Uma régua inventada e curta
-     demais faz toda velocidade normalizada explodir, e era isso que enchia a
-     camada 4 de corrida e agitação com uma pessoa só, parada. Então medimos com
+     demais faz toda medida normalizada explodir, e era isso que enchia a
+     camada de anomalia com uma pessoa só, parada. Então medimos com
      o que dá para ver, e descemos para a proporção anatômica quando não dá. */
   const tronco = Math.abs(o.y - q.y);
   const joelho = meio(lm, P.JOELHO_E, P.JOELHO_D);
@@ -1410,7 +1350,7 @@ function analisar(t, lm, agora){
 
   guardarQuadro(t, t.hist[t.hist.length - 1]);
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
-  t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang;
+  t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang; t.prop = cx;
   t.ox = o.x; t.oy = o.y;          // meio dos ombros: o alvo da mira
 
   /* --- queda ---
@@ -1471,8 +1411,9 @@ function analisar(t, lm, agora){
   /* Fora do mundo do modelo, a nota dele não vale — e a geometria, que não
      aprendeu nada e só mede, continua valendo. */
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
-  const geo = demo ? ang > DEMO_ANG
-                   : (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO) && caiu;
+  const geo = demo
+    ? (ang > DEMO_ANG || cx > DEMO_PROP)
+    : (ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO || cx > QUEDA_PROP) && caiu;
   const rede = !demo && t.notaQueda >= QUEDA_LIMIAR;
 
   if((geo || rede) && !t.quedaDesde){
@@ -1484,11 +1425,14 @@ function analisar(t, lm, agora){
     t.angQueda = ang;
     t.caiuQueda = (q.y - antesQ) / alturaMax;
     t.foraQueda = t.foraDoTreino;
+    t.propQueda = cx;
   }
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
-  const noChao = t.quedaDesde && (demo ? ang > DEMO_ANG * 0.8
-    : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || t.notaQueda >= QUEDA_LIMIAR));
+  const noChao = t.quedaDesde && (demo
+    ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8)
+    : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || cx > QUEDA_PROP ||
+       t.notaQueda >= QUEDA_LIMIAR));
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   if(t.quedaDesde && agora - t.quedaDesde > (demo ? DEMO_SEG : QUEDA_SEG))
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
@@ -1509,57 +1453,11 @@ function analisar(t, lm, agora){
   }
   t.energia = n ? soma / n : 0;
 
-  /* --- corrida e movimento intenso --- */
-  const ant = t.hist.find(h => agora - h.t < 320 && agora - h.t > 80);
-  if(ant){
-    const dt = (agora - ant.t) / 1000;
-    t.vel = Math.abs(q.x - ant.qx) * aspecto / altura / dt;
-
-    /* APROXIMAÇÃO. Correr na direção da câmera não desloca ninguém de lado: o
-       corpo só CRESCE no quadro. A regra media apenas o eixo horizontal, então
-       quem vinha correndo em direção à lente nunca era detectado — e num
-       corredor de escola, a câmera na ponta é justamente o enquadramento comum.
-
-       Só o crescimento conta, nunca o encolhimento, e é deliberado: cair na
-       direção da câmera também encolhe o corpo depressa, e sem essa restrição
-       toda queda de frente seria registrada como corrida. O preço, dito aqui
-       para não virar surpresa: correr PARA LONGE da câmera não é detectado por
-       este caminho. */
-    /* APROXIMAR-SE cresce o CORPO INTEIRO. Levantar-se cresce só o tronco.
-
-       Medir só o tronco reprovou contra um VÍDEO DE VERDADE: a pessoa se
-       abaixou até o chão de frente para a câmera e, ao levantar, o tronco saiu
-       da perspectiva e cresceu depressa na imagem — a tela registrou CORRIDA em
-       alguém parado, e foi este sinal que eu mesmo tinha acabado de acrescentar
-       que causou isso.
-
-       Exigindo que o tronco E os ombros cresçam JUNTOS os casos se separam:
-       aproximar-se cresce os dois; levantar cresce só o tronco; girar o corpo
-       de frente para perfil cresce só os ombros. */
-    t.cresc = Math.min((eixo - ant.eixo) / eixo,
-                       (ombro - ant.ombro) / ombro) / dt;
-
-    /* O pico recente, para a faixa poder dizer QUANTO faltou. Sem isto, "não
-       detectou" e "quase detectou" são a mesma tela em branco, e a diferença
-       entre as duas é a diferença entre mexer no limiar e mexer na câmera. */
-    const quanto = Math.max(t.vel / CORRE_VEL, t.cresc / CORRE_CRESC,
-                            t.energia / MOVE_INTENSO);
-    if(quanto > (picoCorrida.quanto || 0) || agora - picoCorrida.t > 8000)
-      picoCorrida = { quanto, vel:t.vel, energia:t.energia, t:agora };
-
-    const corre = t.vel > (demo ? CORRE_VEL / 2 : CORRE_VEL) || t.cresc > CORRE_CRESC;
-    const intenso = t.energia > (demo ? DEMO_MOVE : MOVE_INTENSO);
-    if(corre || intenso){
-      if(!t.correDesde){ t.correDesde = agora; t.porVel = corre; }
-      else if(agora - t.correDesde > CORRE_SEG)
-        registrarAnomalia('corrida', t,
-          (t.porVel ? 'Corrida detectada no corpo #' : 'Movimento intenso no corpo #') +
-          t.id + (t.nome ? ', ' + t.nome : ''),
-          t.porVel ? 'deslocamento ' + t.vel.toFixed(1) + ' de ' + CORRE_VEL.toFixed(1)
-                   : 'membros ' + t.energia.toFixed(1) + ' de ' + MOVE_INTENSO.toFixed(1));
-    } else t.correDesde = 0;
-
-  }
+  /* Corrida e agitação saíram: o projeto se especializou em queda. O que
+     ficou é uma coisa só, medida e defensável, em vez de três meio-feitas.
+     A energia dos membros e a velocidade continuam sendo calculadas acima
+     porque a faixa as mostra ao vivo — servem para diagnóstico, não
+     acusam mais nada. */
 
   /* --- mapa de calor: onde os pés pisaram --- */
   if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
@@ -1619,52 +1517,6 @@ function aproximacao(a, b, agora){
   const d0 = Math.hypot((a0.qx - b0.qx) * aspecto, a0.qy - b0.qy);
   const d1 = Math.hypot((a1.qx - b1.qx) * aspecto, a1.qy - b1.qy);
   return (d0 - d1) / escala / dt;
-}
-
-/* Agitação é propriedade de PAR, não de pessoa: precisa de duas pessoas perto
-   uma da outra, as duas com energia alta, E evidência de movimento dirigido. */
-function verAgitacao(agora){
-  for(let i = 0; i < trilhas.length; i++)
-  for(let j = i+1; j < trilhas.length; j++){
-    const a = trilhas[i], b = trilhas[j];
-    if(!a.firme || !b.firme) continue;
-    if(a.qx == null || b.qx == null || !a.energia || !b.energia) continue;
-    /* Duas caixas muito grudadas quase sempre são a MESMA pessoa detectada duas
-       vezes, e aí a "agitação" é a pessoa brigando com o próprio fantasma. */
-    if(ios(a.box, b.box) > 0.35) continue;
-    const escala = (a.altura + b.altura) / 2;
-    const perto = Math.hypot((a.qx - b.qx) * aspecto, a.qy - b.qy) < AGITA_PERTO * escala;
-    const bravo = a.energia > AGITA_ENER && b.energia > AGITA_ENER;
-    const chave = Math.min(a.id, b.id) + '-' + Math.max(a.id, b.id);
-
-    /* Perto e agitado é o piso, não a prova: cabe abraço, dança e
-       comemoração. O que decide é a evidência DIRIGIDA. */
-    const golpe = Math.max(golpeDirigido(a, b, agora), golpeDirigido(b, a, agora));
-    const fecha = aproximacao(a, b, agora);
-
-    if(perto && bravo && golpe > AGITA_GOLPE){
-      if(!agitacao[chave]) agitacao[chave] = agora;
-      else if(agora - agitacao[chave] > AGITA_SEG){
-        /* O texto diz QUAL sinal disparou. É o que permite a quem confere
-           discordar do sistema com base em algo, em vez de só acreditar. */
-        const porque = ['punho avançando sobre o outro corpo'];
-        if(fecha > AGITA_FECHA) porque.push('aproximação rápida');
-        registrarAnomalia('agitacao', a, 'Agitação entre os corpos #' + a.id +
-          ' e #' + b.id + ' — ' + porque.join(', ') +
-          '. Conferir na hora; o sistema não afirma que é briga.');
-      }
-    } else {
-      /* Perto e agitado, mas sem evidência dirigida: é quase certamente
-         abraço, dança ou brincadeira. Antes isto virava alerta. Agora imprime
-         os números medidos, que é como se calibra AGITA_ACEL e AGITA_MIRA com
-         gente de verdade na frente da câmera, em vez de no chute. */
-      if(perto && bravo)
-        console.debug('[agitação] #' + a.id + '×#' + b.id +
-          ' não disparou — golpe ' + golpe.toFixed(2) + '/' + AGITA_GOLPE +
-          ', aproximação ' + fecha.toFixed(2));
-      delete agitacao[chave];
-    }
-  }
 }
 
 /* ---------------------------------------------------------- mapa de calor -- */
@@ -1837,7 +1689,6 @@ async function laco(){
           tentarRecolar(tr, agora);
         }
       });
-      verAgitacao(agora);
       resumir();
     }catch(e){}
     ocupadoCorpo = false;
@@ -2004,9 +1855,6 @@ function resumir(){
      está funcionando precisa dizer que não está. */
   const firmes = trilhas.filter(t => t.firme);
   const cegos = firmes.filter(t => t.analisavel === false).length;
-  const pico = performance.now() - picoCorrida.t < 8000 && picoCorrida.quanto > 0.25
-    ? 'movimento: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
-    : '';
   if(recado && performance.now() > recadoAte) recado = '';
   /* Os números ao vivo do corpo principal. Existe porque "não está pegando" tem
      cinco causas diferentes — camada desligada, tronco que nunca inclina o
@@ -2017,15 +1865,14 @@ function resumir(){
   const numeros = alvo ? [
     'tronco ' + Math.round(alvo.ang || 0) + '°',
     'queda ' + (alvo.notaQueda || 0).toFixed(2),
-    'membros ' + (alvo.energia || 0).toFixed(1),
-    'desloc ' + (alvo.vel || 0).toFixed(1),
+    'caixa ' + (alvo.prop || 0).toFixed(1),
     alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
     alvo.parado ? 'parado (objeto)' : null,
   ].filter(Boolean).join(' · ') : '';
 
   el('faixa-aviso').textContent = recado ? recado
     : !cegos
-    ? (numeros || pico)
+    ? numeros
     : cegos === firmes.length
       ? 'sem análise de queda: corpo cortado no quadro'
       : 'sem análise de queda em ' + cegos + ' de ' + firmes.length +
@@ -2464,9 +2311,8 @@ el('btn-exemplo').addEventListener('click', () => {
   naoIdent = [ { id:5, idade:'há 22s' } ];
   presentes[2].porAssin = true;   // a Marina voltou pela assinatura, sem rosto ainda
   anomalias = [
-    { tipo:'corrida', corpo:5, texto:'Corrida detectada no corpo #5', h:'14:09' },
-    { tipo:'agitacao', corpo:2, texto:'Agitação entre os corpos #2 e #5, conferir na hora. ' +
-      'O sistema não afirma que é briga.', h:'14:08' }
+    { tipo:'queda', corpo:5, texto:'Possível queda no corpo #5, pendente de validação humana',
+      porque:'geometria: tronco 71°, quadril desceu 0.44 alturas · caixa 1.8', h:'14:09' }
   ];
   eventos = [
     { p:'duv', t:'Corpo #5 está na sala e o rosto ainda não foi lido, pendente de validação humana', h:'14:11' },
