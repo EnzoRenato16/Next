@@ -834,7 +834,23 @@ const QUEDA_PROP = 1.2;
    justamente porque ela passa a decidir sozinha: 1,4 pega 84% das quedas e
    dispara em 5% das não-quedas, contra 10% em 1,2. Medido em treino/caixa.py. */
 const QUEDA_PROP_SO = 1.4;
-const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas   // tronco encolheu para menos disto do tamanho de antes
+const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas
+/* O CORPO BAIXO. Dá para ir ao chão com o tronco em pé e a caixa em pé: sentar
+   no chão é isso. Nem o ângulo nem a caixa viam esse caso, e era o que mais
+   irritava na prática — a pessoa no chão, óbvio para qualquer um que olhe, e a
+   tela em silêncio.
+
+   Aqui a régua é a própria pessoa: a altura dela agora contra a maior altura
+   que ela já teve nesta cena. Não depende de calibrar chão nenhum.
+
+   Medido nos 4.509 clipes, isolado:
+       corte 0,40 -> pega 81% das quedas, dispara em 14% das não-quedas
+       corte 0,55 -> pega 91%, dispara em 32%
+   O preço é real e é o mesmo sempre: sentar numa cadeira também abaixa o corpo,
+   e o sistema não tem como saber que ali tinha uma cadeira. Por isso o corte
+   folgado fica na alta sensibilidade. */
+const QUEDA_BAIXO = 0.40;
+const DEMO_BAIXO = 0.55;   // tronco encolheu para menos disto do tamanho de antes
 
 /* O quadro não é quadrado, e isso muda as contas.
 
@@ -1254,7 +1270,8 @@ function porqueQueda(t){
                       QUEDA_LIMIAR.toFixed(2) + ')'
                     : 'geometria: tronco ' + Math.round(t.angQueda || 0) + '°, ' +
                       'quadril desceu ' + (t.caiuQueda || 0).toFixed(2) + ' alturas, ' +
-                      'caixa ' + (t.propQueda || 0).toFixed(1)) +
+                      'caixa ' + (t.propQueda || 0).toFixed(1) + ', ' +
+                      'altura ' + Math.round((t.baixoQueda || 0) * 100) + '% da dele') +
          ' · rede ' + (t.notaArmou || 0).toFixed(2) +
          ' · distância do treino ' + (t.foraQueda || 0).toFixed(1) +
          (t.foraQueda > QUEDA_FORA ? ' (FORA, rede ignorada)' : '');
@@ -1368,6 +1385,7 @@ function analisar(t, lm, agora){
   guardarQuadro(t, t.hist[t.hist.length - 1]);
   t.hist = t.hist.filter(h => agora - h.t < HIST_MS);
   t.altura = altura; t.qx = q.x; t.qy = q.y; t.ang = ang; t.prop = cx;
+  t.baixo = baixo;
   t.ox = o.x; t.oy = o.y;          // meio dos ombros: o alvo da mira
 
   /* --- queda ---
@@ -1381,6 +1399,11 @@ function analisar(t, lm, agora){
      encolhe no quadro, e dividir a descida por essa altura já encolhida inflava
      a queda relativa. */
   const alturaMax = Math.max.apply(null, jan.map(h => h.altura));
+  /* A maior altura que esta pessoa já teve na cena, e não só na janela de 1s:
+     quem entra já andando e depois cai precisa ter a referência de quando
+     estava em pé. */
+  t.alturaTopo = Math.max(t.alturaTopo || 0, altura);
+  const baixo = altura / Math.max(t.alturaTopo, 1e-6);
 
   /* E a descida é medida numa JANELA CURTA — é o que separa tombo de
      agachamento. Um tombo leva menos de meio segundo; agachar até o chão leva
@@ -1429,9 +1452,9 @@ function analisar(t, lm, agora){
      aprendeu nada e só mede, continua valendo. */
   t.notaQueda = carQ && t.foraDoTreino <= QUEDA_FORA ? redeQueda(carQ) : 0;
   const geo = demo
-    ? (ang > DEMO_ANG || cx > DEMO_PROP)
+    ? (ang > DEMO_ANG || cx > DEMO_PROP || baixo < DEMO_BAIXO)
     : ((ang > QUEDA_ANG || eixo < eixoMax * QUEDA_EIXO || cx > QUEDA_PROP) && caiu)
-      || cx > QUEDA_PROP_SO;
+      || cx > QUEDA_PROP_SO || baixo < QUEDA_BAIXO;
   const rede = !demo && t.notaQueda >= QUEDA_LIMIAR;
 
   if((geo || rede) && !t.quedaDesde){
@@ -1444,6 +1467,7 @@ function analisar(t, lm, agora){
     t.caiuQueda = (q.y - antesQ) / alturaMax;
     t.foraQueda = t.foraDoTreino;
     t.propQueda = cx;
+    t.baixoQueda = baixo;
     /* A nota também congela aqui. Ela era lida no momento do ALERTA, 1,2s
        depois, quando já tinha caído — e o alerta saía dizendo "rede 0.08
        (limiar 0.50)", um número que sozinho parecia impossível. */
@@ -1452,9 +1476,9 @@ function analisar(t, lm, agora){
   /* Continuar no chão: ou a geometria vê o corpo deitado, ou a rede continua
      apontando queda. Exigir as duas faria o alerta morrer na transição. */
   const noChao = t.quedaDesde && (demo
-    ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8)
+    ? (ang > DEMO_ANG * 0.8 || cx > DEMO_PROP * 0.8 || baixo < DEMO_BAIXO * 1.2)
     : (ang > QUEDA_ANG || eixo < t.eixoAntes * QUEDA_EIXO || cx > QUEDA_PROP ||
-       t.notaQueda >= QUEDA_LIMIAR));
+       baixo < QUEDA_BAIXO * 1.2 || t.notaQueda >= QUEDA_LIMIAR));
   if(t.quedaDesde && !noChao) t.quedaDesde = 0;        // levantou, cancela
   if(t.quedaDesde && agora - t.quedaDesde > (demo ? DEMO_SEG : QUEDA_SEG))
     registrarAnomalia('queda', t, 'Possível queda no corpo #' + t.id +
@@ -1580,7 +1604,7 @@ const VISTAS_MIN = 5;       // quadros seguidos para uma trilha virar PESSOA de 
 const FIRME_MS   = 500;
 const SUMIU_MS   = 1500;    // sem ser vista por mais que isso, a trilha morre
 const FRESCO_MS  = 6000;    // rosto conferido há pouco, o nome é afirmado
-const MORNO_MS   = 25000;   // passado isso, o nome cai para "provavelmente"
+const MORNO_MS   = 25000;   // passado isso, o rosto é "antigo" — o nome fica
 
 let trilhas = [], proxId = 1;
 /* O numero que cada pessoa reconhecida ja teve. Sair do enquadramento e voltar
@@ -1844,12 +1868,19 @@ function amarrar(achados){
 
 /* O rótulo enfraquece sozinho conforme o rosto deixa de ser reconfirmado. É o
    sistema dizendo em voz alta o quanto ainda confia no que está afirmando. */
+/* O nome GRUDA no corpo. Antes ele azedava com o tempo — virava "provavelmente
+   Enzo" e depois "Enzo?" — porque o rosto pode não ser lido de novo por muito
+   tempo. Só que enquanto a TRILHA é a mesma, é a mesma pessoa: quem some da
+   trilha perde o nome junto, e quem continua sendo seguido continua sendo quem
+   era. Um rosto que não se deixa ler de costas, de lado ou no escuro não é
+   motivo para a tela desaprender quem está ali.
+
+   O que ainda azeda é a CONFIANÇA, e ela aparece separada: há quanto tempo o
+   rosto não é conferido continua na tela, ao lado do nome. */
 function rotuloDe(t, agora){
   if(!t.nome) return { txt:'Corpo #' + t.id, ok:false, s:(agora - t.nasceu)/1000 };
   const s = (agora - t.confirmado) / 1000;
-  if(s * 1000 < FRESCO_MS) return { txt:t.nome, ok:true, s };
-  if(s * 1000 < MORNO_MS)  return { txt:'provavelmente ' + t.nome, ok:true, s };
-  return { txt:t.nome + '?', ok:false, s };
+  return { txt:t.nome, ok:true, s, antigo: s * 1000 >= MORNO_MS };
 }
 const idadeTxt = s => s < 2 ? 'agora' : 'há ' + Math.round(s) + 's';
 
@@ -1888,6 +1919,7 @@ function resumir(){
     'tronco ' + Math.round(alvo.ang || 0) + '°',
     'queda ' + (alvo.notaQueda || 0).toFixed(2),
     'caixa ' + (alvo.prop || 0).toFixed(1),
+    'altura ' + Math.round((alvo.baixo != null ? alvo.baixo : 1) * 100) + '%',
     alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
     alvo.parado ? 'parado (objeto)' : null,
   ].filter(Boolean).join(' · ') : '';
