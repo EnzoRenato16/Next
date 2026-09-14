@@ -255,9 +255,12 @@ def main():
     # O MODELO QUE JA ESTA NO AR, medido nos MESMOS clipes. Sem esta linha,
     # "71% na sua camera" nao quer dizer melhor nem pior — e trocar um modelo
     # sem saber se melhorou e so trocar.
-    antes = os.path.join(AQUI, "modelo.json")
-    if os.path.exists(antes):
-        v = json.load(open(antes))
+    # O que esta NO AR e o que esta escrito na pagina — nao o modelo.json da
+    # base publica. Depois do primeiro --aplicar os dois sao coisas diferentes, e
+    # comparar com o errado faz parecer melhora ou piora que nao existe.
+    v = modelo_da_pagina() or (json.load(open(os.path.join(AQUI, "modelo.json")))
+                               if os.path.exists(os.path.join(AQUI, "modelo.json")) else None)
+    if v:
         Zv = (X[selte] - np.array(v["mu"])) / np.array(v["sd"])
         zv = np.tanh(Zv @ np.array(v["W1"]) + np.array(v["b1"])) @ np.array(v["W2"]) + v["b2"]
         mxv = np.full(len(idxte), -1e30); np.maximum.at(mxv, dte, zv)
@@ -278,12 +281,12 @@ def main():
                f" {m['vp']} certos, {m['fp']} falsos, {m['fn']} perdidos)")
         if pv_ is not None:
             mv = T.medir(y, pv_, lim_v)
-            txt += (f"\n  {'  (o de hoje)':<18} precisao {mv['prec']:.0%}"
+            txt += (f"\n  {'  (o que esta no ar)':<18} precisao {mv['prec']:.0%}"
                     f"  revocacao {mv['rec']:.0%}"
                     f"   ({mv['vp']} certos, {mv['fp']} falsos, {mv['fn']} perdidos)")
         return txt
 
-    lim_v = json.load(open(antes))["limiar"] if pv is not None else 0.5
+    lim_v = v["limiar"] if v else 0.5
     if so_local.sum():
         print(linha("SO a sua camera", yte[so_local], pte[so_local],
                     pv[so_local] if pv is not None else None, lim_v))
@@ -357,6 +360,26 @@ def main():
     print("se tiver node instalado, rode tambem: node testes/rede-queda.mjs")
     print("(esse vai alem: refaz a conta inteira em JavaScript e compara.)")
     return 0
+
+
+def modelo_da_pagina():
+    """Le os pesos que estao de fato no auditix-sala.html, que e o que roda."""
+    try:
+        html = open(SALA, encoding="utf-8").read()
+    except OSError:
+        return None
+    fora = {}
+    for chave, nome in (("mu", "QUEDA_MU"), ("sd", "QUEDA_SD"), ("W1", "QUEDA_W1"),
+                        ("b1", "QUEDA_B1"), ("W2", "QUEDA_W2"), ("b2", "QUEDA_B2"),
+                        ("limiar", "QUEDA_LIMIAR")):
+        m = re.search(r"^const " + nome + r" = (.*?);$", html, re.M | re.S)
+        if not m:
+            return None
+        try:
+            fora[chave] = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            return None
+    return fora
 
 
 def conferir_pagina(novo):
