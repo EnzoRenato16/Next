@@ -361,7 +361,12 @@ def disparar_webhook(novo_id, momento, ev: Evento, hash_atual: str) -> None:
     cabecalhos = {"X-Auditix-Segredo": WEBHOOK_SEGREDO} if WEBHOOK_SEGREDO else {}
     try:
         with httpx.Client(timeout=5) as cli:
-            cli.post(WEBHOOK, json=corpo, headers=cabecalhos)
+            r = cli.post(WEBHOOK, json=corpo, headers=cabecalhos)
+        # Uma resposta 403 ou 500 nao levanta excecao: sem esta conferencia a
+        # recusa passaria calada e a tela nao daria pista nenhuma de por que o
+        # e-mail nao chegou.
+        if r.status_code >= 400:
+            print(f"[auditix] webhook recusou ({r.status_code}): {r.text[:200]}")
     except Exception as erro:  # noqa: BLE001
         print(f"[auditix] webhook falhou, evento gravado mesmo assim: {erro}")
 
