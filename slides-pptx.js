@@ -296,6 +296,38 @@ function rodape(s, n){
   rodape(s, 9);
 }
 
+/* ============================================= 10. valor para quem compra = */
+{
+  const s = nova();
+  olho(s, 'Onde está o valor para quem compra');
+  titulo(s, 'Três frentes, em ordem de\nforça para uma escola.');
+  const fr = [
+    ['O QUE FAZ ASSINAR', 'Risco jurídico,\nnão segurança',
+     'O medo real de uma mantenedora não é perder uma queda. É o processo depois. Registro que denuncia adulteração, imagem com prazo, acesso rastreado e biometria com vencimento reduzem exposição.',
+     'LGPD, e a disputa judicial que vem depois'],
+    ['O QUE SALVA', 'Custo evitado',
+     'Uma câmera comum só serve depois do fato. O valor está em chegar antes: socorro em segundos em vez de minutos, e uma queda vista no instante em que acontece.',
+     'o alerta sai antes de alguém reclamar'],
+    ['O QUE SUBSTITUI', 'Licença de nuvem',
+     'Se a escola já paga mensalidade por câmera para algum sistema de nuvem, o nosso número entra no lugar dele. E, ao contrário do dele, dá para conferir de onde sai.',
+     'comparável, e verificável linha a linha']
+  ];
+  fr.forEach((c, i) => {
+    const x = M + i * 4.03;
+    cartao(s, x, 3.3, 3.73, 3.05);
+    s.addText(c[0], { x:x+0.28, y:3.55, w:3.2, h:0.25, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:9.5, color:VERDE, charSpacing:1.5 });
+    s.addText(c[1], { x:x+0.28, y:3.85, w:3.2, h:0.75, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:17, bold:true, color:TINTA, lineSpacing:21 });
+    s.addText(c[2], { x:x+0.28, y:4.68, w:3.2, h:1.35, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:12, color:T2, lineSpacing:16 });
+    s.addText(c[3], { x:x+0.28, y:5.95, w:3.2, h:0.35, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:8.5, color:T3 });
+  });
+  s.addNotes('A primeira é a que fecha a venda. Segurança comove; risco jurídico faz a diretoria assinar.');
+  rodape(s, 10);
+}
+
 /* ==================================================== 10. mercado ======== */
 {
   const s = nova();
@@ -347,10 +379,10 @@ function rodape(s, n){
     { x:XD, y:6.22, w:5.5, h:0.4, isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3, lineSpacing:13 });
 
   s.addNotes('Se perguntarem tamanho de mercado: dizer que o dado vem do Censo Escolar do INEP e que o preço praticado sai de conversa com escolas, e que nenhum dos dois foi estimado por nós.');
-  rodape(s, 10);
+  rodape(s, 11);
 }
 
-/* =============================================== 11. o que falta medir === */
+/* =============================================== 12. o que falta medir === */
 {
   const s = nova();
   olho(s, 'Honestidade intelectual', ALERTA);
@@ -374,10 +406,10 @@ function rodape(s, n){
   });
   s.addText('Uma banca pergunta a fonte. “Estimativa nossa” derruba o slide, e com ele o resto da apresentação.',
     { x:M, y:6.1, w:11.5, h:0.45, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, italic:true, color:T2 });
-  rodape(s, 11);
+  rodape(s, 12);
 }
 
-/* ==================================================== 12. fecho ========== */
+/* ==================================================== 13. fecho ========== */
 {
   const s = nova();
   olho(s, 'Para fechar');
