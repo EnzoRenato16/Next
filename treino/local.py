@@ -266,8 +266,35 @@ def main():
     # aprenderia a ignorar o teste — que e pior do que nao ter teste.
     refazer_provas(mu, sd, rede, locais)
     print("auditix-sala.html e treino/provas.json atualizados.")
-    print("confira com: node testes/rede-queda.mjs")
+    if not conferir_pagina(novo):
+        return 1
+    print("conferido: os numeros na pagina sao os que acabaram de ser treinados.")
+    print("se tiver node instalado, rode tambem: node testes/rede-queda.mjs")
+    print("(esse vai alem: refaz a conta inteira em JavaScript e compara.)")
     return 0
+
+
+def conferir_pagina(novo):
+    """Le de volta o que foi escrito e compara numero a numero.
+
+    Escrever num arquivo de 2 mil linhas com expressao regular e o tipo de
+    operacao que falha em silencio: casa no lugar errado, escreve metade, ou nao
+    escreve e devolve sucesso. Ler de volta custa nada e fecha isso."""
+    html = open(SALA, encoding="utf-8").read()
+    for nome, esperado in novo.items():
+        m = re.search(r"^const " + nome + r" = (.*?);$", html, re.M | re.S)
+        if not m:
+            print(f"CONFERENCIA FALHOU: {nome} sumiu da pagina.")
+            return False
+        try:
+            lido = json.loads(m.group(1))
+        except json.JSONDecodeError:
+            print(f"CONFERENCIA FALHOU: {nome} na pagina nao e um numero valido.")
+            return False
+        if np.max(np.abs(np.array(lido, float) - np.array(esperado, float))) > 1e-9:
+            print(f"CONFERENCIA FALHOU: {nome} na pagina nao bate com o treinado.")
+            return False
+    return True
 
 
 def refazer_provas(mu, sd, rede, locais):
