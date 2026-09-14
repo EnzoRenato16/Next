@@ -772,6 +772,19 @@ const CORRE_CRESC = 0.55;  // o corpo CRESCE no quadro a esta taxa por segundo
    demais mexendo os braços rápido demais, o que pede olho humano. */
 const AGITA_PERTO = 0.9;   // distância entre quadris, em alturas-de-corpo
 const AGITA_ENER  = 1.1;   // energia dos punhos, em alturas-de-corpo por segundo
+/* Movimento intenso de UMA pessoa: braços em excesso, correr no lugar, gesto
+   agitado. Existe porque atravessar o quadro é a definição errada de corrida
+   numa sala pequena ou com a câmera no alto — a pessoa nunca percorre distância
+   suficiente, e o alerta nunca vem.
+
+   O valor sai das medições de agitação feitas com vídeo real nesta mesma
+   escala: soco 2,41 e empurrão 1,62 de um lado; aceno 0,61, dança 0,49 e
+   abraço 0,27 do outro. 1,5 passa longe dos dois grupos.
+
+   É um valor PROVISÓRIO até ser medido na câmera de vocês: a faixa mostra o
+   quanto cada movimento atingiu, justamente para poder ajustar com número em
+   vez de impressão. */
+const MOVE_INTENSO = 1.5;
 const AGITA_SEG   = 700;
 
 /* O sinal que separa briga de abraço, dança e brincadeira.
@@ -1391,7 +1404,21 @@ function analisar(t, lm, agora){
       (t.nome ? ', ' + t.nome : '') + ', pendente de validação humana',
       porqueQueda(t));
 
-  /* --- corrida e energia dos punhos --- */
+  /* Energia dos punhos: média da janela, e não um par de amostras solto. Um
+     braço que sobe e volta entre as duas amostras daria energia zero, que é
+     justamente o movimento que a gente quer pegar. */
+  let soma = 0, n = 0;
+  for(let i = 1; i < t.hist.length; i++){
+    const h0 = t.hist[i-1], h1 = t.hist[i];
+    const dt2 = (h1.t - h0.t) / 1000;
+    if(dt2 <= 0 || agora - h1.t > 500) continue;
+    soma += (Math.hypot((h1.px.x - h0.px.x) * aspecto, h1.px.y - h0.px.y) +
+             Math.hypot((h1.pd.x - h0.pd.x) * aspecto, h1.pd.y - h0.pd.y)) / 2 / altura / dt2;
+    n++;
+  }
+  t.energia = n ? soma / n : 0;
+
+  /* --- corrida e movimento intenso --- */
   const ant = t.hist.find(h => agora - h.t < 320 && agora - h.t > 80);
   if(ant){
     const dt = (agora - ant.t) / 1000;
@@ -1424,32 +1451,24 @@ function analisar(t, lm, agora){
     /* O pico recente, para a faixa poder dizer QUANTO faltou. Sem isto, "não
        detectou" e "quase detectou" são a mesma tela em branco, e a diferença
        entre as duas é a diferença entre mexer no limiar e mexer na câmera. */
-    const quanto = Math.max(t.vel / CORRE_VEL, t.cresc / CORRE_CRESC);
+    const quanto = Math.max(t.vel / CORRE_VEL, t.cresc / CORRE_CRESC,
+                            t.energia / MOVE_INTENSO);
     if(quanto > (picoCorrida.quanto || 0) || agora - picoCorrida.t > 8000)
-      picoCorrida = { quanto, vel:t.vel, t:agora };
+      picoCorrida = { quanto, vel:t.vel, energia:t.energia, t:agora };
 
-    if(t.vel > CORRE_VEL || t.cresc > CORRE_CRESC){
-      if(!t.correDesde) t.correDesde = agora;
+    const corre = t.vel > CORRE_VEL || t.cresc > CORRE_CRESC;
+    const intenso = t.energia > MOVE_INTENSO;
+    if(corre || intenso){
+      if(!t.correDesde){ t.correDesde = agora; t.porVel = corre; }
       else if(agora - t.correDesde > CORRE_SEG)
-        registrarAnomalia('corrida', t, 'Corrida detectada no corpo #' + t.id +
-          (t.nome ? ', ' + t.nome : ''));
+        registrarAnomalia('corrida', t,
+          (t.porVel ? 'Corrida detectada no corpo #' : 'Movimento intenso no corpo #') +
+          t.id + (t.nome ? ', ' + t.nome : ''),
+          t.porVel ? 'deslocamento ' + t.vel.toFixed(1) + ' de ' + CORRE_VEL.toFixed(1)
+                   : 'membros ' + t.energia.toFixed(1) + ' de ' + MOVE_INTENSO.toFixed(1));
     } else t.correDesde = 0;
 
   }
-
-  /* Energia dos punhos: média da janela, e não um par de amostras solto. Um
-     braço que sobe e volta entre as duas amostras daria energia zero, que é
-     justamente o movimento que a gente quer pegar. */
-  let soma = 0, n = 0;
-  for(let i = 1; i < t.hist.length; i++){
-    const h0 = t.hist[i-1], h1 = t.hist[i];
-    const dt2 = (h1.t - h0.t) / 1000;
-    if(dt2 <= 0 || agora - h1.t > 500) continue;
-    soma += (Math.hypot((h1.px.x - h0.px.x) * aspecto, h1.px.y - h0.px.y) +
-             Math.hypot((h1.pd.x - h0.pd.x) * aspecto, h1.pd.y - h0.pd.y)) / 2 / altura / dt2;
-    n++;
-  }
-  if(n) t.energia = soma / n;
 
   /* --- mapa de calor: onde os pés pisaram --- */
   if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
@@ -1877,7 +1896,7 @@ function resumir(){
   const firmes = trilhas.filter(t => t.firme);
   const cegos = firmes.filter(t => t.analisavel === false).length;
   const pico = performance.now() - picoCorrida.t < 8000 && picoCorrida.quanto > 0.25
-    ? 'corrida: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
+    ? 'movimento: chegou a ' + Math.round(picoCorrida.quanto * 100) + '% do necessário'
     : '';
   el('faixa-aviso').textContent = !cegos
     ? pico
