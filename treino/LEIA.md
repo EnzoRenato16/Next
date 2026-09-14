@@ -115,6 +115,19 @@ Com 20 clipes o modelo ja chega a 0,89; com 175 vezes mais dados, a 0,94. Sao
 cobrir os casos em que ele erra, e o angulo da camera, que mudou mais o
 resultado do que qualquer treino nesta base.
 
+## Ensinar pelo erro (o dado mais caro)
+
+Quando um alerta de queda dispara e nao houve queda, o alerta tem um link
+**"foi engano"**. Clicar guarda a JANELA EXATA que causou aquele alerta como
+exemplo de "aqui nao houve queda", com o rotulo `engano`.
+
+Isso vale mais que gravar horas de atividade normal: o modelo so erra em
+situacoes especificas, e horas de gravacao comum podem nao conter uma unica.
+Um clique num alerta errado produz exatamente o exemplo que falta.
+
+Medido nesta base: a quantidade satura (veja curva.py), a cobertura nao. Vinte
+janelas de erro valem mais que duzentas gravacoes genericas.
+
 ## Cuidar das gravacoes
 
     uv run treino/local.py --listar          # numera todas

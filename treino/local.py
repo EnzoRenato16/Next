@@ -27,6 +27,9 @@ import treinar as T
 AMOSTRAS = os.path.join(AQUI, "local", "amostras.jsonl")
 SALA = os.path.join(os.path.dirname(AQUI), "auditix-sala.html")
 QUEDA = {"queda"}          # o resto e tudo exemplo de "nao e queda"
+# "engano" vem do botao na tela: o alerta que disparou e a pessoa corrigiu. E o
+# exemplo mais caro que existe — horas de gravacao normal nao produzem um unico
+# caso desses, porque o modelo so erra em situacoes especificas.
 MINIMO_AMOSTRAS = 8        # igual ao QUEDA_AMOSTRAS do auditix-sala.html
 MIN_CLIPES = 5             # por classe, antes de deixar aplicar na Sala
 

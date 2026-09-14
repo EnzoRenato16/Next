@@ -440,13 +440,23 @@ function expurgar(){
 let presentes = [], naoIdent = [], fluxo = null, rodando = false, prontos = false;
 
 /* ---------------------------------------------------------------- pintar --- */
+/* Escrever innerHTML a cada quadro troca os elementos debaixo do dedo de quem
+   está clicando: o "foi engano" era quase impossível de acertar, e o navegador
+   ainda refaz layout 30 vezes por segundo à toa. Só escreve quando mudou. */
+const pintado = new Map();
+function pintar(id, html){
+  if(pintado.get(id) === html) return;
+  pintado.set(id, html);
+  el(id).innerHTML = html;
+}
+
 function pintarTudo(){
   el('c-pres').textContent = presentes.length;
   el('c-desc').textContent = naoIdent.length;
   el('q1').textContent = presentes.length;
   el('q2').textContent = naoIdent.length;
 
-  el('l-presentes').innerHTML = presentes.length
+  pintar('l-presentes', presentes.length
     ? presentes.map(p => '<div class="linha">' +
         '<span class="pino' + (p.firme ? '' : ' duv') + '"></span>' +
         '<span class="nm">' + p.nome + ' <em>' + (p.turma ? p.turma + ' · ' : '') +
@@ -456,14 +466,14 @@ function pintarTudo(){
           : '<span class="hr" title="rosto conferido pela última vez">' + p.idade + '</span>') +
         '</div>').join('')
     : '<div class="vazio">' + (rodando ? 'Nenhum rosto cadastrado reconhecido ainda.'
-        : 'Abra a sala para começar.') + '</div>';
+        : 'Abra a sala para começar.') + '</div>');
 
-  el('l-desconhecidos').innerHTML = naoIdent.length
+  pintar('l-desconhecidos', naoIdent.length
     ? naoIdent.map(u => '<div class="linha"><span class="pino duv"></span>' +
         '<span class="nm">Corpo #' + u.id +
         ' <em>rosto ainda não lido · pendente de validação humana</em></span>' +
         '<span class="hr">' + u.idade + '</span></div>').join('')
-    : '<div class="vazio">Ninguém sem identificação na sala.</div>';
+    : '<div class="vazio">Ninguém sem identificação na sala.</div>');
 
   el('c-anom').textContent = anomalias.length;
   el('q4').textContent = anomalias.length;
@@ -471,18 +481,22 @@ function pintarTudo(){
      apareça feio, e não quebrado — foi assim que a lista chegou a escrever
      "undefined" na frente de um alerta. */
   const ICONE = { queda:'Queda', corrida:'Corrida', agitacao:'Agitação' };
-  el('l-anomalias').innerHTML = anomalias.length
+  pintar('l-anomalias', anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em>' +
         (a.porque ? '<br><small style="opacity:.6">' + a.porque + '</small>' : '') +
+        (a.janela && a.janela.length >= 10 && !a.corrigido
+          ? ' <a href="#" class="engano" data-h="' + a.h + '" data-c="' + a.corpo +
+            '" style="font-size:.8em; opacity:.75">foi engano</a>'
+          : a.corrigido ? ' <small style="opacity:.5">✓ virou exemplo</small>' : '') +
         '</span><span class="hr">' + a.h + '</span></div>').join('')
     : '<div class="vazio">' + (rodando ? textoSemAnomalia() :
-        'Quedas, corridas e agitação aparecem aqui.') + '</div>';
+        'Quedas, corridas e agitação aparecem aqui.') + '</div>');
 
-  el('l-eventos').innerHTML = eventos.length
+  pintar('l-eventos', eventos.length
     ? eventos.slice(0,10).map(e => '<div class="linha"><span class="pino ' + e.p + '"></span>' +
         '<span class="nm">' + e.t + '</span><span class="hr">' + e.h + '</span></div>').join('')
-    : '<div class="vazio">Nenhum evento ainda.</div>';
+    : '<div class="vazio">Nenhum evento ainda.</div>');
 }
 /* "Nada fora do padrão" só pode ser dito quando houve como olhar.
 
@@ -1282,7 +1296,17 @@ function registrarAnomalia(tipo, t, texto, porque){
   const ja = anomalias.find(a => a.tipo === tipo && a.corpo === t.id);
   if(ja){ ja.visto = Date.now(); return; }
   anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, porque,
-                      h:hora(), visto:Date.now() });
+                      h:hora(), visto:Date.now(),
+                      /* A janela que causou ESTE alerta, congelada. É com ela que
+                         o "foi engano" ensina: o exemplo mais valioso para
+                         treinar é exatamente aquele em que o sistema errou, e
+                         ele só existe no instante em que o erro acontece. */
+                      janela: t.hist.map(h => ({ corpo:t.id, t:Math.round(h.t),
+                        qx:+h.qx.toFixed(5), qy:+h.qy.toFixed(5), ang:+h.ang.toFixed(2),
+                        altura:+h.altura.toFixed(5), eixo:+h.eixo.toFixed(5),
+                        ombro:+h.ombro.toFixed(5), prop:+h.prop.toFixed(4),
+                        pxx:+h.px.x.toFixed(5), pxy:+h.px.y.toFixed(5),
+                        pdx:+h.pd.x.toFixed(5), pdy:+h.pd.y.toFixed(5) })) });
   anomalias = anomalias.slice(0, 20);
   anotar('mal', texto);
   mandarEvento(tipo, 'corpo-' + t.id);
@@ -2249,6 +2273,26 @@ el('desligar').addEventListener('click', desligar);
 el('ligar').addEventListener('click', ligar);
 el('btn-fonte').addEventListener('click', e => { e.preventDefault(); trocarFonte(); });
 el('btn-gravar').addEventListener('click', alternarGravacao);
+
+/* "Foi engano": a pessoa que está olhando a tela sabe o que aconteceu, e o
+   sistema não. Esse clique manda a janela exata do alerta errado para o treino,
+   como exemplo de que ali NÃO houve queda. É o dado mais caro que existe —
+   gravar horas de normal não produz um único caso destes. */
+el('l-anomalias').addEventListener('click', e => {
+  const a = e.target.closest('.engano');
+  if(!a) return;
+  e.preventDefault();
+  const alvo = anomalias.find(x => x.h === a.dataset.h && String(x.corpo) === a.dataset.c);
+  if(!alvo || !alvo.janela) return;
+  alvo.corrigido = true; pintarTudo();
+  fetch('/api/amostras', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ rotulo:'engano', sessao:Date.now(), fps:PADRAO_FPS,
+                           quadros: alvo.janela }) })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(d => dizer('✓ engano guardado para o treino · ' + d.total + ' amostras'))
+    .catch(err => { alvo.corrigido = false; pintarTudo();
+                    dizer('✗ não consegui guardar: ' + err, 8000); });
+});
 mostrarFonte();
 el('limpar').addEventListener('click', () => { eventos = []; pintarTudo(); });
 
