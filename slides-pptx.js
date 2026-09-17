@@ -111,7 +111,7 @@ function rodape(s, n){
   const nums = [['89%','das quedas detectadas a 30 quadros por segundo', true],
                 ['4.509','clipes com esqueleto quadro a quadro no treino', false],
                 ['0','pedidos para fora: roda sem internet', false],
-                ['10','testes automáticos, do detector ao e-mail', false]];
+                ['11','arquivos de teste automático, do detector ao e-mail', false]];
   nums.forEach((n, i) => {
     const x = M + i * 3.02;
     s.addShape(pres.ShapeType.rect, { x, y:3.05, w:0.03, h:1.35,
@@ -122,18 +122,19 @@ function rodape(s, n){
       fontFace:TXT, fontSize:12, color:T2, lineSpacing:16 });
   });
   const linhas = [
-    ['Sala auditada', 'Pose de até 6 pessoas, linha do chão calibrável, e um alerta por queda, não dezenove.'],
+    ['Sala auditada', 'Pose de até 6 pessoas, linha do chão calibrável, e um alerta por episódio, não dezenove.'],
+    ['Três medidas', 'Queda por rede treinada. Corrida e briga por regra, e a tela diz qual é qual.'],
     ['Câmera IP', 'RTSP para ponte local para WebRTC. Fração de segundo de atraso, e a imagem não sai da escola.'],
     ['Dashboard', 'Integridade da cadeia, série por dia, mapa de ocupação e quem sumiu.'],
     ['Aviso', 'E-mail em segundos, com espera mínima entre avisos para a caixa continuar sendo lida.']
   ];
   linhas.forEach((l, i) => {
-    const y = 4.75 + i * 0.52;
+    const y = 4.60 + i * 0.42;
     s.addShape(pres.ShapeType.line, { x:M, y, w:11.8, h:0, line:{ color:LINHA, width:1 } });
-    s.addText(l[0], { x:M, y:y+0.08, w:2.6, h:0.35, isTextBox:true, margin:0,
-      fontFace:TIT, fontSize:13, bold:true, color:TINTA });
-    s.addText(l[1], { x:M+2.75, y:y+0.08, w:9, h:0.35, isTextBox:true, margin:0,
-      fontFace:TXT, fontSize:12.5, color:T2 });
+    s.addText(l[0], { x:M, y:y+0.06, w:2.6, h:0.32, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:12.5, bold:true, color:TINTA });
+    s.addText(l[1], { x:M+2.75, y:y+0.06, w:9, h:0.32, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:12, color:T2 });
   });
   rodape(s, 3);
 }
@@ -216,7 +217,52 @@ function rodape(s, n){
   rodape(s, 6);
 }
 
-/* ==================================================== 7. o alerta ======== */
+/* ==================================================== 7. a ANPD ========== */
+/* Este slide e o mais forte do deck e nao e tecnico. Ate agosto de 2026 a
+   posicao de privacidade do Auditix era uma escolha de projeto que a gente
+   defendia com argumento. Agora existe uma decisao de agencia reguladora
+   brasileira dizendo a mesma coisa sobre o maior sistema do pais, e as cinco
+   falhas que ela aponta sao, uma a uma, o que a gente construiu. */
+{
+  const s = nova();
+  olho(s, 'Agosto de 2026', ALERTA);
+  titulo(s, 'A ANPD já suspendeu\no caminho que não seguimos.');
+  apoio(s, 'O maior sistema de IA em escola do Brasil, com mais de 1.700 escolas e cerca de 1 milhão de alunos por dia, foi suspenso por tratar biometria de criança. A agência classificou isso como atividade de alto risco. As cinco falhas apontadas são as cinco perguntas que o Auditix já responde.', 2.42, 11.5, 0.95);
+
+  s.addText('O QUE A ANPD APONTOU', { x:M, y:3.5, w:4.5, h:0.26, isTextBox:true, margin:0,
+    fontFace:MONO, fontSize:9.5, color:T3, charSpacing:1.5 });
+  s.addText('O QUE O AUDITIX FAZ', { x:M+4.95, y:3.5, w:6.5, h:0.26, isTextBox:true, margin:0,
+    fontFace:MONO, fontSize:9.5, color:VERDE, charSpacing:1.5 });
+
+  const pares = [
+    ['Sem base legal do art. 11 para dado sensível',
+     'Não coletamos biometria. O artigo 11 não chega a se aplicar.'],
+    ['Desproporcional: não provaram que o menos invasivo não bastava',
+     'Rosto apagado antes de a imagem sair, e ela só existe em alerta grave.'],
+    ['Segurança citada de forma genérica, sem monitoramento nem auditoria',
+     'Cadeia de hash verificável, e cada abertura de imagem vira linha no banco.'],
+    ['Melhor interesse da criança não demonstrado',
+     'A imagem se apaga sozinha em 7 dias. O registro do evento fica.'],
+    ['Registro de Operações de Tratamento não entregue',
+     'O banco é o registro, linha a linha, e ele se confere sozinho.']
+  ];
+  pares.forEach((par, i) => {
+    const y = 3.84 + i * 0.58;
+    s.addShape(pres.ShapeType.line, { x:M, y, w:11.83, h:0, line:{ color:LINHA, width:1 } });
+    s.addText(par[0], { x:M, y:y+0.07, w:4.7, h:0.46, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:11.5, color:T2, lineSpacing:13.5 });
+    s.addText(par[1], { x:M+4.95, y:y+0.07, w:6.85, h:0.46, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:11.5, color:TINTA, lineSpacing:13.5 });
+  });
+
+  s.addText('Leitura nossa da decisão pública da ANPD, não parecer jurídico.',
+    { x:M, y:6.82, w:7, h:0.26, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:9, color:T3 });
+  s.addNotes('Esta é a resposta para "por que vocês não reconhecem os alunos?". A resposta não é "não deu tempo": a gente consegue e escolheu não fazer, e um mês atrás a ANPD deu razão a essa escolha. Não afirmar conformidade jurídica: dizer que é a nossa leitura da decisão.');
+  rodape(s, 7);
+}
+
+/* ==================================================== 8. o alerta ======== */
 {
   const s = nova();
   olho(s, 'Do chão à caixa de entrada');
@@ -240,17 +286,17 @@ function rodape(s, n){
   });
   s.addText('O caminho tem teste automático, inclusive o que custa caro quando falha: e-mail sem segredo e e-mail em rajada.',
     { x:M, y:6.0, w:11.5, h:0.5, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, color:T2 });
-  rodape(s, 7);
+  rodape(s, 8);
 }
 
-/* ==================================================== 8. dashboard ======= */
+/* ==================================================== 9. dashboard ======= */
 {
   const s = nova();
   olho(s, 'Dashboard ligado ao banco por API');
   titulo(s, 'Um dashboard que lê o banco,\nnão um print de tela.');
   s.addText([{ text:'Sete rotas em FastAPI sobre o PostgreSQL. A única que escreve alguma coisa é a da imagem, e o que ela escreve é ', options:{ color:T2 } },
              { text:'quem olhou.', options:{ color:TINTA, bold:true } }],
-    { x:M, y:2.75, w:11.5, h:0.4, isTextBox:true, margin:0, fontFace:TXT, fontSize:14 });
+    { x:M, y:2.75, w:11.5, h:0.55, isTextBox:true, margin:0, fontFace:TXT, fontSize:14 });
   s.addImage({ path:P+'calor.png', x:M, y:3.35, w:5.6, h:3.63 });
   const q = [['“Aconteceu alguma coisa?”','/api/painel','Último evento, onde, há quanto tempo. E a corrente em uma palavra.'],
              ['“Onde a sala aperta?”','/api/mapa','Mapa suavizado por vizinhança, com um anel em onde mais pararam.'],
@@ -265,10 +311,10 @@ function rodape(s, n){
     s.addText(it[2], { x:6.75, y:y+0.52, w:5.9, h:0.3, isTextBox:true, margin:0,
       fontFace:TXT, fontSize:11.5, color:T2 });
   });
-  rodape(s, 8);
+  rodape(s, 9);
 }
 
-/* ==================================================== 9. a rota ========== */
+/* ==================================================== 10. a rota ========== */
 {
   const s = nova();
   olho(s, 'Onde isto vai dar');
@@ -293,10 +339,10 @@ function rodape(s, n){
     s.addText(it[3], { x:M+2.0, y:y+0.55, w:9.5, h:0.5, isTextBox:true, margin:0,
       fontFace:TXT, fontSize:12, color:T2, lineSpacing:16 });
   });
-  rodape(s, 9);
+  rodape(s, 10);
 }
 
-/* ============================================= 10. valor para quem compra = */
+/* ============================================= 11. valor para quem compra = */
 {
   const s = nova();
   olho(s, 'Onde está o valor para quem compra');
@@ -325,10 +371,10 @@ function rodape(s, n){
       fontFace:MONO, fontSize:8.5, color:T3 });
   });
   s.addNotes('A primeira é a que fecha a venda. Segurança comove; risco jurídico faz a diretoria assinar.');
-  rodape(s, 10);
+  rodape(s, 11);
 }
 
-/* ==================================================== 10. mercado ======== */
+/* ==================================================== 12. mercado ======== */
 {
   const s = nova();
   olho(s, 'Valor econômico e entrada no mercado');
@@ -379,37 +425,42 @@ function rodape(s, n){
     { x:XD, y:6.22, w:5.5, h:0.4, isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3, lineSpacing:13 });
 
   s.addNotes('Se perguntarem tamanho de mercado: dizer que o dado vem do Censo Escolar do INEP e que o preço praticado sai de conversa com escolas, e que nenhum dos dois foi estimado por nós.');
-  rodape(s, 11);
+  rodape(s, 12);
 }
 
-/* =============================================== 12. o que falta medir === */
+/* =============================================== 13. o que falta medir === */
 {
   const s = nova();
   olho(s, 'Honestidade intelectual', ALERTA);
   titulo(s, 'O que ainda não medimos,\ne não vamos inventar.');
-  apoio(s, 'Três números que decidem se isto é negócio, e que nenhuma planilha nossa pode responder.', 2.8, 11.5);
+  apoio(s, 'Quatro coisas que decidem se isto é negócio e se a detecção se sustenta, e que nenhuma planilha nossa pode responder.', 2.8, 11.5);
+  /* A quarta entrou junto com a briga, e é o preço de ter sido honesto no
+     código: briga hoje é regra sobre as features do DIFEM, sem classificador
+     treinado, porque não temos dataset. Dizer isso aqui é mais forte do que
+     deixar a banca descobrir perguntando. */
   const faltam = [
     ['Quanto uma escola paga hoje','por monitoramento eletrônico','fonte: ligar para três escolas'],
     ['Quantas escolas no recorte','rede, município ou grupo','fonte: Censo Escolar, INEP'],
-    ['Alertas por dia que se aguenta','e quantos foram engano','fonte: o piloto, e só ele']
+    ['Alertas por dia que se aguenta','e quantos foram engano','fonte: o piloto, e só ele'],
+    ['Acerto da briga em vídeo real','hoje é regra, não modelo treinado','fonte: RWF-2000, 2.000 clipes']
   ];
   faltam.forEach((f, i) => {
-    const x = M + i * 4.03;
-    s.addShape(pres.ShapeType.roundRect, { x, y:3.5, w:3.73, h:2.1, rectRadius:0.10,
+    const x = M + i * 3.01;
+    s.addShape(pres.ShapeType.roundRect, { x, y:3.5, w:2.80, h:2.1, rectRadius:0.10,
       fill:{ color:CHAO }, line:{ color:LINHA, width:1, dashType:'dash' } });
-    s.addText(f[0], { x:x+0.3, y:3.78, w:3.15, h:0.6, isTextBox:true, margin:0,
-      fontFace:TIT, fontSize:15, bold:true, color:TINTA, lineSpacing:19 });
-    s.addText(f[1], { x:x+0.3, y:4.45, w:3.15, h:0.35, isTextBox:true, margin:0,
-      fontFace:TXT, fontSize:12, color:T2 });
-    s.addText(f[2], { x:x+0.3, y:4.95, w:3.15, h:0.45, isTextBox:true, margin:0,
-      fontFace:MONO, fontSize:9, color:ALERTA, lineSpacing:12 });
+    s.addText(f[0], { x:x+0.24, y:3.76, w:2.36, h:0.66, isTextBox:true, margin:0,
+      fontFace:TIT, fontSize:13.5, bold:true, color:TINTA, lineSpacing:17 });
+    s.addText(f[1], { x:x+0.24, y:4.48, w:2.36, h:0.42, isTextBox:true, margin:0,
+      fontFace:TXT, fontSize:11.5, color:T2, lineSpacing:14 });
+    s.addText(f[2], { x:x+0.24, y:4.98, w:2.36, h:0.45, isTextBox:true, margin:0,
+      fontFace:MONO, fontSize:8.5, color:ALERTA, lineSpacing:11 });
   });
   s.addText('Uma banca pergunta a fonte. “Estimativa nossa” derruba o slide, e com ele o resto da apresentação.',
     { x:M, y:6.1, w:11.5, h:0.45, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, italic:true, color:T2 });
-  rodape(s, 12);
+  rodape(s, 13);
 }
 
-/* ==================================================== 13. fecho ========== */
+/* ==================================================== 14. fecho ========== */
 {
   const s = nova();
   olho(s, 'Para fechar');

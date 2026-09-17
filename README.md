@@ -59,9 +59,14 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 borda, e nenhuma página depende de CDN para desenhar. Demonstração que morre
 porque a internet caiu é demonstração perdida.
 
-**Medido, não achado.** Queda, corrida e agitação têm teste com cenários em
-`testes/`, e a rede de queda tem números de um dataset público de 4.509 clipes
-(revocação 89% contra 60% da regra geométrica). Quando algo não foi medido, o
+**Medido, não achado.** A Sala mede três coisas, e não finge que são iguais:
+**queda** por rede treinada em 4.509 clipes de um dataset público (revocação 89%
+contra 60% da regra geométrica), **corrida** e **briga** por regra geométrica.
+Todas têm cenários em `testes/`. Briga usa as features do DIFEM
+([arXiv 2412.05386](https://arxiv.org/abs/2412.05386)) sem o classificador
+treinado deles, porque ainda não temos dataset — então o painel escreve
+`regra` ao lado do tipo, e o caminho para virar modelo é o
+[RWF-2000](https://arxiv.org/abs/1911.05913). Quando algo não foi medido, o
 código diz isso.
 
 **Evidência para conferência humana, nunca acusação automática.** Quem não é
