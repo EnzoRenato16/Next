@@ -74,17 +74,26 @@ SQLITE = Path(os.environ["SQLITE_ARQUIVO"]) if os.environ.get("SQLITE_ARQUIVO") 
     else AQUI / "auditix.db"
 GENESE = "0" * 64
 
-# eventos que merecem acordar alguém na hora
-GRAVES = {"queda", "agitacao", "objeto_perigoso",
+# eventos que merecem acordar alguem na hora: e-mail e foto do momento.
+#
+# CORRIDA NAO ESTA AQUI, e a ausencia dela e uma decisao, nao um esquecimento.
+# Correr em corredor de escola acontece no intervalo inteiro, todo dia. Se cada
+# corrida virasse e-mail, a coordenacao receberia dezenas por recreio e em uma
+# semana criaria um filtro para a caixa — e a queda de verdade morreria nesse
+# filtro junto com o resto. Corrida aparece no painel, entra no banco, conta no
+# mapa de calor, e nao acorda ninguem.
+GRAVES = {"queda", "briga", "agitacao", "objeto_perigoso",
           "patrimonio_sumiu"}
 
-# O que o painel MOSTRA. A Sala hoje se especializa em queda, e o banco ainda
-# guarda eventos das versoes anteriores (corrida, agitacao) e os reconhecimentos
-# de rosto. Eles continuam gravados e continuam sendo conferidos pela cadeia de
-# hash — apagar linha nenhuma, isso quebraria a corrente de proposito. O filtro
-# e so de leitura. Vazio mostra tudo.
+# O que o painel MOSTRA. A Sala mede tres coisas hoje: queda (rede treinada em
+# 4.509 clipes), corrida (regra geometrica) e briga (regra sobre as features do
+# DIFEM). O banco ainda guarda eventos de versoes anteriores e os
+# reconhecimentos de rosto, que continuam gravados e continuam sendo conferidos
+# pela cadeia de hash — apagar linha nenhuma, isso quebraria a corrente de
+# proposito. O filtro e so de leitura. Vazio mostra tudo.
 TIPOS_PAINEL = {x.strip() for x in
-                os.environ.get("PAINEL_TIPOS", "queda").split(",") if x.strip()}
+                os.environ.get("PAINEL_TIPOS", "queda,corrida,briga").split(",")
+                if x.strip()}
 
 # Foto do momento do alerta, so em evento GRAVE. Nao e vigilancia continua: e o
 # recorte de um instante que ja virou registro, para que a conferencia humana

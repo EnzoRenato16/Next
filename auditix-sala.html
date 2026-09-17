@@ -487,7 +487,7 @@ function pintarTudo(){
   /* O rótulo curto de cada tipo. O `|| 'Alerta'` existe para que um tipo novo
      apareça feio, e não quebrado — foi assim que a lista chegou a escrever
      "undefined" na frente de um alerta. */
-  const ICONE = { queda:'Queda' };
+  const ICONE = { queda:'Queda', corrida:'Corrida', briga:'Briga' };
   pintar('l-anomalias', anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em>' +
@@ -498,7 +498,7 @@ function pintarTudo(){
           : a.corrigido ? ' <small style="opacity:.5">✓ virou exemplo</small>' : '') +
         '</span><span class="hr">' + a.h + '</span></div>').join('')
     : '<div class="vazio">' + (rodando ? textoSemAnomalia() :
-        'Quedas aparecem aqui.') + '</div>');
+        'Quedas, corridas e brigas aparecem aqui.') + '</div>');
 
   pintar('l-eventos', eventos.length
     ? eventos.slice(0,10).map(e => '<div class="linha"><span class="pino ' + e.p + '"></span>' +
@@ -519,7 +519,7 @@ function textoSemAnomalia(){
   if(cegos === firmes.length)
     return firmes.length === 1
       ? 'Corpo cortado no enquadramento: dá para identificar a pessoa, mas não '
-        + 'para afirmar queda. A câmera precisa pegar da '
+        + 'para afirmar queda, corrida ou briga. A câmera precisa pegar da '
         + 'cintura para baixo.'
       : 'Nenhum dos ' + firmes.length + ' corpos aparece inteiro no quadro: dá '
         + 'para identificar as pessoas, mas não para afirmar o que está '
@@ -868,6 +868,59 @@ const DEMO_BAIXO = 0.55;
    O preço, e é grande: vale para ESTA câmera, nesta posição. Mexeu na câmera,
    marca de novo. Por isso ela não vem ligada e não substitui o resto — soma. */
 const LINHA_SEG = 400;        // ms com a cabeça abaixo antes de acusar
+
+/* ---- corrida ------------------------------------------------------------
+   Números em ALTURAS DE CORPO POR SEGUNDO, que é uma unidade que não depende
+   da câmera nem da distância. Referência física, para quem for conferir: uma
+   pessoa de 1,70m andando a 1,3 m/s faz 0,76 alturas/s; correndo a 3 m/s faz
+   1,76. O limiar fica entre os dois, e mais perto da corrida porque o plano da
+   imagem só enxerga o movimento LATERAL: quem corre na direção da câmera
+   aparece mais lento do que é, e quem anda nunca aparece mais rápido. Errar
+   para o lado de deixar passar é o certo aqui — corrida não acorda ninguém de
+   madrugada, e alarme falso em corredor de escola destrói a confiança no
+   sistema inteiro em uma semana. */
+const CORRE_VEL = 1.20;       // alturas de corpo por segundo
+const CORRE_JANELA = 700;     // ms de caminho somado
+const CORRE_SEG = 600;        // ms acima do limiar antes de acusar
+const CORRE_PASSO = 100;      // ms entre amostras: abaixo disso soma-se tremor
+
+/* ---- briga --------------------------------------------------------------
+   As features vêm do DIFEM (arXiv 2412.05386), que mostra que violência em
+   esqueleto se reduz a duas coisas: VELOCIDADE de articulações específicas e
+   INTERSEÇÃO entre articulações de pessoas diferentes. Os autores alimentam
+   uma floresta aleatória com isso e batem métodos de deep learning gastando
+   uma fração dos parâmetros.
+
+   HONESTIDADE SOBRE O QUE ISTO É: o que está aqui são as features do DIFEM
+   com uma regra por cima, NÃO o classificador treinado deles. A gente não tem
+   dataset de briga — a rede de queda tem 4.509 clipes por trás, esta regra tem
+   zero. O caminho para virar modelo de verdade é o RWF-2000 (2.000 clipes de
+   câmera de vigilância, metade violenta, divisão 80/20 já definida), e até lá
+   isto se chama regra, no código, na tela e no pitch.
+
+   As quatro condições existem para derrubar os quatro falsos positivos que
+   qualquer regra ingênua produz numa escola:
+     perto           → duas pessoas conversando de longe não brigam
+     mão no outro    → gesticular no próprio espaço não é briga
+     golpe dirigido  → abraço também aproxima, mas devagar e sem direção
+     repetição       → um empurrão é um empurrão; briga é vai-e-vem */
+const BRIGA_PERTO = 1.6;     // distância entre quadris, em alturas de corpo
+const BRIGA_TOQUE = 0.55;    // punho a esta distância do tronco alheio = interseção
+const BRIGA_GOLPE = 1.80;    // alturas/s de avanço dirigido do punho
+const BRIGA_TOQUES = 2;      // impulsos distintos exigidos na janela
+const BRIGA_JANELA = 2500;   // ms em que os impulsos são contados
+/* A memória da função de golpe, e ela é curta de propósito. Um soco dura
+   ~130ms; a janela só precisa segurar um soco mais folga. Na primeira versão
+   eram 420ms e isso criou um bug que o teste pegou: o pico ficava dentro da
+   janela por quase meio segundo depois do soco acabar, e UM empurrão era
+   contado como DOIS impulsos — passando a exigir repetição sem que houvesse
+   repetição nenhuma. */
+const GOLPE_MEM = 250;       // ms de memória do avanço de punho
+const BRIGA_GAP = 250;       // ms mínimos entre dois impulsos para serem distintos
+/* Abaixo disto o impulso REARMA. Contar borda de subida em vez de nível é o
+   conserto do mesmo bug: enquanto o sinal fica alto, é o mesmo soco. */
+const BRIGA_SOLTA = 0.6;     // fração do limiar para considerar o golpe terminado
+const BRIGA_SEG = 600;       // ms com tudo verdadeiro antes de acusar
 let linhaChao = null;         // 0 a 1 da altura do quadro, ou null
 let marcandoLinha = false;
 try{ const g = localStorage.getItem('auditix.linha');
@@ -1765,11 +1818,60 @@ function analisar(t, lm, agora){
   }
   t.energia = n ? soma / n : 0;
 
-  /* Corrida e agitação saíram: o projeto se especializou em queda. O que
-     ficou é uma coisa só, medida e defensável, em vez de três meio-feitas.
-     A energia dos membros e a velocidade continuam sendo calculadas acima
-     porque a faixa as mostra ao vivo — servem para diagnóstico, não
-     acusam mais nada. */
+  /* --- corrida ---
+     Velocidade do quadril dividida pela ALTURA DO CORPO. Essa divisão é a
+     coisa toda, e é o que separa esta implementação das que andam por aí.
+
+     Em pixels por segundo, uma pessoa no fundo da sala correndo se desloca
+     MENOS que uma pessoa perto da câmera andando: a perspectiva encolhe o
+     movimento junto com o corpo. Quem mede em pixels é obrigado a calibrar um
+     limiar por câmera, e aí cada sala vira uma configuração nova que ninguém
+     mantém. Dividindo pela altura medida do próprio corpo, a unidade vira
+     ALTURAS POR SEGUNDO: a mesma pessoa correndo dá o mesmo número no fundo e
+     na frente, porque numerador e denominador encolhem juntos. Nenhuma
+     calibração por ambiente.
+
+     O caminho é somado passo a passo, não medido de ponta a ponta: quem corre
+     de um lado para o outro e volta tem deslocamento líquido zero, e uma
+     medida de ponta a ponta diria que ficou parado.
+
+     A amostragem é reduzida a ~100ms de propósito. O landmark treme alguns
+     pixels a cada quadro; somando o caminho a 30fps esse tremor vira
+     velocidade que não existe, e uma pessoa parada "correria". */
+  const corrJan = t.hist.filter(h => agora - h.t < CORRE_JANELA);
+  let vel = 0;
+  if(corrJan.length >= 3){
+    const amostras = [corrJan[0]];
+    for(const h of corrJan)
+      if(h.t - amostras[amostras.length - 1].t >= CORRE_PASSO) amostras.push(h);
+    if(amostras.length >= 3){
+      let caminho = 0;
+      for(let i = 1; i < amostras.length; i++)
+        caminho += Math.hypot((amostras[i].qx - amostras[i-1].qx) * aspecto,
+                               amostras[i].qy - amostras[i-1].qy);
+      const dtTot = (amostras[amostras.length-1].t - amostras[0].t) / 1000;
+      /* A régua é a MAIOR altura da janela, não a de agora: quem corre balança
+         o corpo e encolhe por um instante, e dividir pela altura encolhida
+         inflava a velocidade justamente no quadro errado. */
+      const reg = Math.max.apply(null, amostras.map(h => h.altura));
+      if(dtTot > 0 && reg > 1e-6) vel = caminho / reg / dtTot;
+    }
+  }
+  t.velocidade = vel;
+
+  /* Correr é coisa de quem está EM PÉ. Sem esta trava a queda dispara corrida
+     junto: o quadril despenca, o caminho fica grande e o número estoura. O
+     tombo é o movimento mais rápido que uma pessoa faz na frente da câmera. */
+  const emPe = t.ang < 40 && t.baixo > 0.72 && !t.quedaDesde;
+  if(vel > CORRE_VEL && emPe){
+    if(!t.correDesde) t.correDesde = agora;
+    else if(agora - t.correDesde > CORRE_SEG)
+      registrarAnomalia('corrida', t, 'Corrida no corpo #' + t.id +
+        (t.nome ? ', ' + t.nome : ''),
+        'deslocamento de ' + vel.toFixed(2) + ' alturas de corpo por segundo ' +
+        '(limiar ' + CORRE_VEL + '), corpo em pé por ' +
+        Math.round(agora - t.correDesde) + 'ms');
+  } else t.correDesde = 0;
 
   /* --- mapa de calor: onde os pés pisaram --- */
   if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
@@ -1788,7 +1890,7 @@ function analisar(t, lm, agora){
 function golpeDirigido(t, alvo, agora){
   if(alvo.qx == null || alvo.ox == null) return 0;
   const tx = (alvo.qx + alvo.ox) / 2, ty = (alvo.qy + alvo.oy) / 2;
-  const h = t.hist.filter(x => agora - x.t < 420);
+  const h = t.hist.filter(x => agora - x.t < GOLPE_MEM);
   if(h.length < 2) return 0;
   const alt = t.altura || 1;
   let melhor = 0;
@@ -1829,6 +1931,113 @@ function aproximacao(a, b, agora){
   const d0 = Math.hypot((a0.qx - b0.qx) * aspecto, a0.qy - b0.qy);
   const d1 = Math.hypot((a1.qx - b1.qx) * aspecto, a1.qy - b1.qy);
   return (d0 - d1) / escala / dt;
+}
+
+/* O centro do tronco: meio do caminho entre quadril e ombros. É o alvo que um
+   golpe procura, e o ponto de referência da interseção do DIFEM. */
+const centroTronco = t => ({ x: (t.qx + t.ox) / 2, y: (t.qy + t.oy) / 2 });
+
+/* INTERSEÇÃO DE ARTICULAÇÕES, a segunda família de features do DIFEM: um punho
+   de `t` dentro do espaço do corpo de `alvo`.
+
+   Medida em alturas do corpo ALVO, e não em pixels nem na caixa do detector.
+   Usar a caixa seria mais fácil e estaria errado por dois motivos: ela vem em
+   pixels enquanto os landmarks vêm normalizados (misturar os dois espaços é
+   bug garantido), e ela cresce quando a pessoa abre os braços — exatamente o
+   instante em que ela NÃO deveria crescer. */
+function tocando(t, alvo){
+  if(t.qx == null || alvo.qx == null || alvo.ox == null) return false;
+  const h = t.hist && t.hist[t.hist.length - 1];
+  if(!h) return false;
+  const c = centroTronco(alvo), lim = BRIGA_TOQUE * (alvo.altura || 1);
+  for(const pu of [h.px, h.pd])
+    if(Math.hypot((pu.x - c.x) * aspecto, pu.y - c.y) < lim) return true;
+  return false;
+}
+
+/* Distância entre duas pessoas, em alturas de corpo — mesma unidade de tudo o
+   mais, pelo mesmo motivo de tudo o mais. */
+function distanciaEntre(a, b){
+  if(a.qx == null || b.qx == null) return Infinity;
+  const escala = (a.altura + b.altura) / 2;
+  if(!(escala > 1e-6)) return Infinity;
+  return Math.hypot((a.qx - b.qx) * aspecto, a.qy - b.qy) / escala;
+}
+
+/* A memória de cada PAR, e não de cada pessoa. Briga não é propriedade de um
+   corpo: é de dois. Guardar isso na trilha daria dois relógios independentes
+   contando a mesma briga, e dois alertas para o mesmo episódio. */
+const brigaPar = new Map();
+
+function analisarBriga(agora){
+  /* Só trilhas firmes, com quadril à vista e que não sejam objeto parado. As
+     mesmas exigências da queda, pelos mesmos motivos. */
+  const gente = trilhas.filter(t => t.firme && t.analisavel && !t.parado &&
+                                    t.qx != null && t.ox != null);
+
+  for(let i = 0; i < gente.length; i++){
+    for(let j = i + 1; j < gente.length; j++){
+      const a = gente[i], b = gente[j];
+      /* A chave é ordenada pelo id: o par (3,7) e o par (7,3) são o mesmo par,
+         e sem ordenar seriam duas memórias e dois alertas. */
+      const ka = Math.min(a.id, b.id), kb = Math.max(a.id, b.id);
+      const chave = ka + '-' + kb;
+      let est = brigaPar.get(chave);
+      if(!est){ est = { desde: 0, toques: [], visto: agora, armado: false, pico: 0 };
+                brigaPar.set(chave, est); }
+      est.visto = agora;
+      est.toques = est.toques.filter(x => agora - x < BRIGA_JANELA);
+
+      const dist = distanciaEntre(a, b);
+      const perto = dist < BRIGA_PERTO;
+      const encosta = perto && (tocando(a, b) || tocando(b, a));
+      /* O golpe é medido nos DOIS sentidos e vale o maior: numa briga de
+         verdade raramente os dois acertam ao mesmo tempo, e exigir reciprocidade
+         no mesmo instante faria o alerta nunca sair. */
+      const ga = golpeDirigido(a, b, agora), gb = golpeDirigido(b, a, agora);
+      const golpe = Math.max(ga, gb);
+
+      /* BORDA DE SUBIDA, não nível. Enquanto o sinal continua alto é o MESMO
+         soco, e contá-lo a cada quadro faria a exigência de repetição não
+         filtrar nada. O impulso só volta a valer depois de o sinal cair. */
+      if(encosta && golpe >= BRIGA_GOLPE && !est.armado){
+        const ult = est.toques[est.toques.length - 1];
+        if(ult == null || agora - ult > BRIGA_GAP){
+          est.toques.push(agora);
+          /* O PICO fica congelado aqui, no instante do golpe. Lido só na hora
+             do alerta, 600ms depois, ele já voltou a zero — e o texto sairia
+             dizendo "avanço de 0.00 alturas/s (limiar 1.80)", um número que
+             sozinho parece impossível. Já aconteceu com a nota da rede de
+             queda; não acontece de novo. */
+          est.pico = Math.max(est.pico || 0, golpe);
+        }
+        est.armado = true;
+      }
+      if(golpe < BRIGA_GOLPE * BRIGA_SOLTA) est.armado = false;
+
+      const briga = encosta && est.toques.length >= BRIGA_TOQUES;
+      if(briga){
+        if(!est.desde) est.desde = agora;
+        else if(agora - est.desde > BRIGA_SEG){
+          /* Registra SEMPRE na trilha de menor id. registrarAnomalia guarda a
+             memória do alerta por tipo+id, então alternar de dono entre um
+             quadro e outro daria dois alertas para a mesma briga. */
+          const dono = a.id <= b.id ? a : b, outro = dono === a ? b : a;
+          registrarAnomalia('briga', dono,
+            'Possível briga entre os corpos #' + ka + ' e #' + kb +
+            ', pendente de validação humana',
+            'regra (não modelo treinado): ' + est.toques.length + ' impulsos em ' +
+            (BRIGA_JANELA/1000) + 's, avanço de punho de ' + (est.pico || 0).toFixed(2) +
+            ' alturas/s (limiar ' + BRIGA_GOLPE + '), distância ' + dist.toFixed(2) +
+            ' alturas, aproximação ' + aproximacao(a, outro, agora).toFixed(2) + ' alturas/s');
+        }
+      } else est.desde = 0;
+      if(!est.toques.length) est.pico = 0;
+    }
+  }
+  /* Pares que sumiram da cena não precisam ocupar memória para sempre. */
+  for(const [k, v] of brigaPar)
+    if(agora - v.visto > BRIGA_JANELA * 2) brigaPar.delete(k);
 }
 
 /* ---------------------------------------------------------- mapa de calor -- */
@@ -2001,6 +2210,10 @@ async function laco(){
           tentarRecolar(tr, agora);
         }
       });
+      /* Depois de TODAS as trilhas analisadas, nunca dentro do laço: a briga é
+         uma pergunta sobre pares, e no meio do laço metade das pessoas ainda
+         está com os números do quadro anterior. */
+      analisarBriga(agora);
       resumir();
     }catch(e){}
     ocupadoCorpo = false;

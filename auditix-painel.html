@@ -210,6 +210,11 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   font-size:11.5px; font-weight:500; white-space:nowrap;
 }
 .marca-comum{ color:var(--ink-2); font-size:12.5px; }
+.marca-regra{
+  font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--ink-3); border:1px solid var(--linha); border-radius:5px;
+  padding:1px 5px; vertical-align:middle;
+}
 
 .rodape{ margin-top:18px; font-size:12px; color:var(--ink-3); line-height:1.6; }
 .rodape b{ color:var(--ink-2); font-weight:600; }
@@ -402,13 +407,23 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
    =========================================================================== */
 const el = id => document.getElementById(id);
 const NS = 'http://www.w3.org/2000/svg';
-const GRAVES = new Set(['queda','objeto_perigoso','patrimonio_sumiu']);
+/* Tem que ser a MESMA lista de servidor.py. Corrida fica de fora aqui pelo
+   mesmo motivo que fica lá: ela aparece, conta e entra no banco, mas não é
+   tratada como emergência. Duas listas que discordam fariam o painel pintar de
+   vermelho um evento que nunca gerou e-mail — e quem olha o painel confia nele
+   para saber o que foi escalado. */
+const GRAVES = new Set(['queda','briga','objeto_perigoso','patrimonio_sumiu']);
 const ROTULO = {
-  queda:'queda', objeto_perigoso:'objeto perigoso',
+  queda:'queda', corrida:'corrida', briga:'briga',
+  objeto_perigoso:'objeto perigoso',
   patrimonio_sumiu:'patrimônio sumiu',
   entrada:'entrada', saida:'saída',
   reconhecido:'reconhecido', desconhecido:'desconhecido'
 };
+/* Briga hoje é REGRA, não modelo treinado como a queda. A diferença importa
+   para quem lê o painel e vai decidir se desce até a sala, então ela aparece na
+   tela em vez de ficar só no código. */
+const REGRA = new Set(['briga','corrida']);
 const nome = t => ROTULO[t] || String(t).replace(/_/g,' ');
 const num = n => Number(n).toLocaleString('pt-BR');
 
@@ -839,7 +854,12 @@ function pintarTabela(){
         '<td>' + quando + '</td>' +
         '<td>' + (grave
           ? '<span class="marca-grave">▲ ' + nome(e.tipo_evento) + '</span>'
-          : '<span class="marca-comum">' + nome(e.tipo_evento) + '</span>') + '</td>' +
+          : '<span class="marca-comum">' + nome(e.tipo_evento) + '</span>') +
+          /* Queda passou por uma rede treinada em 4.509 clipes; briga e corrida
+             passaram por uma regra escrita à mão. Quem lê a tabela e decide
+             descer até a sala merece saber de qual das duas veio a linha. */
+          (REGRA.has(e.tipo_evento) ? ' <span class="marca-regra">regra</span>' : '') +
+          '</td>' +
         '<td>' + e.localizacao + '</td>' +
         '<td class="hash">' + e.aluno_id + '</td>' +
         '<td><span class="hash">' + e.hash_atual.slice(0,12) + '…</span></td>' +
