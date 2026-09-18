@@ -62,6 +62,8 @@ porque a internet caiu é demonstração perdida.
 **Medido, não achado.** A Sala mede três coisas, e não finge que são iguais:
 **queda** por rede treinada em 4.509 clipes de um dataset público (revocação 89%
 contra 60% da regra geométrica), **corrida** e **briga** por regra geométrica.
+e **pedido de ajuda** por um humano segurando um botão, que é a única das
+quatro sem falso positivo possível, porque não tem nada inferindo.
 Todas têm cenários em `testes/`. Briga usa as features do DIFEM
 ([arXiv 2412.05386](https://arxiv.org/abs/2412.05386)) sem o classificador
 treinado deles, porque ainda não temos dataset — então o painel escreve

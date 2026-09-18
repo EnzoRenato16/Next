@@ -82,8 +82,21 @@ GENESE = "0" * 64
 # semana criaria um filtro para a caixa — e a queda de verdade morreria nesse
 # filtro junto com o resto. Corrida aparece no painel, entra no banco, conta no
 # mapa de calor, e nao acorda ninguem.
-GRAVES = {"queda", "briga", "agitacao", "objeto_perigoso",
+GRAVES = {"queda", "briga", "pedido_ajuda", "agitacao", "objeto_perigoso",
           "patrimonio_sumiu"}
+
+# Eventos graves que mesmo assim NAO recebem imagem, e a regra e imposta aqui e
+# nao combinada na tela.
+#
+# Um pedido de ajuda e alguem pedindo socorro, nao um incidente que a camera
+# entendeu. Guardar a imagem de quem aperta o botao fotografa exatamente a
+# pessoa que menos precisa ter a imagem guardada: quem passou mal, quem estava
+# sofrendo bullying, quem so queria que um adulto viesse. E o sistema nao sabe
+# sequer se o motivo esta dentro do enquadramento.
+#
+# Isto mora no servidor porque combinar com o navegador nao vale nada: qualquer
+# um com o endereco poderia mandar a foto assim mesmo.
+SEM_FOTO = {"pedido_ajuda"}
 
 # O que o painel MOSTRA. A Sala mede tres coisas hoje: queda (rede treinada em
 # 4.509 clipes), corrida (regra geometrica) e briga (regra sobre as features do
@@ -92,7 +105,8 @@ GRAVES = {"queda", "briga", "agitacao", "objeto_perigoso",
 # pela cadeia de hash — apagar linha nenhuma, isso quebraria a corrente de
 # proposito. O filtro e so de leitura. Vazio mostra tudo.
 TIPOS_PAINEL = {x.strip() for x in
-                os.environ.get("PAINEL_TIPOS", "queda,corrida,briga").split(",")
+                os.environ.get("PAINEL_TIPOS",
+                               "queda,corrida,briga,pedido_ajuda").split(",")
                 if x.strip()}
 
 # Foto do momento do alerta, so em evento GRAVE. Nao e vigilancia continua: e o
@@ -537,6 +551,8 @@ def guardar_foto(f: Foto) -> dict:
             raise HTTPException(404, "evento não existe")
         if linha[0] not in GRAVES:
             raise HTTPException(403, f"'{linha[0]}' não é evento grave")
+        if linha[0] in SEM_FOTO:
+            raise HTTPException(403, f"'{linha[0]}' não guarda imagem, por decisão")
         cur.execute(f"DELETE FROM fotos_evento WHERE evento_id = {m}", (f.evento_id,))
         cur.execute(
             f"INSERT INTO fotos_evento (evento_id, momento, imagem) VALUES ({m}, {m}, {m})",

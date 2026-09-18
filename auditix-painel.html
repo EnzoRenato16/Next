@@ -210,6 +210,11 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   font-size:11.5px; font-weight:500; white-space:nowrap;
 }
 .marca-comum{ color:var(--ink-2); font-size:12.5px; }
+.marca-humano{
+  font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;
+  color:var(--verde); border:1px solid var(--verde-linha); border-radius:5px;
+  padding:1px 5px; vertical-align:middle; background:var(--verde-luz);
+}
 .marca-regra{
   font-size:10.5px; letter-spacing:.04em; text-transform:uppercase;
   color:var(--ink-3); border:1px solid var(--linha); border-radius:5px;
@@ -412,18 +417,23 @@ const NS = 'http://www.w3.org/2000/svg';
    tratada como emergência. Duas listas que discordam fariam o painel pintar de
    vermelho um evento que nunca gerou e-mail — e quem olha o painel confia nele
    para saber o que foi escalado. */
-const GRAVES = new Set(['queda','briga','objeto_perigoso','patrimonio_sumiu']);
+const GRAVES = new Set(['queda','briga','pedido_ajuda',
+                       'objeto_perigoso','patrimonio_sumiu']);
 const ROTULO = {
   queda:'queda', corrida:'corrida', briga:'briga',
+  pedido_ajuda:'pedido de ajuda',
   objeto_perigoso:'objeto perigoso',
   patrimonio_sumiu:'patrimônio sumiu',
   entrada:'entrada', saida:'saída',
   reconhecido:'reconhecido', desconhecido:'desconhecido'
 };
-/* Briga hoje é REGRA, não modelo treinado como a queda. A diferença importa
-   para quem lê o painel e vai decidir se desce até a sala, então ela aparece na
-   tela em vez de ficar só no código. */
+/* De onde veio cada linha, porque isso muda o que o leitor deve fazer com ela.
+   Queda passou por uma rede treinada; briga e corrida, por uma regra escrita à
+   mão; um pedido de ajuda não passou por nada — é uma pessoa dizendo "venha".
+   Esse último é o único sem falso positivo possível, e merece ser o único que a
+   coordenação atende sem conferir antes. */
 const REGRA = new Set(['briga','corrida']);
+const HUMANO = new Set(['pedido_ajuda']);
 const nome = t => ROTULO[t] || String(t).replace(/_/g,' ');
 const num = n => Number(n).toLocaleString('pt-BR');
 
@@ -859,6 +869,7 @@ function pintarTabela(){
              passaram por uma regra escrita à mão. Quem lê a tabela e decide
              descer até a sala merece saber de qual das duas veio a linha. */
           (REGRA.has(e.tipo_evento) ? ' <span class="marca-regra">regra</span>' : '') +
+          (HUMANO.has(e.tipo_evento) ? ' <span class="marca-humano">humano</span>' : '') +
           '</td>' +
         '<td>' + e.localizacao + '</td>' +
         '<td class="hash">' + e.aluno_id + '</td>' +

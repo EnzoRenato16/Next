@@ -117,6 +117,19 @@ h1,h2,h3{ font-family:var(--disp); font-weight:700; letter-spacing:-.012em;
 .btn:hover:not(:disabled){ border-color:var(--verde); }
 .btn:disabled{ opacity:.42; cursor:not-allowed; }
 .btn.forte{ background:var(--verde); border-color:var(--verde); color:#fff; }
+/* O botão de pedir ajuda. Ele é o único vermelho da barra de propósito: numa
+   emergência ninguém lê, ninguém procura, o olho vai na cor. */
+.btn.ajuda{ position:relative; overflow:hidden; border-color:var(--rubi-linha);
+  color:var(--rubi); background:var(--rubi-luz); }
+.btn.ajuda:hover:not(:disabled){ border-color:var(--rubi); }
+.btn.ajuda .ajuda-txt{ position:relative; }
+.btn.ajuda em{ font-style:normal; opacity:.65; font-weight:500; }
+/* A barra que enche enquanto a pessoa segura. Ela É a confirmação: sem diálogo,
+   sem segundo clique, e impossível de disparar com um clique de raspão. */
+.ajuda-enche{ position:absolute; inset:0 auto 0 0; width:0; background:var(--rubi);
+  opacity:.22; transition:width 60ms linear; }
+.btn.ajuda[data-indo="1"]{ border-color:var(--rubi); }
+.btn.ajuda[data-feito="1"]{ background:var(--rubi); border-color:var(--rubi); color:#fff; }
 .btn[aria-pressed="true"]{ background:var(--verde-luz); border-color:var(--verde);
   color:var(--verde); }
 
@@ -251,6 +264,9 @@ dialog::backdrop{ background:rgba(10,20,17,.5); }
       </div>
     </div>
     <div class="pe">
+      <button class="btn ajuda" id="btn-ajuda"
+        title="Segure por um segundo. Registra um pedido de socorro feito por uma pessoa, não pelo modelo.">
+        <span class="ajuda-enche"></span><span class="ajuda-txt">Pedir ajuda <em>(segure)</em></span></button>
       <button class="btn" id="desligar" disabled>Fechar</button>
       <button class="btn" id="btn-cad" disabled>Cadastrar quem está na frente</button>
       <button class="btn" id="btn-mapa" disabled aria-pressed="false">Mapa de calor</button>
@@ -487,7 +503,8 @@ function pintarTudo(){
   /* O rótulo curto de cada tipo. O `|| 'Alerta'` existe para que um tipo novo
      apareça feio, e não quebrado — foi assim que a lista chegou a escrever
      "undefined" na frente de um alerta. */
-  const ICONE = { queda:'Queda', corrida:'Corrida', briga:'Briga' };
+  const ICONE = { queda:'Queda', corrida:'Corrida', briga:'Briga',
+                  pedido_ajuda:'Pedido de ajuda' };
   pintar('l-anomalias', anomalias.length
     ? anomalias.map(a => '<div class="linha"><span class="pino mal"></span>' +
         '<span class="nm">' + (ICONE[a.tipo] || 'Alerta') + ' <em>' + a.texto + '</em>' +
@@ -2907,6 +2924,148 @@ setInterval(mandarCalor, 20000);
 el('btn-verificar').addEventListener('click', () => {
   fetch('/api/verificar').then(r => r.json()).then(pintarTrilha).catch(() => {});
 });
+
+/* ------------------------------------------------------- pedir ajuda ------
+   A quarta camada, e a única que não tem modelo nenhum dentro.
+
+   Queda, corrida e briga são coisas que o sistema INFERE de pose, e toda
+   inferência erra. Isto aqui é uma pessoa dizendo "venha". Não tem falso
+   positivo por construção, porque não existe nada decidindo: cobre justamente
+   o que a pose não vê — o aluno passando mal sem cair, o bullying que não tem
+   assinatura de movimento, alguém fora do enquadramento, a professora que viu
+   com o olho e quer o registro.
+
+   É a mesma frase do projeto inteiro levada ao extremo: alerta não é acusação,
+   é um pedido para alguém ir olhar.
+
+   TRÊS DECISÕES QUE VALEM SER EXPLICADAS:
+
+   1. SEGURAR, não clicar. Um botão de socorro que dispara com um clique de
+      raspão é pior que não ter: dois enganos e a coordenação para de acreditar
+      no alerta, e aí a queda de verdade morre junto. Um diálogo de confirmação
+      resolveria isso e custaria caro na hora errada — ninguém lê "tem certeza?"
+      com alguém no chão. Segurar resolve os dois: nada de acidental, e nada de
+      ler nada.
+
+   2. NÃO precisa da câmera aberta. Todo o resto deste arquivo exige `rodando`.
+      Este não, e é o ponto: ele existe para os casos em que a câmera não
+      ajuda.
+
+   3. FALHA EM VOZ ALTA. Todo o resto do arquivo falha em silêncio de propósito
+      (`if(!servidorVivo) return`), porque um evento automático perdido é um
+      registro a menos. Aqui é o contrário, e é a diferença mais importante
+      deste bloco: quem aperta e não vê nada acontecer VAI EMBORA ACHANDO QUE
+      PEDIU SOCORRO. Silêncio aqui é mentira. */
+const AJUDA_SEGURAR = 900;      // ms de dedo no botão
+let ajudaDesde = 0, ajudaQuadro = 0;
+
+function ajudaPintar(){
+  const b = el('btn-ajuda');
+  if(!ajudaDesde){ b.querySelector('.ajuda-enche').style.width = '0'; return; }
+  const p = Math.min(1, (performance.now() - ajudaDesde) / AJUDA_SEGURAR);
+  b.querySelector('.ajuda-enche').style.width = (p * 100).toFixed(1) + '%';
+  if(p >= 1){ ajudaSoltar(true); return; }
+  ajudaQuadro = requestAnimationFrame(ajudaPintar);
+}
+
+function ajudaSegurar(){
+  if(ajudaDesde) return;
+  ajudaDesde = performance.now();
+  el('btn-ajuda').dataset.indo = '1';
+  ajudaQuadro = requestAnimationFrame(ajudaPintar);
+}
+
+function ajudaSoltar(completou){
+  if(!ajudaDesde) return;
+  ajudaDesde = 0;
+  cancelAnimationFrame(ajudaQuadro);
+  const b = el('btn-ajuda');
+  delete b.dataset.indo;
+  b.querySelector('.ajuda-enche').style.width = '0';
+  if(completou) pedirAjuda();
+}
+
+/* Repare que isto NÃO usa mandarEvento(): aquela função engole todo erro, o que
+   está certo para um alerta automático e errado para uma pessoa pedindo
+   socorro. Aqui cada final de caminho diz o que aconteceu. */
+function pedirAjuda(){
+  const b = el('btn-ajuda');
+  const dizer = (texto, deuCerto) => {
+    b.dataset.feito = '1';
+    b.querySelector('.ajuda-txt').innerHTML = deuCerto
+      ? 'Ajuda pedida <em>· registrado</em>'
+      : 'NÃO registrado <em>· veja o aviso</em>';
+    setTimeout(() => {
+      delete b.dataset.feito;
+      b.querySelector('.ajuda-txt').innerHTML = 'Pedir ajuda <em>(segure)</em>';
+    }, 6000);
+    anotar(deuCerto ? 'mal' : 'duv', texto);
+  };
+
+  if(!servidorVivo){
+    /* O caso perigoso, e por isso ele é o primeiro do corpo da função. */
+    anomalias.unshift({ tipo:'pedido_ajuda', corpo:0, h:hora(), visto:Date.now(),
+      texto:'PEDIDO DE AJUDA NÃO REGISTRADO: o servidor não respondeu',
+      porque:'ninguém foi avisado. Chame ajuda por outro meio e confira se o ' +
+             'servidor está no ar.' });
+    anomalias = anomalias.slice(0, 20);
+    pintarTudo();
+    dizer('Pedido de ajuda NÃO registrado: servidor fora do ar', false);
+    return;
+  }
+
+  fetch('/api/evento', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ aluno_id:'humano', tipo_evento:'pedido_ajuda',
+                           localizacao:LOCAL_CAMERA }) })
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(ev => {
+      /* Nenhuma imagem sai daqui, e o servidor recusaria se saísse. Quem aperta
+         o botão é quem menos precisa ter a própria imagem guardada. */
+      anomalias.unshift({ tipo:'pedido_ajuda', corpo:0, h:hora(), visto:Date.now(),
+        texto:'Pedido de ajuda em ' + LOCAL_CAMERA + ', feito por uma pessoa',
+        porque:'registro #' + ev.id + ' na cadeia. Sem imagem: um pedido de ' +
+               'socorro não é um incidente que a câmera entendeu.' });
+      anomalias = anomalias.slice(0, 20);
+      pintarTudo();
+      dizer('Ajuda pedida e registrada (#' + ev.id + ')', true);
+      return fetch('/api/verificar').then(x => x.json()).then(pintarTrilha);
+    })
+    .catch(e => {
+      anomalias.unshift({ tipo:'pedido_ajuda', corpo:0, h:hora(), visto:Date.now(),
+        texto:'PEDIDO DE AJUDA NÃO REGISTRADO: o servidor recusou (' + e + ')',
+        porque:'ninguém foi avisado. Chame ajuda por outro meio.' });
+      anomalias = anomalias.slice(0, 20);
+      pintarTudo();
+      dizer('Pedido de ajuda NÃO registrado: erro ' + e, false);
+    });
+}
+
+{
+  const b = el('btn-ajuda');
+  b.addEventListener('pointerdown', e => { e.preventDefault(); ajudaSegurar(); });
+  ['pointerup','pointerleave','pointercancel'].forEach(
+    ev => b.addEventListener(ev, () => ajudaSoltar(false)));
+  /* Teclado, e não só por acessibilidade: numa emergência a mão não procura
+     botão. A tecla A, segurada, faz o mesmo — e é ignorada enquanto alguém
+     estiver digitando num campo, senão escrever "Ana" no cadastro chamaria
+     socorro. */
+  const digitando = () => {
+    const a = document.activeElement;
+    return a && (/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable);
+  };
+  addEventListener('keydown', e => {
+    if(e.repeat || e.ctrlKey || e.altKey || e.metaKey) return;
+    if(digitando()) return;
+    if(e.key === 'a' || e.key === 'A'){ e.preventDefault(); ajudaSegurar(); }
+    else if(e.key === ' ' && document.activeElement === b){ e.preventDefault(); ajudaSegurar(); }
+  });
+  addEventListener('keyup', e => {
+    if(e.key === 'a' || e.key === 'A' || e.key === ' ') ajudaSoltar(false);
+  });
+  /* Soltar fora da janela também cancela: trocar de aba com o dedo no botão não
+     pode deixar o relógio correndo. */
+  addEventListener('blur', () => ajudaSoltar(false));
+}
 
 /* -------------------------------------------------------------- exemplo --- */
 el('btn-exemplo').addEventListener('click', () => {
