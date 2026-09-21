@@ -181,6 +181,68 @@ const vazio = await resumo(CAM + '-nunca-usada');
 ok('câmera sem amostra responde "sem amostras", não zeros',
    vazio.status === 'sem_amostras', JSON.stringify(vazio.status));
 
+/* ---- 9b. quanto custa manter isto ligado --------------------------------
+   O professor do desafio disse, com todas as letras, que medir CPU, RAM, FPS e
+   latência de inferência antes e depois de ativar o modelo pode fazer parte da
+   avaliação. Três desses o navegador conta honestamente. CPU do sistema ele NÃO
+   vê, e o que está no lugar é a medida que responde à mesma pergunta: de cada
+   quadro, quanto já está gasto só com o modelo.
+
+   Não é preciso medir duas vezes para ter o "antes e depois": sem o modelo
+   ligado, ms_rede e ms_analise valeriam zero, porque são o tempo gasto dentro
+   dele. A soma É a diferença. */
+const cam9b = CAM + '-custo';
+/* 1..21 de propósito: com 21 valores o percentil cai em índice inteiro
+   (round(0,95×20)=19 e round(0,5×20)=10), então o teste cobra um número exato
+   em vez de aceitar qualquer coisa perto. */
+await mandar(Array.from({length:21}, (_, i) =>
+  amostra({ fps:30, ms_rede:i+1, ms_analise:0, heap:100+i })), cam9b);
+const c9 = (await resumo(cam9b)).custo;
+ok('a latência vem em mediana e p95, e não em média',
+   c9.ms_rede_mediana === 11 && c9.ms_rede_p95 === 20,
+   'mediana ' + c9.ms_rede_mediana + ', p95 ' + c9.ms_rede_p95);
+/* A média esconde justamente a travada que estraga a demonstração: destes
+   mesmos 21 valores ela daria 11, igual à mediana, e o pico de 20 sumiria. */
+ok('o orçamento do quadro sai do FPS realmente alcançado',
+   Math.abs(c9.orcamento_do_quadro_ms - 33.3) < 0.2,
+   c9.orcamento_do_quadro_ms + ' ms a 30 quadros por segundo');
+ok('e a ocupação é o p95 contra esse orçamento',
+   Math.abs(c9.ocupacao_pct - 60.1) < 0.3, c9.ocupacao_pct + '%');
+ok('a memória do JavaScript vem com mediana e pico',
+   c9.heap_js_mb_mediana === 110 && c9.heap_js_mb_maximo === 120,
+   'mediana ' + c9.heap_js_mb_mediana + ', pico ' + c9.heap_js_mb_maximo);
+
+/* O QUE MAIS IMPORTA NESTE BLOCO. Uma página antiga manda amostra sem os três
+   campos de custo, e eles chegam zerados. Contar esses zeros como medida
+   derrubaria a mediana e devolveria um custo mentirosamente bom — que é o
+   único jeito deste número fazer mal em vez de bem. */
+await mandar(Array.from({length:50}, () => amostra({ fps:30 })), cam9b);
+const c9b = (await resumo(cam9b)).custo;
+ok('amostra sem medida de custo não é contada como custo zero',
+   c9b.ms_rede_mediana === 11 && c9b.amostras_com_medida === 21,
+   'mediana continua ' + c9b.ms_rede_mediana + ' com ' +
+   c9b.amostras_com_medida + ' amostras medidas de ' + 71);
+
+/* A leitura em português, que é o que vai para o slide. */
+const camApert = CAM + '-apertado';
+await mandar([ amostra({ fps:30, ms_rede:25, ms_analise:10, heap:90 }) ], camApert);
+const lApert = (await resumo(camApert)).custo.leitura;
+ok('quando o modelo come o quadro inteiro, a leitura manda baixar a resolução',
+   /limite/.test(lApert), lApert.slice(0, 90));
+
+const camFolga = CAM + '-folga';
+await mandar([ amostra({ fps:30, ms_rede:5, ms_analise:2, heap:90 }) ], camFolga);
+const lFolga = (await resumo(camFolga)).custo.leitura;
+ok('e com folga ela diz quantos milissegundos sobram, sem alarme',
+   /sobrando/.test(lFolga) && !/limite|aperta/.test(lFolga), lFolga.slice(0, 90));
+
+const csvCusto = (await (await fetch(BASE + '/api/calibracao.csv?camera=' + camFolga)).text()).trim();
+ok('e as três colunas novas saem na planilha',
+   csvCusto.split('\n')[0].endsWith('ms_rede,ms_analise,heap') &&
+   csvCusto.split('\n')[1].split(',').length ===
+   csvCusto.split('\n')[0].split(',').length,
+   csvCusto.split('\n')[0].split(',').slice(-3).join(','));
+
 /* ---- 10. a SALA de verdade coleta e envia -------------------------------
    Tudo acima prova o servidor. Isto prova o outro lado, e é onde um teste
    preguiçoso mentiria: dá para o servidor estar perfeito e o navegador nunca
@@ -211,15 +273,23 @@ const enviado = await pg.evaluate(async () => {
   servidorVivo = true;
   const t = { id:7, firme:true, fps:24, notaQueda:0.37, foraDoTreino:2.1,
               quedaDesde:0, velocidade:0.88, ang:9, baixo:0.96, prop:0.44 };
+  /* Estes dois são preenchidos pelo laço de verdade no fim de cada quadro. Como
+     aqui o laço não roda (vídeo sintético não tem gente), o teste os põe à mão
+     para cobrar a única coisa que lhe cabe cobrar: que a amostra CARREGUE o
+     custo até o servidor. Medir o valor real é trabalho do navegador na sala. */
+  custoRede = 12.5; custoAnalise = 3.25;
   // duas chamadas coladas: a segunda tem de ser recusada pelo intervalo
   amostrarCalibracao(t, 1000, true);
   amostrarCalibracao(t, 1100, true);
   const naFila = calibFila.length;
   amostrarCalibracao(t, 3000, true);   // passou de CALIB_MS, entra
   const depois = calibFila.length;
+  const ultima = calibFila[calibFila.length - 1];
   mandarCalibracao();
   await new Promise(r => setTimeout(r, 800));
-  return { naFila, depois, sobrou: calibFila.length };
+  return { naFila, depois, sobrou: calibFila.length,
+           msRede: ultima.ms_rede, msAnalise: ultima.ms_analise,
+           heap: ultima.heap, temHeap: typeof ultima.heap === 'number' };
 });
 
 ok('a Sala respeita o intervalo entre amostras do mesmo corpo',
@@ -236,6 +306,17 @@ ok('os números da Sala chegam inteiros ao servidor',
    (rSala.amostras - jaTinha) + ' amostras novas, nota ' +
    rSala.margem.maior_nota_sem_alerta +
    ', velocidade ' + rSala.margem.maior_velocidade_sem_alerta);
+ok('a Sala põe o custo do quadro dentro da amostra',
+   enviado.msRede === 12.5 && enviado.msAnalise === 3.25,
+   'rede ' + enviado.msRede + ' ms, análise ' + enviado.msAnalise + ' ms');
+/* Chrome conta o monte de JavaScript; outro navegador não conta e devolve 0.
+   As duas respostas servem — o que NÃO serve é undefined chegando ao servidor,
+   porque aí o campo some do JSON e a coluna fica sem valor. */
+ok('e a memória vai junto como número, mesmo onde o navegador não conta',
+   enviado.temHeap && enviado.heap >= 0, 'heap = ' + enviado.heap + ' MB');
+ok('o custo medido pela Sala chega ao resumo do servidor',
+   rSala.custo && Math.abs(rSala.custo.ms_total_p95 - 15.75) < 0.2,
+   'total p95 = ' + (rSala.custo || {}).ms_total_p95 + ' ms');
 ok('nenhum erro de JavaScript na Sala', erros.length === 0, erros.join(' | '));
 
 /* E o desligamento: com o servidor recusando, a Sala tem de PARAR de tentar em

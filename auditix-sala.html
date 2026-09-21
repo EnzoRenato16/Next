@@ -2218,6 +2218,10 @@ async function laco(){
     try{
       /* o modo VIDEO do MediaPipe exige carimbo de tempo sempre crescente */
       tsPose = Math.max(tsPose + 1, Math.round(performance.now()));
+      /* O relógio é lido à parte do carimbo do MediaPipe de propósito: tsPose
+         pode adiantar sozinho pelo Math.max quando dois quadros caem no mesmo
+         milissegundo, e usá-lo como início daria latência negativa. */
+      const t0 = performance.now();
       const r = redePose.detectForVideo(v, tsPose);
       const agora = performance.now();
       /* Medido da câmera de verdade, não presumido 4:3: webcam de notebook
@@ -2248,6 +2252,13 @@ async function laco(){
          está com os números do quadro anterior. */
       analisarBriga(agora);
       resumir();
+      /* O custo de ter o modelo ligado, fechado aqui porque é aqui que a conta
+         termina: `custoRede` é o tempo dentro do MediaPipe e `custoAnalise` é
+         tudo que é nosso — casar trilhas, as 12 características, a rede de
+         queda, corrida e briga. Sem o modelo os dois valeriam zero, e é por
+         isso que a soma É a diferença entre antes e depois de ligá-lo. */
+      custoRede = agora - t0;
+      custoAnalise = performance.now() - agora;
     }catch(e){}
     ocupadoCorpo = false;
   }
@@ -2959,6 +2970,16 @@ setInterval(mandarCalor, 20000);
    Nenhuma imagem, nenhum rosto, nenhum nome. Só os números já normalizados,
    a mesma regra do treino/local.py. */
 const CALIB_MS = 1000;        // uma amostra por corpo por segundo
+/* Preenchidos no fim de cada quadro por `laco`. A amostra é tirada DENTRO da
+   análise, então o que ela grava é o custo do quadro ANTERIOR — uns 33 ms de
+   atraso, irrelevante para uma medida que só é lida em mediana e p95, e
+   preferível a fechar a conta antes de a análise ter terminado. */
+let custoRede = 0, custoAnalise = 0;
+/* Só o Chrome conta isto, e o que ele conta é o monte do JavaScript, não a
+   memória do processo: fora a GPU e fora o próprio navegador. Serve para ver se
+   cresce sem parar ao longo da aula. Zero quando o navegador não responde. */
+const heapMB = () => performance.memory
+  ? +(performance.memory.usedJSHeapSize / 1048576).toFixed(1) : 0;
 let calibrando = true;        // vira false se o servidor disser que está desligado
 let calibFila = [];
 
@@ -2983,7 +3004,10 @@ function amostrarCalibracao(t, agora, analisavel){
     ang:   +(t.ang         || 0).toFixed(1),
     baixo: +(t.baixo       || 0).toFixed(3),
     prop:  +(t.prop        || 0).toFixed(3),
-    alertou
+    alertou,
+    ms_rede:    +custoRede.toFixed(2),
+    ms_analise: +custoAnalise.toFixed(2),
+    heap: heapMB()
   });
   /* Teto de segurança: se o servidor ficar mudo, a fila não pode crescer sem
      fim e comer a memória da aba que está detectando queda. */

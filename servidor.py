@@ -280,7 +280,10 @@ def criar_tabelas() -> None:
                    ang REAL NOT NULL,
                    baixo REAL NOT NULL,
                    prop REAL NOT NULL,
-                   alertou VARCHAR(20) NOT NULL)"""
+                   alertou VARCHAR(20) NOT NULL,
+                   ms_rede REAL NOT NULL DEFAULT 0,
+                   ms_analise REAL NOT NULL DEFAULT 0,
+                   heap REAL NOT NULL DEFAULT 0)"""
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_calib_momento ON calibracao (momento)"
@@ -293,6 +296,25 @@ def criar_tabelas() -> None:
                    origem VARCHAR(60) NOT NULL,
                    agente VARCHAR(200) NOT NULL)"""
         )
+
+
+def migrar_calibracao() -> None:
+    """As tres colunas de custo nasceram depois da tabela, e CREATE IF NOT EXISTS
+    nao mexe em tabela que ja existe. Sem isto, quem ja tinha rodado a calibracao
+    antes desta versao ganharia um erro de coluna faltando na primeira amostra.
+
+    Cada ALTER vai na sua propria transacao de proposito: no Postgres um comando
+    que falha aborta a transacao inteira, entao agrupa-los faria a segunda
+    coluna morrer por causa da primeira ja existir."""
+    for coluna in ("ms_rede", "ms_analise", "heap"):
+        try:
+            with cursor(escrita=True) as (cur, _):
+                cur.execute(
+                    f"ALTER TABLE calibracao ADD COLUMN {coluna} REAL NOT NULL DEFAULT 0"
+                )
+        except Exception:
+            # Ja existe. E o caso comum, e nao e problema.
+            pass
 
 
 # ------------------------------------------------------------ cadeia --------
@@ -368,6 +390,13 @@ class Amostra(BaseModel):
     baixo: float
     prop: float
     alertou: str = Field(default="", max_length=20)
+    # O custo de rodar o modelo, em milissegundos por quadro. Com default zero
+    # porque uma pagina antiga nao manda estes campos, e uma amostra sem medida
+    # de custo continua valendo pela margem — que e o motivo original da tabela.
+    ms_rede: float = 0.0
+    ms_analise: float = 0.0
+    # Memoria do JavaScript em MB. Zero quando o navegador nao conta.
+    heap: float = 0.0
 
 
 class Calibracao(BaseModel):
@@ -378,6 +407,7 @@ class Calibracao(BaseModel):
 @asynccontextmanager
 async def ciclo(_app: FastAPI):
     criar_tabelas()
+    migrar_calibracao()
     podar_calibracao()
     yield
 
@@ -739,14 +769,17 @@ def gravar_calibracao(c: Calibracao) -> dict:
         for a in c.amostras:
             cur.execute(
                 f"""INSERT INTO calibracao (momento, camera, corpo, fps, analisavel,
-                       nota, fora, geo, vel, ang, baixo, prop, alertou)
-                    VALUES ({m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m})""",
+                       nota, fora, geo, vel, ang, baixo, prop, alertou,
+                       ms_rede, ms_analise, heap)
+                    VALUES ({m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m},
+                            {m}, {m}, {m}, {m}, {m}, {m})""",
                 (agora, c.camera, a.corpo, a.fps, a.analisavel, a.nota, a.fora,
                  a.geo, a.vel, a.ang, a.baixo, a.prop,
                  # Sem virgula e sem quebra de linha: este campo e o unico que
                  # chega de fora como texto e sai direto numa planilha CSV.
                  # Uma virgula aqui desalinharia todas as colunas seguintes.
-                 a.alertou.replace(",", " ").replace("\n", " ")[:20]),
+                 a.alertou.replace(",", " ").replace("\n", " ")[:20],
+                 a.ms_rede, a.ms_analise, a.heap),
             )
     return {"gravadas": len(c.amostras)}
 
@@ -770,11 +803,41 @@ def _ler_margem(folga_nota: float, folga_vel: float) -> str:
             " — vale abrir o CSV e olhar essas janelas antes de instalar")
 
 
+def _pct(vals: list, p: float) -> float:
+    """Percentil pela ordenacao, sem numpy. Mediana e p95 dizem mais que media
+    sobre latencia: a media esconde a travada de 5% dos quadros, e e justamente
+    a travada que faz a demonstracao parecer ruim."""
+    if not vals:
+        return 0.0
+    v = sorted(vals)
+    i = min(len(v) - 1, max(0, int(round(p * (len(v) - 1)))))
+    return float(v[i])
+
+
+def _ler_custo(soma_p95: float, orcamento: float, fps: float) -> str:
+    """O professor pediu CPU, RAM, FPS e latencia. Tres desses o navegador conta
+    honestamente; CPU do sistema ele NAO ve, e inventar um numero seria pior que
+    nao ter. O que esta linha entrega no lugar e a medida que responde a mesma
+    pergunta: de cada quadro, quanto ja esta gasto so com o modelo."""
+    if orcamento <= 0 or soma_p95 <= 0:
+        return "sem medida de custo neste período (página antiga ou nenhuma amostra)"
+    uso = soma_p95 * 100 / orcamento
+    sobra = max(0.0, orcamento - soma_p95)
+    frase = (f"a {fps:.0f} quadros por segundo cada quadro tem {orcamento:.0f} ms; "
+             f"o modelo leva até {soma_p95:.0f} ms deles ({uso:.0f}%), "
+             f"sobrando {sobra:.0f} ms para captura, desenho e o resto")
+    if uso >= 90:
+        return frase + " — está no limite: baixar a resolução ou a taxa antes de instalar"
+    if uso >= 70:
+        return frase + " — aperta, mas roda; sem folga para uma segunda câmera"
+    return frase
+
+
 def _linhas_calibracao(camera: str) -> list:
     with cursor() as (cur, m):
         cur.execute(
             f"""SELECT momento, corpo, fps, analisavel, nota, fora, geo, vel,
-                       ang, baixo, prop, alertou
+                       ang, baixo, prop, alertou, ms_rede, ms_analise, heap
                 FROM calibracao WHERE camera = {m} ORDER BY id""",
             (camera,),
         )
@@ -815,6 +878,20 @@ def resumo_calibracao(camera: str = "sala-12") -> dict:
         faixas[f"{i/10:.1f}-{(i+1)/10:.1f}"] += 1
 
     fps = [float(l[2]) for l in linhas if float(l[2]) > 0]
+    fps_medio = round(sum(fps) / len(fps), 1) if fps else 0
+
+    # ---- quanto custa manter isto ligado -----------------------------------
+    # Amostra vinda de pagina antiga chega com zero nos tres campos; incluir
+    # esses zeros puxaria a mediana para baixo e daria um custo mentirosamente
+    # bom, entao elas ficam de fora da conta em vez de virarem media.
+    medidas = [l for l in linhas if float(l[12]) > 0]
+    rede = [float(l[12]) for l in medidas]
+    anal = [float(l[13]) for l in medidas]
+    soma = [float(l[12]) + float(l[13]) for l in medidas]
+    heap = [float(l[14]) for l in medidas if float(l[14]) > 0]
+    orcamento = round(1000 / fps_medio, 1) if fps_medio else 0
+    soma_p95 = round(_pct(soma, 0.95), 1)
+
     return {
         "status": "ok",
         "ligado": CALIBRACAO,
@@ -825,7 +902,33 @@ def resumo_calibracao(camera: str = "sala-12") -> dict:
         "corpos_minuto": round(total / 60, 1),
         "primeira": str(linhas[0][0]),
         "ultima": str(linhas[-1][0]),
-        "fps_medio": round(sum(fps) / len(fps), 1) if fps else 0,
+        "fps_medio": fps_medio,
+        # ISTO E O "ANTES E DEPOIS DE LIGAR O MODELO", e nao precisa de duas
+        # medicoes: sem o modelo estes dois numeros valeriam zero, porque sao o
+        # tempo gasto DENTRO dele e dentro da nossa analise. O custo de ligar e
+        # exatamente a soma.
+        #
+        # ocupacao_pct nao e "uso de CPU". E quanto do orcamento de um quadro ja
+        # esta comprometido com essas duas etapas. O que sobra ainda paga
+        # decodificar o video e desenhar na tela, entao 60% aqui nao quer dizer
+        # 40% de maquina livre.
+        "custo": {
+            "amostras_com_medida": len(medidas),
+            "ms_rede_mediana": round(_pct(rede, 0.5), 1),
+            "ms_rede_p95": round(_pct(rede, 0.95), 1),
+            "ms_analise_mediana": round(_pct(anal, 0.5), 1),
+            "ms_analise_p95": round(_pct(anal, 0.95), 1),
+            "ms_total_mediana": round(_pct(soma, 0.5), 1),
+            "ms_total_p95": soma_p95,
+            "orcamento_do_quadro_ms": orcamento,
+            "ocupacao_pct": round(soma_p95 * 100 / orcamento, 1) if orcamento else 0,
+            # Memoria do JavaScript, que nao e a memoria do processo: nao conta
+            # o que a GPU segura nem o proprio navegador. Serve para ver se
+            # cresce sem parar ao longo da aula, que e a pergunta util aqui.
+            "heap_js_mb_mediana": round(_pct(heap, 0.5), 1),
+            "heap_js_mb_maximo": round(max(heap), 1) if heap else 0,
+            "leitura": _ler_custo(soma_p95, orcamento, fps_medio),
+        },
         # Quanto do tempo o sistema NAO teve como julgar. E a nota da posicao da
         # camera, e nao do modelo: corpo cortado no quadro nao se analisa.
         "cegas_pct": round(cegas * 100 / total, 1),
@@ -860,7 +963,7 @@ def csv_calibracao(camera: str = "sala-12") -> Response:
     """Para abrir no Excel e olhar com os proprios olhos. Um resumo e a leitura
     de alguem; a planilha deixa voce discordar dela."""
     cabecalho = ("momento,corpo,fps,analisavel,nota,fora,geo,vel,ang,baixo,"
-                 "prop,alertou")
+                 "prop,alertou,ms_rede,ms_analise,heap")
     linhas = [cabecalho]
     for l in _linhas_calibracao(camera):
         linhas.append(",".join(str(x) for x in l))
@@ -1078,8 +1181,9 @@ if __name__ == "__main__":
     # WEBHOOK_URL vazio que nao avisava nada.
     if CALIBRACAO:
         print(f"[auditix] registro de calibração LIGADO — grava o que o sistema "
-              f"VÊ, não só o que acusa. Resumo em /api/calibracao, planilha em "
-              f"/api/calibracao.csv. Poda em {CALIBRACAO_DIAS:.0f} dias.")
+              f"VÊ, não só o que acusa, e quanto custa vê-lo. Resumo em "
+              f"/api/calibracao, planilha em /api/calibracao.csv. "
+              f"Poda em {CALIBRACAO_DIAS:.0f} dias.")
     else:
         print("[auditix] registro de calibração DESLIGADO "
               "(CALIBRACAO=1 no .env para medir a margem numa sala de verdade)")

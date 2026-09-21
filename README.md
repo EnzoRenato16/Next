@@ -80,6 +80,16 @@ acontece**. Uma hora de aula vira a distribuição do que o sistema enxergou, e
 amostras **não entram na cadeia de hash**, porque medir o que se viu não é
 afirmar o que aconteceu.
 
+**E dá para medir quanto ele custa.** Cada amostra carrega também o tempo do
+quadro: quanto ficou dentro do modelo de pose, quanto ficou na nossa análise, e
+a memória do JavaScript. `/api/calibracao` devolve isso em mediana e p95 — média
+esconde a travada de 5% dos quadros, e é a travada que estraga a aula — junto
+com o orçamento do quadro (`1000 ÷ FPS`) e quanto dele o modelo ocupa. Esse é o
+*antes e depois de ligar o modelo* sem precisar medir duas vezes: com ele
+desligado os dois tempos valeriam zero, então a soma **é** a diferença. O que
+não está ali é uso de CPU do sistema, porque o navegador não vê isso e um número
+inventado seria pior que nenhum.
+
 **Evidência para conferência humana, nunca acusação automática.** Quem não é
 reconhecido vira "Desconhecido pendente de validação", biometria tem prazo para
 vencer, e o que vai para o Power BI é agregado — dá para ver onde a escola
