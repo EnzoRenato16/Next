@@ -90,6 +90,15 @@ desligado os dois tempos valeriam zero, então a soma **é** a diferença. O que
 não está ali é uso de CPU do sistema, porque o navegador não vê isso e um número
 inventado seria pior que nenhum.
 
+**E roda dentro da AIBOX, sem navegador.** `aibox/` é o mesmo sistema em
+Python: câmera → RTSP → YOLO11-pose por ONNX Runtime → 17 pontos COCO → as
+mesmas 12 características → a mesma rede. O cérebro não foi reescrito: as
+características vêm de `treino/extrair.py` e os pesos de `treino/modelo.json`,
+os mesmos arquivos que o navegador usa. `testes/aibox.mjs` roda o mesmo cenário
+nos dois lados e cobra que batam — geometria idêntica bit a bit, e numa queda os
+dois armam no mesmo quadro. Detalhes e as três diferenças conhecidas em
+[`aibox/LEIA.md`](aibox/LEIA.md).
+
 **Evidência para conferência humana, nunca acusação automática.** Quem não é
 reconhecido vira "Desconhecido pendente de validação", biometria tem prazo para
 vencer, e o que vai para o Power BI é agregado — dá para ver onde a escola

@@ -208,9 +208,22 @@ ok('o orçamento do quadro sai do FPS realmente alcançado',
    c9.orcamento_do_quadro_ms + ' ms a 30 quadros por segundo');
 ok('e a ocupação é o p95 contra esse orçamento',
    Math.abs(c9.ocupacao_pct - 60.1) < 0.3, c9.ocupacao_pct + '%');
-ok('a memória do JavaScript vem com mediana e pico',
-   c9.heap_js_mb_mediana === 110 && c9.heap_js_mb_maximo === 120,
-   'mediana ' + c9.heap_js_mb_mediana + ', pico ' + c9.heap_js_mb_maximo);
+ok('a memória vem com mediana e pico',
+   c9.memoria_mb_mediana === 110 && c9.memoria_mb_maximo === 120,
+   'mediana ' + c9.memoria_mb_mediana + ', pico ' + c9.memoria_mb_maximo);
+/* CPU só a AIBOX preenche. Amostra de navegador chega com zero, e zero aqui
+   quer dizer "não foi medido", não "a máquina estava ociosa" — contar esses
+   zeros daria um uso de CPU mentirosamente baixo. */
+ok('CPU não medida não vira CPU zero',
+   c9.cpu_medido === 0 && c9.cpu_pct_mediana === 0,
+   c9.cpu_medido + ' amostras com CPU medida');
+const camCpu = CAM + '-cpu';
+await mandar([ amostra({ fps:30, ms_rede:8, ms_analise:2, heap:250, cpu:64 }),
+               amostra({ fps:30, ms_rede:9, ms_analise:2, heap:252, cpu:70 }) ], camCpu);
+const cCpu = (await resumo(camCpu)).custo;
+ok('e quando a caixa mede CPU, ela aparece',
+   cCpu.cpu_medido === 2 && cCpu.cpu_pct_p95 === 70,
+   'p95 ' + cCpu.cpu_pct_p95 + '% em ' + cCpu.cpu_medido + ' amostras');
 
 /* O QUE MAIS IMPORTA NESTE BLOCO. Uma página antiga manda amostra sem os três
    campos de custo, e eles chegam zerados. Contar esses zeros como medida
@@ -237,11 +250,11 @@ ok('e com folga ela diz quantos milissegundos sobram, sem alarme',
    /sobrando/.test(lFolga) && !/limite|aperta/.test(lFolga), lFolga.slice(0, 90));
 
 const csvCusto = (await (await fetch(BASE + '/api/calibracao.csv?camera=' + camFolga)).text()).trim();
-ok('e as três colunas novas saem na planilha',
-   csvCusto.split('\n')[0].endsWith('ms_rede,ms_analise,heap') &&
+ok('e as colunas de custo saem na planilha',
+   csvCusto.split('\n')[0].endsWith('ms_rede,ms_analise,heap,cpu') &&
    csvCusto.split('\n')[1].split(',').length ===
    csvCusto.split('\n')[0].split(',').length,
-   csvCusto.split('\n')[0].split(',').slice(-3).join(','));
+   csvCusto.split('\n')[0].split(',').slice(-4).join(','));
 
 /* ---- 10. a SALA de verdade coleta e envia -------------------------------
    Tudo acima prova o servidor. Isto prova o outro lado, e é onde um teste
@@ -326,7 +339,7 @@ const csvSala = await (await fetch(BASE + '/api/calibracao.csv?camera=' + camSal
    não: o banco guarda REAL, e um heap de 6 MB sai na planilha como `6.0`. O
    teste piscava conforme a memória do Chrome calhar de dar um valor inteiro. */
 const achada = csvSala.trim().split('\n')
-  .map(l => l.split(',').slice(-3).map(Number))
+  .map(l => l.split(',').slice(-4).map(Number))
   .filter(([r]) => r === 12.5).pop();   // a ÚLTIMA: a planilha vem ordenada por id
 ok('o custo medido pela Sala chega inteiro ao servidor',
    !!achada && achada[1] === 3.25 && achada[2] === enviado.heap,

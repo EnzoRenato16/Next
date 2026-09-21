@@ -89,10 +89,26 @@ def geometria(q):
                 ombro=ombro, prop=largura / max(alto, 1e-6))
 
 
-def caracteristicas(g, i0, i1):
-    """Uma janela -> 12 numeros, todos adimensionais."""
+def caracteristicas(g, i0, i1, fps=None, minimo=None):
+    """Uma janela -> 12 numeros, todos adimensionais.
+
+    `fps` e opcional e o padrao e FPS, entao quem ja chamava continua chamando
+    igual e recebendo o mesmo numero. Ele existe porque a taxa de quadros NAO e
+    a mesma em todo lugar: o treino foi a 30, o navegador mede a da maquina, e
+    a AIBOX vai ter a dela. Duas das 12 entradas dividem por tempo — presumir
+    30 numa maquina que roda a 15 dobraria essas duas.
+
+    `minimo` e o piso de quadros na janela, e tambem tem padrao — JANELA // 2,
+    que e o que sempre valeu aqui. Ele existe pelo mesmo motivo: no treino a
+    janela e uma fatia FIXA de 30 quadros, e exigir 15 quer dizer "metade
+    presente". Ao vivo a janela e "o que chegou em 1 segundo", entao o piso
+    certo e o mesmo do navegador, QUEDA_AMOSTRAS = 8. Sem este parametro, uma
+    AIBOX rodando abaixo de 15 quadros por segundo teria a rede de queda MUDA
+    enquanto o navegador pontuava — e muda em silencio, que e pior."""
+    fps = FPS if fps is None else float(fps)
+    minimo = JANELA // 2 if minimo is None else int(minimo)
     j = [x for x in g[i0:i1] if x]
-    if len(j) < JANELA // 2:
+    if len(j) < minimo:
         return None
     reg = max(x["altura"] for x in j)      # o tamanho que a pessoa TINHA
     if reg < 1e-6:
@@ -104,13 +120,13 @@ def caracteristicas(g, i0, i1):
     eixo = np.array([x["eixo"] for x in j])
     omb = np.array([x["ombro"] for x in j])
     prop = np.array([x["prop"] for x in j])
-    dt = 1.0 / FPS
+    dt = 1.0 / fps
 
     # queda do quadril: total na janela e a mais rapida em 0,5s
     # Arredonda como o JavaScript da Sala (Math.round), e nao trunca: com fps
     # impar as duas contas davam janelas diferentes e o teste de porte acusava.
     # Em 30fps as duas dao 15, entao o modelo ja treinado nao muda.
-    meia = max(2, int(FPS * 0.5 + 0.5))
+    meia = max(2, int(fps * 0.5 + 0.5))
     desc = max((hy[k] - hy[max(0, k - meia)]) for k in range(len(hy))) / reg
 
     return np.array([

@@ -77,7 +77,13 @@ def geometria(lm, larg, alt):
     vis = [p for p in lm if p.visibility >= VIS_MIN]
     if len(vis) > 2:
         xs = [p.x for p in vis]; ys = [p.y for p in vis]
-        prop = (max(xs) - min(xs)) / max(max(ys) - min(ys), 1e-6)
+        # O `asp` aqui faltava, e a falta era grande: sem ele a largura da caixa
+        # sai em coordenada normalizada e a altura tambem, mas as duas escalas
+        # nao sao a mesma coisa — num quadro 16:9 esta razao saia 1,78x menor do
+        # que a mesma pessoa medida pela Sala, que calcula a caixa em pixels.
+        # Amostras gravadas por aqui e pelo botao "Gravar amostra" iam para o
+        # mesmo treino com esta entrada em duas escalas diferentes.
+        prop = (max(xs) - min(xs)) * asp / max(max(ys) - min(ys), 1e-6)
     else:
         prop = 0.0
     return dict(qx=h[0], qy=h[1], altura=altura, eixo=eixo, ang=ang,

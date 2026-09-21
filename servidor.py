@@ -283,7 +283,8 @@ def criar_tabelas() -> None:
                    alertou VARCHAR(20) NOT NULL,
                    ms_rede REAL NOT NULL DEFAULT 0,
                    ms_analise REAL NOT NULL DEFAULT 0,
-                   heap REAL NOT NULL DEFAULT 0)"""
+                   heap REAL NOT NULL DEFAULT 0,
+                   cpu REAL NOT NULL DEFAULT 0)"""
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_calib_momento ON calibracao (momento)"
@@ -306,7 +307,7 @@ def migrar_calibracao() -> None:
     Cada ALTER vai na sua propria transacao de proposito: no Postgres um comando
     que falha aborta a transacao inteira, entao agrupa-los faria a segunda
     coluna morrer por causa da primeira ja existir."""
-    for coluna in ("ms_rede", "ms_analise", "heap"):
+    for coluna in ("ms_rede", "ms_analise", "heap", "cpu"):
         try:
             with cursor(escrita=True) as (cur, _):
                 cur.execute(
@@ -395,8 +396,15 @@ class Amostra(BaseModel):
     # de custo continua valendo pela margem — que e o motivo original da tabela.
     ms_rede: float = 0.0
     ms_analise: float = 0.0
-    # Memoria do JavaScript em MB. Zero quando o navegador nao conta.
+    # A memoria que o processo de analise ocupa, em MB. No navegador e o monte
+    # do JavaScript, que e o mais perto que ele deixa chegar; na AIBOX e a
+    # memoria residente do processo, que e a coisa de verdade. As duas
+    # respondem a mesma pergunta util: isto cresce sem parar ao longo da aula?
     heap: float = 0.0
+    # Uso de CPU em porcento. Fica ZERO no navegador, e de proposito: pagina
+    # nenhuma consegue ler isso, e um numero inventado seria pior que nenhum.
+    # A AIBOX consegue, e e la que ele vale.
+    cpu: float = 0.0
 
 
 class Calibracao(BaseModel):
@@ -770,16 +778,16 @@ def gravar_calibracao(c: Calibracao) -> dict:
             cur.execute(
                 f"""INSERT INTO calibracao (momento, camera, corpo, fps, analisavel,
                        nota, fora, geo, vel, ang, baixo, prop, alertou,
-                       ms_rede, ms_analise, heap)
+                       ms_rede, ms_analise, heap, cpu)
                     VALUES ({m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m},
-                            {m}, {m}, {m}, {m}, {m}, {m})""",
+                            {m}, {m}, {m}, {m}, {m}, {m}, {m})""",
                 (agora, c.camera, a.corpo, a.fps, a.analisavel, a.nota, a.fora,
                  a.geo, a.vel, a.ang, a.baixo, a.prop,
                  # Sem virgula e sem quebra de linha: este campo e o unico que
                  # chega de fora como texto e sai direto numa planilha CSV.
                  # Uma virgula aqui desalinharia todas as colunas seguintes.
                  a.alertou.replace(",", " ").replace("\n", " ")[:20],
-                 a.ms_rede, a.ms_analise, a.heap),
+                 a.ms_rede, a.ms_analise, a.heap, a.cpu),
             )
     return {"gravadas": len(c.amostras)}
 
@@ -837,7 +845,7 @@ def _linhas_calibracao(camera: str) -> list:
     with cursor() as (cur, m):
         cur.execute(
             f"""SELECT momento, corpo, fps, analisavel, nota, fora, geo, vel,
-                       ang, baixo, prop, alertou, ms_rede, ms_analise, heap
+                       ang, baixo, prop, alertou, ms_rede, ms_analise, heap, cpu
                 FROM calibracao WHERE camera = {m} ORDER BY id""",
             (camera,),
         )
@@ -889,6 +897,9 @@ def resumo_calibracao(camera: str = "sala-12") -> dict:
     anal = [float(l[13]) for l in medidas]
     soma = [float(l[12]) + float(l[13]) for l in medidas]
     heap = [float(l[14]) for l in medidas if float(l[14]) > 0]
+    # Zero aqui quer dizer "nao foi medido" (navegador), e nao "a maquina estava
+    # ociosa". Incluir esses zeros daria um uso de CPU mentirosamente baixo.
+    cpu = [float(l[15]) for l in medidas if float(l[15]) > 0]
     orcamento = round(1000 / fps_medio, 1) if fps_medio else 0
     soma_p95 = round(_pct(soma, 0.95), 1)
 
@@ -925,8 +936,12 @@ def resumo_calibracao(camera: str = "sala-12") -> dict:
             # Memoria do JavaScript, que nao e a memoria do processo: nao conta
             # o que a GPU segura nem o proprio navegador. Serve para ver se
             # cresce sem parar ao longo da aula, que e a pergunta util aqui.
-            "heap_js_mb_mediana": round(_pct(heap, 0.5), 1),
-            "heap_js_mb_maximo": round(max(heap), 1) if heap else 0,
+            "memoria_mb_mediana": round(_pct(heap, 0.5), 1),
+            "memoria_mb_maximo": round(max(heap), 1) if heap else 0,
+            # So a AIBOX preenche isto. Ver o comentario no modelo Amostra.
+            "cpu_pct_mediana": round(_pct(cpu, 0.5), 1),
+            "cpu_pct_p95": round(_pct(cpu, 0.95), 1),
+            "cpu_medido": len(cpu),
             "leitura": _ler_custo(soma_p95, orcamento, fps_medio),
         },
         # Quanto do tempo o sistema NAO teve como julgar. E a nota da posicao da
@@ -963,7 +978,7 @@ def csv_calibracao(camera: str = "sala-12") -> Response:
     """Para abrir no Excel e olhar com os proprios olhos. Um resumo e a leitura
     de alguem; a planilha deixa voce discordar dela."""
     cabecalho = ("momento,corpo,fps,analisavel,nota,fora,geo,vel,ang,baixo,"
-                 "prop,alertou,ms_rede,ms_analise,heap")
+                 "prop,alertou,ms_rede,ms_analise,heap,cpu")
     linhas = [cabecalho]
     for l in _linhas_calibracao(camera):
         linhas.append(",".join(str(x) for x in l))
