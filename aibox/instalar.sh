@@ -77,7 +77,19 @@ if [ ! -f "$RAIZ/.env" ]; then
   cat > "$RAIZ/.env" <<'ENV'
 # A SENHA DA CAMERA MORA AQUI E EM MAIS LUGAR NENHUM.
 # Este arquivo nao vai para o git — e para isso que ele existe.
-CAMERA_RTSP=rtsp://USUARIO:SENHA@192.168.50.108:554/stream2
+#
+# O CAMINHO DO FLUXO MUDA POR FABRICANTE, e errar isso custou meia hora numa
+# instalacao: a camera responde 401 em vez de 404, entao parece senha errada.
+#   Intelbras / Dahua : /cam/realmonitor?channel=1&subtype=1   (=0 e o principal)
+#   Hikvision         : /Streaming/Channels/102
+#   TP-Link           : /stream2
+# Na duvida, abra http://<ip-da-camera> no navegador: a marca esta na pagina.
+CAMERA_RTSP=rtsp://192.168.50.108:554/cam/realmonitor?channel=1&subtype=1
+# Usuario e senha vao SEPARADOS do endereco de proposito. Dentro da URL, uma
+# senha com "@" — como fiap@2026 — parte o endereco no lugar errado, e a saida
+# seria escapar para %40 e torcer para cada camada decodificar igual.
+CAM_USER=Fiap
+CAM_PW=SENHA_DA_CAMERA
 SERVIDOR=http://192.168.50.72:8000
 LOCAL_CAMERA=sala-12
 OLHO=AQUI_O_OLHO

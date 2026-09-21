@@ -65,6 +65,14 @@ def carregar_env():
 
 
 def abrir_camera(url):
+    """RTSP vai pelo GStreamer; webcam e arquivo continuam no OpenCV.
+
+    A escolha e pelo endereco e nao por configuracao: quem instala nao deveria
+    precisar saber que esta caixa tem um OpenCV sem suporte a camera IP. Ver o
+    porque inteiro, com as mensagens medidas, no topo de aibox/gstcam.py."""
+    if str(url).startswith("rtsp"):
+        from aibox.gstcam import Gst
+        return Gst(url)
     import cv2
     # TCP em vez de UDP: numa rede de escola o UDP perde pacote e o quadro
     # chega rasgado, o que o detector le como corpo torto — alarme falso com
