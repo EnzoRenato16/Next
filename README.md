@@ -71,6 +71,16 @@ treinado deles, porque ainda não temos dataset — então o painel escreve
 [RWF-2000](https://arxiv.org/abs/1911.05913). Quando algo não foi medido, o
 código diz isso.
 
+**E dá para medir na sua sala.** `CALIBRACAO=1` liga o registro de calibração:
+cada corpo deposita uma amostra por segundo com os números crus da análise
+— nota, distância ao treino, velocidade, inclinação — **mesmo quando nada
+acontece**. Uma hora de aula vira a distribuição do que o sistema enxergou, e
+`/api/calibracao` responde a pergunta que decide se isto serve numa escola:
+*o quão perto do limiar as coisas chegaram num dia comum*. Planilha em
+`/api/calibracao.csv`. Nenhuma imagem, nenhum rosto, nenhum nome — e as
+amostras **não entram na cadeia de hash**, porque medir o que se viu não é
+afirmar o que aconteceu.
+
 **Evidência para conferência humana, nunca acusação automática.** Quem não é
 reconhecido vira "Desconhecido pendente de validação", biometria tem prazo para
 vencer, e o que vai para o Power BI é agregado — dá para ver onde a escola

@@ -40,7 +40,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 AQUI = Path(__file__).parent
@@ -119,6 +119,32 @@ FOTO_DIAS = float(os.environ.get("FOTO_DIAS", "7"))
 # Um recorte de 320px em JPEG da uns 20 KB. O teto existe para o endpoint nao
 # virar porta de entrada de arquivo grande.
 FOTO_MAX = 400_000
+
+# ---- registro de calibracao ------------------------------------------------
+# O que o sistema VIU, e nao so o que ele ACUSOU.
+#
+# Hoje o Auditix so deixa rastro quando dispara. Isso responde "quantos alertas
+# houve" e nao responde a pergunta que decide se o produto serve numa escola:
+# QUANTAS VEZES ELE QUASE DISPAROU SEM MOTIVO. O botao "foi engano" tambem nao
+# responde, porque so captura o erro que alguem percebeu e teve paciencia de
+# marcar.
+#
+# Com isto ligado, cada corpo firme deposita uma amostra por segundo com os
+# numeros crus da analise — nota da rede, distancia ao treino, velocidade,
+# inclinacao — mesmo quando nada acontece. Uma hora de aula vira a distribuicao
+# completa do que o sistema enxergou, e dali sai a margem real: o quao perto do
+# limiar as coisas chegaram num dia comum.
+#
+# DESLIGADO por padrao. E ferramenta de medicao, nao de operacao: ligar sozinho
+# um processo que escreve continuamente no banco de alguem seria surpresa ruim.
+CALIBRACAO = os.environ.get("CALIBRACAO", "0").strip().lower() in ("1", "sim", "true")
+# Amostra e dado descartavel, ao contrario de evento. A tabela de eventos nunca
+# perde linha porque isso quebraria a corrente de hash; esta aqui NAO entra na
+# corrente, entao pode e deve ser podada — senao cresce para sempre.
+CALIBRACAO_DIAS = float(os.environ.get("CALIBRACAO_DIAS", "30"))
+# Teto por requisicao. O navegador manda em lote a cada 15s; com 6 pessoas na
+# sala isso da ~90 amostras. 500 e folga larga e fecha a porta para abuso.
+CALIBRACAO_LOTE = 500
 
 
 def carregar_env() -> None:
@@ -236,6 +262,29 @@ def criar_tabelas() -> None:
         # Quem olhou a imagem de quem, e quando. Sem login o servidor conhece a
         # maquina, nao a pessoa — o registro diz de onde veio a consulta, e isso
         # e o que ele pode honestamente afirmar.
+        # Amostras de diagnostico. NAO tem hash e NAO entra na cadeia: sao
+        # medidas do que o sistema viu, nao afirmacoes sobre o que aconteceu.
+        # E por isso que esta tabela pode ser podada e a de eventos nao.
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS calibracao (
+                   id {serial},
+                   momento {ts} DEFAULT CURRENT_TIMESTAMP,
+                   camera VARCHAR(60) NOT NULL,
+                   corpo INTEGER NOT NULL,
+                   fps REAL NOT NULL,
+                   analisavel INTEGER NOT NULL,
+                   nota REAL NOT NULL,
+                   fora REAL NOT NULL,
+                   geo INTEGER NOT NULL,
+                   vel REAL NOT NULL,
+                   ang REAL NOT NULL,
+                   baixo REAL NOT NULL,
+                   prop REAL NOT NULL,
+                   alertou VARCHAR(20) NOT NULL)"""
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_calib_momento ON calibracao (momento)"
+        )
         cur.execute(
             f"""CREATE TABLE IF NOT EXISTS acessos_foto (
                    id {serial},
@@ -307,9 +356,29 @@ class Calor(BaseModel):
     celulas: list[Celula]
 
 
+class Amostra(BaseModel):
+    corpo: int
+    fps: float
+    analisavel: int
+    nota: float
+    fora: float
+    geo: int
+    vel: float
+    ang: float
+    baixo: float
+    prop: float
+    alertou: str = Field(default="", max_length=20)
+
+
+class Calibracao(BaseModel):
+    camera: str = Field(default="sala-12", max_length=60)
+    amostras: list[Amostra]
+
+
 @asynccontextmanager
 async def ciclo(_app: FastAPI):
     criar_tabelas()
+    podar_calibracao()
     yield
 
 
@@ -645,6 +714,161 @@ def gravar_calor(c: Calor) -> dict:
     return {"gravadas": len(c.celulas)}
 
 
+def podar_calibracao() -> None:
+    """Amostra velha nao serve para nada e cresce para sempre. Podar aqui e
+    seguro exatamente porque esta tabela NAO participa da cadeia de hash — a de
+    eventos nunca perde linha, e a diferenca e proposital."""
+    if CALIBRACAO_DIAS <= 0:
+        return
+    corte = (datetime.now(timezone.utc)
+             - timedelta(days=CALIBRACAO_DIAS)).strftime("%Y-%m-%d %H:%M:%S")
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(f"DELETE FROM calibracao WHERE momento < {m}", (corte,))
+
+
+@app.post("/api/calibracao")
+def gravar_calibracao(c: Calibracao) -> dict:
+    """As amostras do que o sistema viu. Numeros do esqueleto ja normalizados:
+    nenhuma imagem, nenhum rosto, nenhum nome — a mesma regra do treino."""
+    if not CALIBRACAO:
+        raise HTTPException(403, "registro de calibração desligado (CALIBRACAO=0)")
+    if len(c.amostras) > CALIBRACAO_LOTE:
+        raise HTTPException(413, f"lote acima de {CALIBRACAO_LOTE} amostras")
+    agora = agora_iso()
+    with cursor(escrita=True) as (cur, m):
+        for a in c.amostras:
+            cur.execute(
+                f"""INSERT INTO calibracao (momento, camera, corpo, fps, analisavel,
+                       nota, fora, geo, vel, ang, baixo, prop, alertou)
+                    VALUES ({m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m}, {m})""",
+                (agora, c.camera, a.corpo, a.fps, a.analisavel, a.nota, a.fora,
+                 a.geo, a.vel, a.ang, a.baixo, a.prop,
+                 # Sem virgula e sem quebra de linha: este campo e o unico que
+                 # chega de fora como texto e sai direto numa planilha CSV.
+                 # Uma virgula aqui desalinharia todas as colunas seguintes.
+                 a.alertou.replace(",", " ").replace("\n", " ")[:20]),
+            )
+    return {"gravadas": len(c.amostras)}
+
+
+def _ler_margem(folga_nota: float, folga_vel: float) -> str:
+    """Uma frase em portugues no lugar de dois numeros soltos. Quem vai ler isto
+    e alguem decidindo se pode instalar numa escola, nao quem escreveu o
+    codigo."""
+    apertados = []
+    if folga_nota < 0:
+        apertados.append("a nota de queda PASSOU do limiar sem alertar")
+    elif folga_nota < 0.10:
+        apertados.append(f"a nota de queda chegou a {folga_nota:.2f} do limiar")
+    if folga_vel < 0:
+        apertados.append("a velocidade PASSOU do limiar sem alertar")
+    elif folga_vel < 0.20:
+        apertados.append(f"a velocidade chegou a {folga_vel:.2f} do limiar")
+    if not apertados:
+        return "folga confortável nos dois limiares neste período"
+    return ("; ".join(apertados) +
+            " — vale abrir o CSV e olhar essas janelas antes de instalar")
+
+
+def _linhas_calibracao(camera: str) -> list:
+    with cursor() as (cur, m):
+        cur.execute(
+            f"""SELECT momento, corpo, fps, analisavel, nota, fora, geo, vel,
+                       ang, baixo, prop, alertou
+                FROM calibracao WHERE camera = {m} ORDER BY id""",
+            (camera,),
+        )
+        return cur.fetchall()
+
+
+@app.get("/api/calibracao")
+def resumo_calibracao(camera: str = "sala-12") -> dict:
+    """A pergunta que este resumo responde NAO e "quantos alertas houve".
+    E "o quao perto o sistema chegou de acusar sem motivo".
+
+    Num dia comum de aula, a maior nota que NAO virou alerta e a margem real de
+    seguranca. Se o limiar e 0,50 e a maior nota do dia foi 0,31, ha folga. Se
+    foi 0,49, o sistema esta a um quadro ruim de um alarme falso — e isso nao
+    aparece em lugar nenhum se a gente so registrar o que disparou."""
+    linhas = _linhas_calibracao(camera)
+    if not linhas:
+        return {"status": "sem_amostras", "ligado": CALIBRACAO, "camera": camera}
+
+    total = len(linhas)
+    cegas = sum(1 for l in linhas if not l[3])
+    fora = sum(1 for l in linhas if float(l[5]) > 6)
+    alertas: dict[str, int] = {}
+    for l in linhas:
+        if l[11]:
+            alertas[l[11]] = alertas.get(l[11], 0) + 1
+
+    # So as amostras em que NADA foi acusado: e nelas que mora o falso positivo
+    # que ainda nao aconteceu.
+    calmas = [l for l in linhas if not l[11] and l[3]]
+    pico_nota = max((float(l[4]) for l in calmas), default=0.0)
+    pico_vel = max((float(l[7]) for l in calmas), default=0.0)
+    geo_calma = sum(1 for l in calmas if l[6])
+
+    faixas = {f"{i/10:.1f}-{(i+1)/10:.1f}": 0 for i in range(10)}
+    for l in calmas:
+        i = min(9, max(0, int(float(l[4]) * 10)))
+        faixas[f"{i/10:.1f}-{(i+1)/10:.1f}"] += 1
+
+    fps = [float(l[2]) for l in linhas if float(l[2]) > 0]
+    return {
+        "status": "ok",
+        "ligado": CALIBRACAO,
+        "camera": camera,
+        "amostras": total,
+        # Uma amostra por corpo por segundo, entao isto e tempo de OBSERVACAO
+        # somado por pessoa, e nao tempo de relogio.
+        "corpos_minuto": round(total / 60, 1),
+        "primeira": str(linhas[0][0]),
+        "ultima": str(linhas[-1][0]),
+        "fps_medio": round(sum(fps) / len(fps), 1) if fps else 0,
+        # Quanto do tempo o sistema NAO teve como julgar. E a nota da posicao da
+        # camera, e nao do modelo: corpo cortado no quadro nao se analisa.
+        "cegas_pct": round(cegas * 100 / total, 1),
+        "fora_do_treino_pct": round(fora * 100 / total, 1),
+        "alertas": alertas,
+        # A FOLGA e o numero que este resumo existe para dar, e ele vem pronto
+        # de proposito: quem le nao deveria precisar comparar dois campos de
+        # cabeca para descobrir se o dia foi tranquilo ou por um fio.
+        #
+        # Positivo e a distancia que sobrou ate o limiar. NEGATIVO significa que
+        # alguma janela PASSOU do limiar sem virar alerta — o que nao e
+        # necessariamente erro (a permanencia e a trava de "em pe" ainda
+        # decidem depois), mas e sempre coisa para ir olhar: ou as travas
+        # seguintes salvaram, ou o sistema esta deixando passar.
+        "margem": {
+            "amostras_calmas": len(calmas),
+            "maior_nota_sem_alerta": round(pico_nota, 3),
+            "limiar_nota": 0.50,
+            "folga_nota": round(0.50 - pico_nota, 3),
+            "maior_velocidade_sem_alerta": round(pico_vel, 2),
+            "limiar_velocidade": 1.20,
+            "folga_velocidade": round(1.20 - pico_vel, 2),
+            "leitura": _ler_margem(0.50 - pico_nota, 1.20 - pico_vel),
+            "geometria_sem_alerta": geo_calma,
+        },
+        "faixas_de_nota": faixas,
+    }
+
+
+@app.get("/api/calibracao.csv")
+def csv_calibracao(camera: str = "sala-12") -> Response:
+    """Para abrir no Excel e olhar com os proprios olhos. Um resumo e a leitura
+    de alguem; a planilha deixa voce discordar dela."""
+    cabecalho = ("momento,corpo,fps,analisavel,nota,fora,geo,vel,ang,baixo,"
+                 "prop,alertou")
+    linhas = [cabecalho]
+    for l in _linhas_calibracao(camera):
+        linhas.append(",".join(str(x) for x in l))
+    return Response("\n".join(linhas) + "\n", media_type="text/csv",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="calibracao-{camera}.csv"'})
+
+
 @app.get("/api/mapa")
 def mapa(camera: str = "sala-12", dias: int = 0) -> dict:
     """dias=0 e a base inteira. Uma janela importa mais do que parece aqui: a
@@ -849,6 +1073,16 @@ if __name__ == "__main__":
               + ("" if WEBHOOK_SEGREDO else " — SEM SEGREDO, qualquer um pode disparar"))
     else:
         print("[auditix] alerta por e-mail DESLIGADO (falta WEBHOOK_URL no .env)")
+    # Mesmo motivo do aviso acima: o que fica LIGADO ou DESLIGADO em silencio
+    # e o que ninguem descobre a tempo. Ja perdemos uma tarde por causa de um
+    # WEBHOOK_URL vazio que nao avisava nada.
+    if CALIBRACAO:
+        print(f"[auditix] registro de calibração LIGADO — grava o que o sistema "
+              f"VÊ, não só o que acusa. Resumo em /api/calibracao, planilha em "
+              f"/api/calibracao.csv. Poda em {CALIBRACAO_DIAS:.0f} dias.")
+    else:
+        print("[auditix] registro de calibração DESLIGADO "
+              "(CALIBRACAO=1 no .env para medir a margem numa sala de verdade)")
     print("[auditix] deixe esta janela ABERTA. Ctrl+C encerra.")
 
     # log_level="info" de proposito: o uvicorn precisa dizer "estou de pe".

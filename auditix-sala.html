@@ -1579,6 +1579,10 @@ function registrarAnomalia(tipo, t, texto, porque){
     return;
   }
   alertaDe.set(chave, { visto: agora });
+  /* Marca lida pelo registro de calibração. Sem ela não dá para separar as
+     amostras CALMAS — e são elas que dizem o quão perto o sistema chegou de
+     acusar sem motivo. */
+  t.marcaAlerta = { tipo, quando: agora };
   anomalias.unshift({ tipo, corpo:t.id, quem:t.nome, texto, porque,
                       h:hora(), visto:Date.now(),
                       /* A janela que causou ESTE alerta, congelada. É com ela que
@@ -1647,6 +1651,11 @@ function analisar(t, lm, agora){
        uma segurança que não tinha como verificar. Uma pessoa caiu na frente da
        câmera e o sistema não disse nem que não sabia. */
     t.analisavel = false;
+    /* Amostra TAMBÉM aqui, e é de propósito: este caminho é "não tive como
+       julgar", e a fração de tempo em que ele acontece é a nota da POSIÇÃO DA
+       CÂMERA, não do modelo. Registrar só o que foi analisado esconderia
+       justamente a falha mais comum de instalação. */
+    amostrarCalibracao(t, agora, false);
     return;
   }
   t.analisavel = true;
@@ -1774,6 +1783,11 @@ function analisar(t, lm, agora){
      de amostras nela é o fps real desta máquina. O treino foi a 30fps, e uma
      das 12 entradas é velocidade — presumir 30 numa máquina que roda a 15
      dobraria esse número. */
+  /* A taxa de quadros MEDIDA: a janela é de 1s, então o número de amostras
+     dentro dela é o fps real desta máquina. Guardada na trilha porque o
+     registro de calibração precisa dela — um número de queda a 8fps não vale o
+     mesmo que a 30fps, e sem registrar isso a planilha mente. */
+  t.fps = janRede.length;
   const carQ = janRede.length >= QUEDA_AMOSTRAS
     ? caracteristicasQueda(janRede, janRede.length)
     : null;
@@ -1889,6 +1903,8 @@ function analisar(t, lm, agora){
         '(limiar ' + CORRE_VEL + '), corpo em pé por ' +
         Math.round(agora - t.correDesde) + 'ms');
   } else t.correDesde = 0;
+
+  amostrarCalibracao(t, agora, true);
 
   /* --- mapa de calor: onde os pés pisaram --- */
   if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
@@ -2920,6 +2936,75 @@ function mandarCalor(){
     body: JSON.stringify({ camera:LOCAL_CAMERA, celulas }) }).catch(() => {});
 }
 setInterval(mandarCalor, 20000);
+
+/* ------------------------------------------------ registro de calibração ---
+   O QUE O SISTEMA VIU, e não só o que ele ACUSOU.
+
+   Hoje o Auditix só deixa rastro quando dispara. Isso responde "quantos
+   alertas houve" e não responde a pergunta que decide se isto serve numa
+   escola: QUANTAS VEZES ELE QUASE DISPAROU SEM MOTIVO. O link "foi engano"
+   também não responde — ele só captura o erro que alguém percebeu e teve
+   paciência de marcar, e o erro que ninguém viu é justamente o perigoso.
+
+   A ideia veio do liveness-stream, que grava um CSV de calibração com todos os
+   sinais de evidência a cada quadro. Nada do código de lá foi usado (aquele
+   repositório não declara licença, então é todos os direitos reservados), mas
+   o hábito é bom e é barato.
+
+   Uma amostra por corpo por segundo, com os números crus da análise, MESMO
+   quando nada acontece. Uma hora de aula vira a distribuição completa do que o
+   sistema enxergou — e dali sai a margem: o quão perto do limiar as coisas
+   chegaram num dia comum.
+
+   Nenhuma imagem, nenhum rosto, nenhum nome. Só os números já normalizados,
+   a mesma regra do treino/local.py. */
+const CALIB_MS = 1000;        // uma amostra por corpo por segundo
+let calibrando = true;        // vira false se o servidor disser que está desligado
+let calibFila = [];
+
+function amostrarCalibracao(t, agora, analisavel){
+  if(!calibrando || !servidorVivo || !t.firme) return;
+  if(t.calibEm && agora - t.calibEm < CALIB_MS) return;
+  t.calibEm = agora;
+  /* O alerta é lido de uma marca recente, e não do estado do relógio: o que
+     interessa saber depois é "nesta amostra, o sistema estava acusando algo?".
+     Sem isso não dá para separar as amostras CALMAS, que são justamente onde
+     mora o falso positivo que ainda não aconteceu. */
+  const alertou = t.marcaAlerta && agora - t.marcaAlerta.quando < CALIB_MS
+    ? t.marcaAlerta.tipo : '';
+  calibFila.push({
+    corpo: t.id,
+    fps: +(t.fps || 0).toFixed(1),
+    analisavel: analisavel ? 1 : 0,
+    nota:  +(t.notaQueda   || 0).toFixed(4),
+    fora:  +(t.foraDoTreino|| 0).toFixed(2),
+    geo:   t.quedaDesde ? 1 : 0,
+    vel:   +(t.velocidade  || 0).toFixed(3),
+    ang:   +(t.ang         || 0).toFixed(1),
+    baixo: +(t.baixo       || 0).toFixed(3),
+    prop:  +(t.prop        || 0).toFixed(3),
+    alertou
+  });
+  /* Teto de segurança: se o servidor ficar mudo, a fila não pode crescer sem
+     fim e comer a memória da aba que está detectando queda. */
+  if(calibFila.length > 2000) calibFila = calibFila.slice(-500);
+}
+
+function mandarCalibracao(){
+  if(!calibrando || !servidorVivo || !calibFila.length) return;
+  const lote = calibFila.slice(0, 500);
+  calibFila = calibFila.slice(lote.length);
+  fetch('/api/calibracao', { method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ camera: LOCAL_CAMERA, amostras: lote }) })
+    .then(r => {
+      /* 403 é o servidor dizendo que o registro está desligado. Parar de tentar
+         é melhor que insistir a cada 15s pelo resto da aula. */
+      if(r.status === 403){ calibrando = false; calibFila = []; }
+    })
+    .catch(() => {});
+}
+setInterval(mandarCalibracao, 15000);
 
 el('btn-verificar').addEventListener('click', () => {
   fetch('/api/verificar').then(r => r.json()).then(pintarTrilha).catch(() => {});
