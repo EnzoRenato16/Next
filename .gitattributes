@@ -1,0 +1,10 @@
+# Script de shell SEMPRE com fim de linha do Unix, mesmo baixado no Windows.
+#
+# Sem isto o Git converte para CRLF no checkout do Windows, o scp copia assim
+# para a AIBOX, e o bash de la le o \r como parte do comando:
+#     aibox/instalar.sh: line 18: $'echo\r': command not found
+# Custou uma rodada de instalacao no laboratorio.
+*.sh text eol=lf
+
+# O mesmo vale para qualquer coisa que o Linux va EXECUTAR.
+*.py text eol=lf
