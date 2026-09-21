@@ -1673,14 +1673,23 @@ function analisar(t, lm, agora){
      o que dá para ver, e descemos para a proporção anatômica quando não dá. */
   const tronco = Math.abs(o.y - q.y);
   const joelho = meio(lm, P.JOELHO_E, P.JOELHO_D);
-  let altura;
-  if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN)
+  /* QUAL RÉGUA FOI USADA importa tanto quanto o número, e é guardado junto.
+     As três descem da mesma anatomia mas NÃO dão o mesmo valor para a mesma
+     pessoa: são aproximações diferentes, com erros diferentes. Misturá-las
+     numa comparação é comparar centímetro com polegada. */
+  let altura, regua;
+  if(vis(lm[P.TORN_E]) > VIS_MIN || vis(lm[P.TORN_D]) > VIS_MIN){
     altura = Math.abs(pe.y - o.y) * 1.25;      // ombro ao tornozelo é ~80% do corpo
-  else if(vis(lm[P.JOELHO_E]) > VIS_MIN || vis(lm[P.JOELHO_D]) > VIS_MIN)
+    regua = 'tornozelo';
+  }else if(vis(lm[P.JOELHO_E]) > VIS_MIN || vis(lm[P.JOELHO_D]) > VIS_MIN){
     altura = Math.abs(joelho.y - o.y) * 1.9;
-  else
+    regua = 'joelho';
+  }else{
     altura = tronco * 3.2;                      // o tronco é ~1/3 da altura
+    regua = 'tronco';
+  }
   altura = Math.max(0.08, altura);
+  t.regua = regua;
   const ang = Math.abs(Math.atan2(o.x - q.x, q.y - o.y) * 180 / Math.PI);
 
   /* O tronco medido ao longo do PRÓPRIO EIXO, não só na vertical. A diferença
@@ -1737,10 +1746,42 @@ function analisar(t, lm, agora){
      encolhe no quadro, e dividir a descida por essa altura já encolhida inflava
      a queda relativa. */
   const alturaMax = Math.max.apply(null, jan.map(h => h.altura));
-  /* A maior altura que esta pessoa já teve na cena, e não só na janela de 1s:
-     quem entra já andando e depois cai precisa ter a referência de quando
-     estava em pé. */
-  t.alturaTopo = Math.max(t.alturaTopo || 0, altura);
+  /* A RÉGUA DA PESSOA: a maior altura que ela já teve na cena, e não só na
+     janela de 1s — quem entra já andando e depois cai precisa da referência de
+     quando estava em pé.
+
+     ISTO AQUI JÁ FOI UM GERADOR DE ALARME FALSO, e veio de um print: webcam de
+     notebook a um palmo do rosto, uma pessoa só, parada, e dezesseis "quedas"
+     na lista. Os números do alerta se contradiziam — tronco 3° (em pé), quadril
+     desceu 0.00 (não desceu), caixa 0.2 (em pé) — e mesmo assim `altura 22% da
+     dele` disparava sozinha.
+
+     Eram DOIS defeitos somados, e os dois estão consertados aqui:
+
+     1. A RÉGUA MISTURAVA UNIDADES. Num close a visibilidade do tornozelo pisca
+        em torno do limiar: num quadro a altura sai de `ombro→tornozelo`, no
+        seguinte de `tronco × 3,2`. São aproximações diferentes da mesma pessoa,
+        e a de tornozelo — inventada, porque o pé está fora do quadro — sai
+        MUITO maior. Guardar as duas no mesmo topo faz toda medida honesta
+        parecer 20% de uma referência que nunca existiu.
+        Agora cada régua tem o seu próprio topo, e só se compara com igual.
+
+     2. UM QUADRO RUIM ENVENENAVA PARA SEMPRE. Era `Math.max` puro: o topo só
+        subia, nunca era revisto, e um único quadro com ponto inventado ficava
+        de régua pelo resto da trilha. Agora a referência é o TERCEIRO maior, e
+        não o maior: um pico solitário não vira régua, porque precisa de três
+        quadros independentes concordando.
+
+     O preço, honesto: nos três primeiros quadros de uma régua nova a referência
+     é a própria altura, então `baixo` vale 1 e esta condição não dispara. São
+     ~100ms, e eles já moram inteiros dentro dos 2s de ANOM_IDADE, em que
+     nenhuma anomalia é acusada de qualquer jeito. Não custa nada de novo. */
+  t.topos = t.topos || {};
+  const topo = t.topos[regua] = t.topos[regua] || [];
+  topo.push(altura);
+  topo.sort((a, b) => b - a);
+  if(topo.length > 5) topo.length = 5;      // os cinco maiores bastam
+  t.alturaTopo = topo[Math.min(2, topo.length - 1)];
   const baixo = altura / Math.max(t.alturaTopo, 1e-6);
   t.baixo = baixo;   // depois de existir: `const` antes da declaração é exceção
 

@@ -314,9 +314,24 @@ ok('a Sala põe o custo do quadro dentro da amostra',
    porque aí o campo some do JSON e a coluna fica sem valor. */
 ok('e a memória vai junto como número, mesmo onde o navegador não conta',
    enviado.temHeap && enviado.heap >= 0, 'heap = ' + enviado.heap + ' MB');
-ok('o custo medido pela Sala chega ao resumo do servidor',
-   rSala.custo && Math.abs(rSala.custo.ms_total_p95 - 15.75) < 0.2,
-   'total p95 = ' + (rSala.custo || {}).ms_total_p95 + ' ms');
+/* A ida e volta é conferida na PLANILHA, e não no p95 do resumo. A primeira
+   versão cobrava `ms_total_p95 === 15.75`, o que só valia enquanto a câmera
+   `sala-12` estivesse vazia: ela é fixa e acumula entre execuções, então na
+   segunda rodada o percentil passou a incluir amostras velhas e o teste acusou
+   o código de um defeito que era dele. Procurar a linha exata prova a mesma
+   coisa e não se importa com o que já estava lá. */
+const csvSala = await (await fetch(BASE + '/api/calibracao.csv?camera=' + camSala)).text();
+/* Os números são comparados como NÚMERO, nunca como texto. O primeiro jeito
+   procurava a linha terminada em `,12.5,3.25,6` e falhava uma rodada sim, outra
+   não: o banco guarda REAL, e um heap de 6 MB sai na planilha como `6.0`. O
+   teste piscava conforme a memória do Chrome calhar de dar um valor inteiro. */
+const achada = csvSala.trim().split('\n')
+  .map(l => l.split(',').slice(-3).map(Number))
+  .filter(([r]) => r === 12.5).pop();   // a ÚLTIMA: a planilha vem ordenada por id
+ok('o custo medido pela Sala chega inteiro ao servidor',
+   !!achada && achada[1] === 3.25 && achada[2] === enviado.heap,
+   achada ? achada.join(' / ') + ' contra 12.5 / 3.25 / ' + enviado.heap
+          : 'nenhuma linha com ms_rede 12.5');
 ok('nenhum erro de JavaScript na Sala', erros.length === 0, erros.join(' | '));
 
 /* E o desligamento: com o servidor recusando, a Sala tem de PARAR de tentar em
