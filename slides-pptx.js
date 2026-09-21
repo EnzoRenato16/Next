@@ -23,8 +23,8 @@ const W=13.333, H=7.5, M=0.75;
 
 const pres = new pptxgen();
 pres.layout = 'LAYOUT_WIDE';
-pres.author = 'SVATech - grupo 11';
-pres.title  = 'Auditix AI';
+pres.author = 'Auditix IA - grupo 11';
+pres.title  = 'Auditix IA';
 
 function nova(){
   const s = pres.addSlide();
@@ -49,7 +49,7 @@ function apoio(s, runs, y, w, h){
     fontFace:TXT, fontSize:15, color:T2, lineSpacing:22 });
 }
 function rodape(s, n){
-  s.addText('Auditix AI  ·  SVATech  ·  grupo 11', { x:M, y:H-0.62, w:6, h:0.3,
+  s.addText('Auditix IA  ·  grupo 11', { x:M, y:H-0.62, w:6, h:0.3,
     isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3 });
   s.addText(String(n), { x:W-M-1, y:H-0.62, w:1, h:0.3, isTextBox:true, margin:0,
     fontFace:MONO, fontSize:9, color:T3, align:'right' });
@@ -58,8 +58,8 @@ function rodape(s, n){
 /* ==================================================== 1. abertura ======== */
 {
   const s = nova();
-  s.addText([{ text:'SVATECH', options:{ color:VERDE } },
-             { text:'  ·  AUDITIX AI  ·  GRUPO 11', options:{ color:T3 } }],
+  s.addText([{ text:'AUDITIX IA', options:{ color:VERDE } },
+             { text:'  ·  GRUPO 11  ·  2ECR', options:{ color:T3 } }],
     { x:M, y:0.7, w:7, h:0.3, isTextBox:true, margin:0, fontFace:MONO, fontSize:11, charSpacing:3 });
   s.addText('Ninguém\nestava\nolhando.', { x:M, y:1.25, w:6.2, h:3.1, isTextBox:true, margin:0,
     fontFace:TIT, fontSize:54, bold:true, color:TINTA, lineSpacing:56 });
@@ -217,52 +217,7 @@ function rodape(s, n){
   rodape(s, 6);
 }
 
-/* ==================================================== 7. a ANPD ========== */
-/* Este slide e o mais forte do deck e nao e tecnico. Ate agosto de 2026 a
-   posicao de privacidade do Auditix era uma escolha de projeto que a gente
-   defendia com argumento. Agora existe uma decisao de agencia reguladora
-   brasileira dizendo a mesma coisa sobre o maior sistema do pais, e as cinco
-   falhas que ela aponta sao, uma a uma, o que a gente construiu. */
-{
-  const s = nova();
-  olho(s, 'Agosto de 2026', ALERTA);
-  titulo(s, 'A ANPD já suspendeu\no caminho que não seguimos.');
-  apoio(s, 'O maior sistema de IA em escola do Brasil, com mais de 1.700 escolas e cerca de 1 milhão de alunos por dia, foi suspenso por tratar biometria de criança. A agência classificou isso como atividade de alto risco. As cinco falhas apontadas são as cinco perguntas que o Auditix já responde.', 2.42, 11.5, 0.95);
-
-  s.addText('O QUE A ANPD APONTOU', { x:M, y:3.5, w:4.5, h:0.26, isTextBox:true, margin:0,
-    fontFace:MONO, fontSize:9.5, color:T3, charSpacing:1.5 });
-  s.addText('O QUE O AUDITIX FAZ', { x:M+4.95, y:3.5, w:6.5, h:0.26, isTextBox:true, margin:0,
-    fontFace:MONO, fontSize:9.5, color:VERDE, charSpacing:1.5 });
-
-  const pares = [
-    ['Sem base legal do art. 11 para dado sensível',
-     'Não coletamos biometria. O artigo 11 não chega a se aplicar.'],
-    ['Desproporcional: não provaram que o menos invasivo não bastava',
-     'Rosto apagado antes de a imagem sair, e ela só existe em alerta grave.'],
-    ['Segurança citada de forma genérica, sem monitoramento nem auditoria',
-     'Cadeia de hash verificável, e cada abertura de imagem vira linha no banco.'],
-    ['Melhor interesse da criança não demonstrado',
-     'A imagem se apaga sozinha em 7 dias. O registro do evento fica.'],
-    ['Registro de Operações de Tratamento não entregue',
-     'O banco é o registro, linha a linha, e ele se confere sozinho.']
-  ];
-  pares.forEach((par, i) => {
-    const y = 3.84 + i * 0.58;
-    s.addShape(pres.ShapeType.line, { x:M, y, w:11.83, h:0, line:{ color:LINHA, width:1 } });
-    s.addText(par[0], { x:M, y:y+0.07, w:4.7, h:0.46, isTextBox:true, margin:0,
-      fontFace:TXT, fontSize:11.5, color:T2, lineSpacing:13.5 });
-    s.addText(par[1], { x:M+4.95, y:y+0.07, w:6.85, h:0.46, isTextBox:true, margin:0,
-      fontFace:TXT, fontSize:11.5, color:TINTA, lineSpacing:13.5 });
-  });
-
-  s.addText('Leitura nossa da decisão pública da ANPD, não parecer jurídico.',
-    { x:M, y:6.82, w:7, h:0.26, isTextBox:true, margin:0,
-      fontFace:MONO, fontSize:9, color:T3 });
-  s.addNotes('Esta é a resposta para "por que vocês não reconhecem os alunos?". A resposta não é "não deu tempo": a gente consegue e escolheu não fazer, e um mês atrás a ANPD deu razão a essa escolha. Não afirmar conformidade jurídica: dizer que é a nossa leitura da decisão.');
-  rodape(s, 7);
-}
-
-/* ==================================================== 8. o alerta ======== */
+/* ==================================================== 7. o alerta ======== */
 {
   const s = nova();
   olho(s, 'Do chão à caixa de entrada');
@@ -286,10 +241,10 @@ function rodape(s, n){
   });
   s.addText('O caminho tem teste automático, inclusive o que custa caro quando falha: e-mail sem segredo e e-mail em rajada.',
     { x:M, y:6.0, w:11.5, h:0.5, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, color:T2 });
-  rodape(s, 8);
+  rodape(s, 7);
 }
 
-/* ==================================================== 9. dashboard ======= */
+/* ==================================================== 8. dashboard ======= */
 {
   const s = nova();
   olho(s, 'Dashboard ligado ao banco por API');
@@ -311,10 +266,10 @@ function rodape(s, n){
     s.addText(it[2], { x:6.75, y:y+0.52, w:5.9, h:0.3, isTextBox:true, margin:0,
       fontFace:TXT, fontSize:11.5, color:T2 });
   });
-  rodape(s, 9);
+  rodape(s, 8);
 }
 
-/* ==================================================== 10. a rota ========== */
+/* ==================================================== 9. a rota ========== */
 {
   const s = nova();
   olho(s, 'Onde isto vai dar');
@@ -323,7 +278,7 @@ function rodape(s, n){
     ['HOJE','Uma sala, uma câmera, um alerta','DE PÉ','Queda ao vivo, evento na corrente, e-mail na coordenação, imagem com rosto apagado. Roda sem internet, numa máquina comum.'],
     ['PRÓXIMO','Escola-piloto','A VALIDAR','A medida que ainda não temos: quantos alertas por dia a coordenação aguenta. É esse número, e não a revocação, que decide se é usável.'],
     ['DEPOIS','Várias câmeras, uma corrente só','A CONSTRUIR','Cada sala com seu detector na borda, todas na mesma trilha auditável.'],
-    ['A TESE','A mesma base, outros lugares','EM ESTUDO','Borda que decide mais prova que não se altera: portaria com consentimento, e o SVATech Health.']
+    ['A TESE','A mesma base, outros lugares','EM ESTUDO','Borda que decide mais prova que não se altera: portaria com consentimento, e a área da saúde.']
   ];
   r.forEach((it, i) => {
     const y = 2.55 + i * 1.12;
@@ -339,10 +294,10 @@ function rodape(s, n){
     s.addText(it[3], { x:M+2.0, y:y+0.55, w:9.5, h:0.5, isTextBox:true, margin:0,
       fontFace:TXT, fontSize:12, color:T2, lineSpacing:16 });
   });
-  rodape(s, 10);
+  rodape(s, 9);
 }
 
-/* ============================================= 11. valor para quem compra = */
+/* ============================================= 10. valor para quem compra = */
 {
   const s = nova();
   olho(s, 'Onde está o valor para quem compra');
@@ -371,10 +326,10 @@ function rodape(s, n){
       fontFace:MONO, fontSize:8.5, color:T3 });
   });
   s.addNotes('A primeira é a que fecha a venda. Segurança comove; risco jurídico faz a diretoria assinar.');
-  rodape(s, 11);
+  rodape(s, 10);
 }
 
-/* ==================================================== 12. mercado ======== */
+/* ==================================================== 11. mercado ======== */
 {
   const s = nova();
   olho(s, 'Valor econômico e entrada no mercado');
@@ -425,10 +380,10 @@ function rodape(s, n){
     { x:XD, y:6.22, w:5.5, h:0.4, isTextBox:true, margin:0, fontFace:MONO, fontSize:9, color:T3, lineSpacing:13 });
 
   s.addNotes('Se perguntarem tamanho de mercado: dizer que o dado vem do Censo Escolar do INEP e que o preço praticado sai de conversa com escolas, e que nenhum dos dois foi estimado por nós.');
-  rodape(s, 12);
+  rodape(s, 11);
 }
 
-/* =============================================== 13. o que falta medir === */
+/* =============================================== 12. o que falta medir === */
 {
   const s = nova();
   olho(s, 'Honestidade intelectual', ALERTA);
@@ -457,10 +412,10 @@ function rodape(s, n){
   });
   s.addText('Uma banca pergunta a fonte. “Estimativa nossa” derruba o slide, e com ele o resto da apresentação.',
     { x:M, y:6.1, w:11.5, h:0.45, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, italic:true, color:T2 });
-  rodape(s, 13);
+  rodape(s, 12);
 }
 
-/* ==================================================== 14. fecho ========== */
+/* ==================================================== 13. fecho ========== */
 {
   const s = nova();
   olho(s, 'Para fechar');
@@ -482,7 +437,7 @@ function rodape(s, n){
     fontFace:TIT, fontSize:24, bold:true, color:TINTA });
   s.addText('É um pedido para alguém ir olhar, feito rápido o bastante para ainda valer a pena.',
     { x:M+0.25, y:5.45, w:9.5, h:0.5, isTextBox:true, margin:0, fontFace:TXT, fontSize:14, color:T2 });
-  s.addText('SVATech  ·  Auditix AI  ·  grupo 11  ·  2ECR          Desafio DATEN x FIAP  ·  “Antes do NEXT”',
+  s.addText('Auditix IA  ·  grupo 11  ·  2ECR          Desafio DATEN x FIAP  ·  “Antes do NEXT”',
     { x:M, y:6.5, w:11.5, h:0.3, isTextBox:true, margin:0, fontFace:MONO, fontSize:10, color:T3 });
 }
 

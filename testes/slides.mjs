@@ -27,6 +27,10 @@ const W = 13.333, H = 7.5;
    mora (y = 0,42) de propósito, desde antes desta conferência existir. */
 const MARGEM = 0.4;
 
+/* Trancado de propósito: um slide que some por acidente numa edição é o tipo de
+   coisa que só se descobre na frente da banca. */
+const ESPERADOS = 13;
+
 /* Largura média de caractere como fração do corpo da fonte. Medido grosso, e de
    propósito por baixo do real para Arial/Calibri: subestimar a largura faz o
    teste reclamar de menos, e um teste que reclama de menos é inútil. Então o
@@ -107,8 +111,8 @@ for(const nome of nomes){
 
 console.log(`\n${nomes.length} slides, ${caixas} caixas de texto medidas`);
 console.log(`${estouros} estourando, ${fora} fora da margem de ${MARGEM}"`);
-if(nomes.length !== 14){
-  console.log(`FALHA: esperava 14 slides`);
+if(nomes.length !== ESPERADOS){
+  console.log(`FALHA: esperava ${ESPERADOS} slides, achei ${nomes.length}`);
   process.exit(1);
 }
 process.exit(estouros || fora ? 1 : 0);

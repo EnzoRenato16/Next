@@ -1,7 +1,6 @@
 # Next
 
-Projeto **Auditix AI** (grupo11) — Desafio DATEN × FIAP, "Antes do NEXT".
-Marca **SVATech**.
+Projeto **Auditix IA** (grupo 11, 2ECR) — Desafio DATEN × FIAP, "Antes do NEXT".
 
 Quatro produtos que partem da mesma tese: **IA na borda que gera prova
 auditável**, com um enquadramento ético que não muda de página para página —
