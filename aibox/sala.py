@@ -158,6 +158,24 @@ def main():
 
     import cv2
     cap = abrir_camera(fonte)
+    # FALHA CEDO E EM VOZ ALTA. Sem isto, uma URL errada entra no laco de
+    # reconexao e fica tentando para sempre, calada — e quem esta instalando
+    # passa vinte minutos achando que a camera e que esta ruim.
+    if not cap.isOpened():
+        print(f"\n[aibox] NAO CONSEGUI ABRIR A CAMERA.\n"
+              f"  o que tentei: {'webcam ' + str(fonte) if isinstance(fonte, int) else fonte}\n"
+              f"  confira, nesta ordem:\n"
+              f"   1. a caixa alcanca a camera?   ping -c2 <ip-da-camera>\n"
+              f"   2. a porta 554 responde?       nc -vz <ip-da-camera> 554\n"
+              f"   3. o caminho do stream esta certo? (costuma ser /stream1 ou /stream2)\n"
+              f"   4. usuario e senha estao no CAMERA_RTSP do .env?\n")
+        # Fecha o detector tambem AQUI. Estava fechado so no `finally` do
+        # laco, que este `return` nunca alcanca — e o traceback de
+        # encerramento do MediaPipe voltava a aparecer justamente no
+        # caminho de erro, logo abaixo da mensagem que explica o erro de
+        # verdade. Duas coisas vermelhas na tela, e a que importa e a de cima.
+        getattr(vis, "fechar", lambda: None)()
+        return 3
     t0 = time.monotonic()
     quadros, perdidos, ultima_linha = 0, 0, t0
     custo.cpu_pct()                      # primeira leitura, so para ancorar
