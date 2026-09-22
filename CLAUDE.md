@@ -55,6 +55,8 @@ cd ~/auditix && $P aibox/sala.py --mostrar
 - imagem ao vivo: `http://192.168.50.10:8080` — **com `http://` na frente**,
   senão o Chrome tenta HTTPS e dá `ERR_SSL_PROTOCOL_ERROR`
 - painel dos eventos: `http://127.0.0.1:8000/painel` no PC
+- cadastro de rostos: `http://127.0.0.1:8000/cadastro` no PC (a tela da caixa
+  tem atalho para os dois, montado com o endereço do `.env`)
 - `--segundos N` para parar sozinho; sem isso roda até Ctrl+C
 
 No PC, o servidor precisa aceitar conexão de fora:
@@ -126,8 +128,12 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 
 ## O que ainda NÃO existe na caixa
 
-- **Reconhecimento facial.** Só o navegador tem. A caixa detecta corpo e
-  acompanha, mas não sabe o nome de ninguém.
+- **Reconhecimento facial.** O CADASTRO agora é do servidor (`/cadastro`,
+  tabela `cadastros`), então vale para qualquer navegador e não some com o
+  cache. Mas quem RECONHECE continua sendo só o navegador: a caixa detecta
+  corpo e acompanha, e não sabe o nome de ninguém. Para a caixa reconhecer
+  seria preciso um modelo de rosto rodando nela — e isso custa quadros por
+  segundo, que é justamente o que está apertado.
 - **Mapa de calor** e **botão de pedir ajuda**: só no navegador.
 - **30 quadros por segundo.** O alvo hoje é 8,7. Ver `aibox/LEIA.md`.
 

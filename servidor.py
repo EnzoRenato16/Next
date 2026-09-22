@@ -146,6 +146,14 @@ CALIBRACAO_DIAS = float(os.environ.get("CALIBRACAO_DIAS", "30"))
 # sala isso da ~90 amostras. 500 e folga larga e fecha a porta para abuso.
 CALIBRACAO_LOTE = 500
 
+# Prazo do consentimento biometrico, o mesmo VALIDADE_DIAS do auditix-sala.html.
+# Dois lugares com o mesmo numero e ruim; ficam iguais de proposito ate o dia em
+# que a Sala passar a ler o prazo do servidor.
+CADASTRO_DIAS = float(os.environ.get("CADASTRO_DIAS", "365"))
+# Um descritor de rosto tem 128 numeros, e o cadastro guarda ate 6 amostras.
+# O teto existe para o endpoint nao virar porta de entrada de payload grande.
+CADASTRO_MAX = 12
+
 
 def carregar_env() -> None:
     """Lê um .env simples ao lado do script. Sem dependência extra para isso."""
@@ -289,6 +297,28 @@ def criar_tabelas() -> None:
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_calib_momento ON calibracao (momento)"
         )
+        # QUEM FOI CADASTRADO DE PROPRIO PUNHO, com os descritores de rosto.
+        #
+        # Isto sai do localStorage do navegador e vem para ca por um motivo
+        # pratico: no navegador, o cadastro existe em UMA maquina, UM navegador
+        # e some com a limpeza de cache. Numa escola, quem cadastra na secretaria
+        # e quem assiste na coordenacao nao sao a mesma tela.
+        #
+        # NAO entra na cadeia de hash, e por isso pode ser podada — a mesma
+        # razao da tabela de calibracao. A cadeia afirma o que ACONTECEU; um
+        # cadastro e um consentimento, que tem prazo e pode ser retirado.
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS cadastros (
+                   id {serial},
+                   nome VARCHAR(80) NOT NULL,
+                   descritores TEXT NOT NULL,
+                   criado {ts} DEFAULT CURRENT_TIMESTAMP,
+                   vence {ts},
+                   ativo INTEGER NOT NULL DEFAULT 1)"""
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS ix_cad_nome ON cadastros (nome)"
+        )
         cur.execute(
             f"""CREATE TABLE IF NOT EXISTS acessos_foto (
                    id {serial},
@@ -407,6 +437,18 @@ class Amostra(BaseModel):
     cpu: float = 0.0
 
 
+class Cadastro(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+    # Lista de amostras; cada amostra e um descritor de 128 numeros. Varias
+    # amostras existem porque um rosto visto de dois angulos da dois pontos
+    # diferentes, e comparar contra o mais proximo erra menos que contra a media.
+    descritores: list[list[float]]
+
+
+class Remocao(BaseModel):
+    nome: str = Field(min_length=1, max_length=80)
+
+
 class Calibracao(BaseModel):
     camera: str = Field(default="sala-12", max_length=60)
     amostras: list[Amostra]
@@ -417,6 +459,7 @@ async def ciclo(_app: FastAPI):
     criar_tabelas()
     migrar_calibracao()
     podar_calibracao()
+    podar_cadastros()
     yield
 
 
@@ -467,6 +510,19 @@ def gravar_amostra(a: Amostra) -> dict:
     with AMOSTRAS.open(encoding="utf-8") as f:
         total = sum(1 for _ in f)
     return {"ok": True, "quadros": len(a.quadros), "total": total}
+
+
+@app.get("/cadastro")
+def pagina_cadastro() -> FileResponse:
+    """A plataforma de cadastro de rostos.
+
+    Pagina propria, e nao um canto da Sala, porque as duas coisas sao feitas por
+    pessoas diferentes em momentos diferentes: quem cadastra faz isso uma vez,
+    na secretaria; quem assiste a sala fica olhando o dia todo."""
+    alvo = AQUI / "auditix-cadastro.html"
+    if not alvo.exists():
+        raise HTTPException(404, "nao achei auditix-cadastro.html")
+    return FileResponse(alvo, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
 @app.get("/vendor/{caminho:path}")
@@ -762,6 +818,92 @@ def podar_calibracao() -> None:
              - timedelta(days=CALIBRACAO_DIAS)).strftime("%Y-%m-%d %H:%M:%S")
     with cursor(escrita=True) as (cur, m):
         cur.execute(f"DELETE FROM calibracao WHERE momento < {m}", (corte,))
+
+
+def podar_cadastros() -> None:
+    """Cadastro vencido some. O consentimento tinha prazo, e prazo que nao e
+    cumprido sozinho nao e prazo — e promessa. Como esta tabela NAO participa da
+    cadeia de hash, apagar aqui e seguro: a de eventos e que nunca perde linha."""
+    if CADASTRO_DIAS <= 0:
+        return
+    corte = (datetime.now(timezone.utc)
+             - timedelta(days=CADASTRO_DIAS)).strftime("%Y-%m-%d %H:%M:%S")
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(f"DELETE FROM cadastros WHERE criado < {m}", (corte,))
+
+
+@app.post("/api/cadastro")
+def gravar_cadastro(c: Cadastro) -> dict:
+    """Um rosto cadastrado de proprio punho, com os descritores medidos no
+    navegador durante a prova de vida."""
+    if not c.descritores:
+        raise HTTPException(400, "nenhuma amostra de rosto")
+    if len(c.descritores) > CADASTRO_MAX:
+        raise HTTPException(413, f"acima de {CADASTRO_MAX} amostras")
+    # O TAMANHO E COBRADO. Um descritor de tamanho errado nao da erro na hora de
+    # comparar: da uma distancia qualquer, e a pessoa simplesmente nunca e
+    # reconhecida — falha silenciosa, que e a pior de diagnosticar.
+    for d in c.descritores:
+        if len(d) != 128:
+            raise HTTPException(400,
+                                f"descritor com {len(d)} numeros; o esperado e 128")
+    nome = c.nome.strip()
+    agora = agora_iso()
+    vence = (datetime.now(timezone.utc)
+             + timedelta(days=CADASTRO_DIAS)).strftime("%Y-%m-%d %H:%M:%S")
+    with cursor(escrita=True) as (cur, m):
+        # Recadastrar o mesmo nome SUBSTITUI. Sem isto, uma pessoa que refaz o
+        # cadastro por ter mudado o cabelo passaria a ter duas fichas, e a
+        # antiga continuaria valendo — com o rosto que ela nao tem mais.
+        cur.execute(f"UPDATE cadastros SET ativo = 0 WHERE nome = {m}", (nome,))
+        cur.execute(
+            f"""INSERT INTO cadastros (nome, descritores, criado, vence, ativo)
+                VALUES ({m}, {m}, {m}, {m}, 1)""",
+            (nome, json.dumps(c.descritores), agora, vence),
+        )
+    return {"nome": nome, "amostras": len(c.descritores), "vence": vence}
+
+
+@app.get("/api/cadastros")
+def listar_cadastros(descritores: int = 0) -> dict:
+    """A lista de quem esta cadastrado.
+
+    Os DESCRITORES SO SAEM SE PEDIDOS, e isso nao e burocracia: eles sao o dado
+    biometrico. Quem quer montar a tela de gerenciamento precisa de nomes e
+    prazos; so quem vai RECONHECER precisa dos numeros do rosto."""
+    with cursor() as (cur, m):
+        cur.execute(
+            f"""SELECT nome, descritores, criado, vence FROM cadastros
+                WHERE ativo = 1 ORDER BY nome"""
+        )
+        linhas = cur.fetchall()
+    saida = []
+    for nome, desc, criado, vence in linhas:
+        try:
+            amostras = json.loads(desc)
+        except Exception:
+            amostras = []
+        ficha = {"nome": nome, "amostras": len(amostras),
+                 "criado": str(criado)[:19], "vence": str(vence)[:19]}
+        if descritores:
+            ficha["descritores"] = amostras
+        saida.append(ficha)
+    return {"cadastros": saida, "total": len(saida),
+            "prazo_dias": CADASTRO_DIAS}
+
+
+@app.post("/api/cadastro/remover")
+def remover_cadastro(r: Remocao) -> dict:
+    """Retirar o consentimento. A linha NAO e apagada, e vira inativa: apagar
+    esconderia que a pessoa chegou a ser cadastrada, e e justamente isso que
+    alguem auditando precisa poder ver. Quem apaga de vez e o prazo."""
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(f"UPDATE cadastros SET ativo = 0 WHERE nome = {m} AND ativo = 1",
+                    (r.nome.strip(),))
+        n = cur.rowcount
+    if not n:
+        raise HTTPException(404, f"ninguem cadastrado com o nome {r.nome!r}")
+    return {"removidos": n, "nome": r.nome.strip()}
 
 
 @app.post("/api/calibracao")

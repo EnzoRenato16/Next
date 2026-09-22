@@ -282,7 +282,8 @@ def main():
                         fps=quadros / max(time.monotonic() - t0, 1e-6),
                         rede=ms_rede, analise=ms_analise,
                         cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
-                        corpos=len(rebanho.trilhas), enviados=fala.enviados))
+                        corpos=len(rebanho.trilhas), enviados=fala.enviados,
+                        servidor=fala.base))
 
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()

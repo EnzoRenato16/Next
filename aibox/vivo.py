@@ -43,6 +43,9 @@ header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
        padding:18px 20px;border-bottom:1px solid var(--linha)}
 h1{margin:0;font-size:21px;letter-spacing:-.3px}
 h1 i{font-style:normal;color:var(--verde)}
+nav{margin-left:auto;display:flex;gap:16px}
+nav a{color:var(--verde);font-size:14px;text-decoration:none}
+nav a:hover{text-decoration:underline}
 .sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 main{padding:20px;max-width:1100px;margin:0 auto}
 .palco{position:relative;background:#000;border:1px solid var(--linha);
@@ -59,6 +62,7 @@ main{padding:20px;max-width:1100px;margin:0 auto}
 <header>
   <h1>Audit<i>ix</i> IA</h1>
   <span class="sub">ao vivo, direto da AIBOX</span>
+  <nav id="atalhos"></nav>
 </header>
 <main>
   <div class="palco"><img src="/video" alt="imagem ao vivo da camera da sala"></div>
@@ -87,6 +91,15 @@ setInterval(async () => {
     $('ram').textContent = Math.round(e.ram);
     $('corpos').textContent = e.corpos;
     $('alertas').textContent = e.enviados;
+    /* Os atalhos apontam para o SERVIDOR, que roda noutra maquina — a caixa so
+       enxerga e avisa. O endereco vem do .env pelo /estado, e nao escrito na
+       pagina, porque numa outra instalacao o servidor tem outro IP. */
+    if(e.servidor && !$('atalhos').dataset.pronto){
+      $('atalhos').dataset.pronto = '1';
+      $('atalhos').innerHTML =
+        '<a href="' + e.servidor + '/cadastro">Cadastrar rosto</a>' +
+        '<a href="' + e.servidor + '/painel">Painel de eventos</a>';
+    }
     document.body.classList.remove('morto');
   }catch(_){ document.body.classList.add('morto'); }
 }, 1000);
@@ -101,7 +114,7 @@ class Vivo:
         self.porta = porta
         self.jpeg = None
         self.estado = dict(fps=0.0, rede=0.0, analise=0.0, cpu=0.0,
-                           ram=0.0, corpos=0, enviados=0)
+                           ram=0.0, corpos=0, enviados=0, servidor="")
         self.clientes = 0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))

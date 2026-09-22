@@ -1,0 +1,306 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auditix IA — cadastro de rostos</title>
+<script src="vendor/face-api/face-api.js"></script>
+<style>
+:root{color-scheme:dark light;
+  --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;
+  --fraco:#8FB3A7;--verde:#5FBFA0;--rubi:#E08A9B;--ambar:#E5C07B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+     font:15.5px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+       padding:18px 20px;border-bottom:1px solid var(--linha)}
+h1{margin:0;font-size:21px;letter-spacing:-.3px}
+h1 i{font-style:normal;color:var(--verde)}
+.sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+header a{margin-left:auto;color:var(--verde);font-size:14px}
+main{padding:20px;max-width:1080px;margin:0 auto;display:grid;gap:20px;
+     grid-template-columns:minmax(300px,1fr) minmax(280px,1fr)}
+@media(max-width:820px){main{grid-template-columns:1fr}}
+.cartao{background:var(--caixa);border:1px solid var(--linha);border-radius:12px;padding:16px}
+h2{margin:0 0 12px;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--fraco)}
+.palco{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3}
+.palco video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+.oval{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+.oval div{width:46%;height:66%;border:3px dashed var(--fraco);border-radius:50%;transition:border-color .2s}
+.oval.ok div{border-color:var(--verde);border-style:solid}
+.passos{display:flex;gap:8px;margin:12px 0}
+.passo{flex:1;padding:8px 6px;border-radius:8px;text-align:center;font-size:12.5px;
+       background:#0e1f1b;border:1px solid var(--linha);color:var(--fraco)}
+.passo.agora{border-color:var(--verde);color:var(--texto)}
+.passo.feito{background:#16302A;color:var(--verde);border-color:var(--verde)}
+.dica{min-height:44px;font-size:15px}
+.dica b{color:var(--verde)}
+input,button{font:inherit}
+input[type=text]{width:100%;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--linha);background:#0e1f1b;color:var(--texto)}
+button{border:0;border-radius:999px;padding:11px 20px;cursor:pointer;
+       background:var(--verde);color:#08201A;font-weight:600}
+button.claro{background:#0e1f1b;color:var(--texto);border:1px solid var(--linha);font-weight:400}
+button:disabled{opacity:.45;cursor:not-allowed}
+.linha{display:flex;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--fraco);font-size:11.5px;
+   letter-spacing:.09em;text-transform:uppercase;padding:0 8px 8px 0}
+td{padding:9px 8px 9px 0;border-top:1px solid var(--linha);vertical-align:middle}
+td.n{font-variant-numeric:tabular-nums;color:var(--fraco)}
+.vazio{color:var(--fraco);padding:18px 0;text-align:center}
+.nota{color:var(--fraco);font-size:13px;margin-top:14px}
+.aviso{color:var(--ambar)}
+.erro{color:var(--rubi)}
+button.remover{background:none;color:var(--rubi);border:1px solid var(--linha);
+               padding:5px 12px;font-size:13px;font-weight:400}
+</style>
+
+<header>
+  <h1>Audit<i>ix</i> IA</h1>
+  <span class="sub">cadastro de rostos</span>
+  <a href="/">← voltar para a Sala</a>
+</header>
+
+<main>
+  <section class="cartao">
+    <h2>Novo cadastro</h2>
+    <div class="palco">
+      <video id="cam" autoplay muted playsinline></video>
+      <div class="oval" id="oval"><div></div></div>
+    </div>
+    <div class="passos">
+      <div class="passo" id="p1">1. enquadrar</div>
+      <div class="passo" id="p2">2. abrir a boca</div>
+      <div class="passo" id="p3">3. virar a cabeça</div>
+    </div>
+    <p class="dica" id="dica">Carregando os modelos…</p>
+    <input type="text" id="nome" maxlength="80" placeholder="nome de quem está na frente" disabled>
+    <div class="linha">
+      <button id="ligar">Ligar a câmera</button>
+      <button id="salvar" class="claro" disabled>Salvar cadastro</button>
+      <span id="conta" class="n"></span>
+    </div>
+    <p class="nota">Abrir a boca e virar a cabeça são <b>prova de vida</b>: uma
+    foto impressa não faz nenhuma das duas. Os limiares são medidos no seu
+    próprio rosto no começo, e não fixos — rosto grande e rosto pequeno não dão
+    o mesmo número.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Quem está cadastrado</h2>
+    <div id="lista"><p class="vazio">carregando…</p></div>
+    <p class="nota" id="prazo"></p>
+  </section>
+</main>
+
+<script>
+const $ = i => document.getElementById(i);
+const MODELOS = 'vendor/face-api/model';
+const AMOSTRAS = 6, MINIMO = 4;
+/* Medidos no próprio rosto, e não fixos: a boca de quem está perto da câmera
+   dá um número diferente da de quem está longe, e um limiar fixo reprovaria
+   metade das pessoas. */
+const ABRIU = 0.22;      // quanto o MAR tem de subir acima do fechado
+const VIROU = 0.11;      // quanto o nariz tem de sair do centro
+
+const d2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+/* MAR: abertura da boca dividida pela largura dela. Mesmo cálculo da Sala. */
+function mar(p){
+  if(!p || p.length < 10) return 0;
+  const l = d2(p[0], p[6]);
+  return l < 1e-6 ? 0 : d2(p[3], p[9]) / l;
+}
+/* Quanto a cabeça está virada: o nariz sai do centro, normalizado pela largura
+   do próprio rosto — de novo para não depender da distância. */
+function yaw(lm){
+  const j = lm.getJawOutline(), n = lm.getNose();
+  if(!j || j.length < 17 || !n || n.length < 4) return 0;
+  const l = d2(j[0], j[16]);
+  if(l < 1e-6) return 0;
+  return ((j[0].x + j[16].x) / 2 - n[3].x) / l;
+}
+
+let vivo = null, rodando = false, modelos = false;
+
+async function carregar(){
+  try{
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODELOS);
+    await faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS);
+    await faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS);
+    modelos = true;
+    $('dica').textContent = 'Pronto. Clique em "Ligar a câmera".';
+  }catch(e){
+    $('dica').innerHTML = '<span class="erro">Não consegui carregar os modelos '
+      + 'de rosto.</span> Confira se a pasta <code>vendor/face-api/model</code> '
+      + 'foi para o servidor.';
+  }
+}
+
+function pintarPassos(){
+  const f = vivo ? vivo.fase : '';
+  const ordem = ['enquadrar', 'boca', 'virar', 'pronto'];
+  [['p1','enquadrar'], ['p2','boca'], ['p3','virar']].forEach(([id, nome]) => {
+    const el = $(id);
+    el.className = 'passo'
+      + (f === nome ? ' agora' : '')
+      + (ordem.indexOf(f) > ordem.indexOf(nome) ? ' feito' : '');
+  });
+}
+
+async function ligar(){
+  if(!modelos) return;
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({ video:{ width:640, height:480 } });
+    $('cam').srcObject = s;
+  }catch(e){
+    $('dica').innerHTML = '<span class="erro">A câmera não abriu.</span> '
+      + 'Ela pode estar em uso por outro programa.';
+    return;
+  }
+  $('ligar').disabled = true;
+  $('nome').disabled = false;
+  vivo = { fase:'enquadrar', amostras:[], baseMar:[], desde:Date.now() };
+  rodando = true;
+  laco();
+}
+
+async function laco(){
+  if(!rodando) return;
+  const v = $('cam');
+  if(v.videoWidth){
+    let r = null;
+    try{
+      r = await faceapi.detectSingleFace(v,
+            new faceapi.TinyFaceDetectorOptions({ inputSize:320, scoreThreshold:.4 }))
+          .withFaceLandmarks().withFaceDescriptor();
+    }catch(e){}
+    passo(r, v);
+  }
+  requestAnimationFrame(laco);
+}
+
+function passo(r, v){
+  const oval = $('oval'), dica = $('dica');
+  if(!r){
+    oval.classList.remove('ok');
+    dica.textContent = 'Não estou vendo nenhum rosto.';
+    return;
+  }
+  const b = r.detection.box;
+  /* Perto o bastante: o rosto tem de ocupar pelo menos um terço da altura. De
+     longe, o descritor sai pobre e o reconhecimento depois erra. */
+  const perto = b.height >= v.videoHeight * 0.33;
+  oval.classList.toggle('ok', perto);
+  if(!perto){
+    dica.textContent = 'Chegue mais perto, até o rosto preencher o oval.';
+    return;
+  }
+
+  /* As amostras são colhidas o tempo todo, em fases diferentes: assim o
+     cadastro guarda o rosto de boca fechada, de boca aberta e de lado — que é
+     o que ele vai encontrar na sala. */
+  if(vivo.amostras.length < AMOSTRAS && r.descriptor)
+    vivo.amostras.push(Array.from(r.descriptor));
+  $('conta').textContent = vivo.amostras.length + ' de ' + AMOSTRAS + ' amostras';
+
+  const m = mar(r.landmarks.getMouth()), y = Math.abs(yaw(r.landmarks));
+
+  if(vivo.fase === 'enquadrar'){
+    vivo.baseMar.push(m);
+    if(vivo.baseMar.length >= 12){
+      vivo.fechada = vivo.baseMar.slice().sort((a, b) => a - b)[Math.floor(vivo.baseMar.length / 2)];
+      vivo.fase = 'boca';
+    }
+    dica.innerHTML = 'Fique parado um instante, olhando para a câmera.';
+  }else if(vivo.fase === 'boca'){
+    dica.innerHTML = '<b>Abra bem a boca.</b>';
+    if(m > vivo.fechada + ABRIU) vivo.fase = 'virar';
+  }else if(vivo.fase === 'virar'){
+    dica.innerHTML = '<b>Agora vire a cabeça</b> devagar para um lado.';
+    if(y > VIROU) vivo.fase = 'pronto';
+  }else{
+    dica.innerHTML = vivo.amostras.length >= MINIMO
+      ? 'Prova de vida concluída. <b>Escreva o nome e salve.</b>'
+      : 'Prova de vida concluída, faltam amostras — fique mais um pouco.';
+  }
+  pintarPassos();
+  podeSalvar();
+}
+
+/* O botao de salvar depende de TRES coisas, e uma delas e o nome — que muda
+   sem passar pelo laco da camera. Por isso a regra mora numa funcao so, chamada
+   pelos dois lados. A primeira versao chamava `passo(null, ...)` aqui, e isso
+   apagava a dica da tela escrevendo "nao estou vendo nenhum rosto" no meio do
+   cadastro. */
+function podeSalvar(){
+  $('salvar').disabled = !(vivo && vivo.fase === 'pronto'
+                           && vivo.amostras.length >= MINIMO
+                           && $('nome').value.trim().length > 0);
+}
+$('nome').addEventListener('input', podeSalvar);
+
+$('ligar').addEventListener('click', ligar);
+
+$('salvar').addEventListener('click', async () => {
+  const nome = $('nome').value.trim();
+  $('salvar').disabled = true;
+  try{
+    const r = await fetch('/api/cadastro', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ nome, descritores: vivo.amostras }) });
+    if(!r.ok) throw new Error('HTTP ' + r.status + ' — ' + await r.text());
+    const j = await r.json();
+    $('dica').innerHTML = '<b>' + j.nome + '</b> cadastrado, '
+      + j.amostras + ' amostras, vence em ' + j.vence.slice(0, 10) + '.';
+    /* Recomeça a prova de vida: cadastrar o próximo não pode reaproveitar as
+       amostras do anterior, que é o erro mais fácil de cometer aqui. */
+    vivo = { fase:'enquadrar', amostras:[], baseMar:[], desde:Date.now() };
+    $('nome').value = '';
+    pintarPassos();
+    listar();
+  }catch(e){
+    $('dica').innerHTML = '<span class="erro">Não salvou:</span> ' + e.message;
+    $('salvar').disabled = false;
+  }
+});
+
+async function listar(){
+  try{
+    const j = await (await fetch('/api/cadastros')).json();
+    $('prazo').textContent = 'O cadastro se apaga sozinho depois de '
+      + j.prazo_dias + ' dias.';
+    if(!j.total){
+      $('lista').innerHTML = '<p class="vazio">Ninguém cadastrado ainda.</p>';
+      return;
+    }
+    const hoje = Date.now();
+    $('lista').innerHTML = '<table><tr><th>nome</th><th>amostras</th>'
+      + '<th>vence em</th><th></th></tr>'
+      + j.cadastros.map(c => {
+          const dias = Math.round((new Date(c.vence.replace(' ', 'T')) - hoje) / 86400000);
+          return '<tr><td>' + c.nome.replace(/[<>&]/g, '') + '</td>'
+            + '<td class="n">' + c.amostras + '</td>'
+            + '<td class="n' + (dias < 30 ? ' aviso' : '') + '">' + dias + ' dias</td>'
+            + '<td style="text-align:right"><button class="remover" data-nome="'
+            + c.nome.replace(/"/g, '') + '">remover</button></td></tr>';
+        }).join('') + '</table>';
+    $('lista').querySelectorAll('.remover').forEach(b =>
+      b.addEventListener('click', () => remover(b.dataset.nome)));
+  }catch(e){
+    $('lista').innerHTML = '<p class="vazio erro">O servidor não respondeu.</p>';
+  }
+}
+
+async function remover(nome){
+  if(!confirm('Remover o cadastro de ' + nome + '?\n\n'
+      + 'O rosto deixa de ser reconhecido. O registro de que houve cadastro '
+      + 'continua, para quem for auditar.')) return;
+  try{
+    const r = await fetch('/api/cadastro/remover', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nome }) });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    listar();
+  }catch(e){ alert('Não removeu: ' + e.message); }
+}
+
+carregar();
+listar();
+</script>
