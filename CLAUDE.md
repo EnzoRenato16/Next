@@ -69,25 +69,33 @@ python servidor.py
 
 ## Levar código novo para a caixa
 
-O PC do laboratório só tem internet no DHCP. A dança é:
+**Os comandos longos viraram script.** No PC (cmd como administrador):
 
 ```cmd
-netsh interface ip set address name="Ethernet" dhcp
-netsh interface ip set dns name="Ethernet" dhcp
-git pull origin claude/entender-projeto-0tgk9u
-netsh interface ip set address name="Ethernet" static 192.168.50.72 255.255.255.0
-scp aibox\*.py grupo11@192.168.50.10:~/auditix/aibox/
+pc puxar      DHCP, git pull, e volta para o IP fixo
+pc enviar     copia aibox\*.py e *.sh, e ja limpa o \r do lado de la
+pc servidor   sobe o servidor com HOST=0.0.0.0
+pc entrar     ssh na caixa
 ```
 
-E **na caixa**, sempre depois de um `scp`:
+Na caixa:
 
 ```bash
-cd ~/auditix && sed -i 's/\r$//' aibox/*.py
+bash aibox/ir.sh              # acha o $P, limpa \r, confere o banco, roda
+bash aibox/ir.sh --segundos 30
 ```
 
-O Git converte para fim de linha do Windows no checkout; o bash da caixa lê o
-`\r` como parte do comando. O `.gitattributes` já impede isso em clones novos,
-mas o clone do laboratório é anterior a ele.
+`ir.sh` também escreve `$P` e `$PYTHONPATH` no `~/.bashrc` na primeira vez, e
+a partir da sessão seguinte eles já vêm prontos.
+
+O passo a passo para ler offline no laboratório está em `PASSO-A-PASSO.md`.
+
+**O porquê do `\r`:** o Git converte para fim de linha do Windows no checkout,
+e o bash da caixa lê o `\r` como parte do comando (`$'\r': command not found`,
+que não parece nem de longe com a causa). O `.gitattributes` impede isso em
+clones novos, mas o clone do laboratório é anterior a ele — por isso o `pc
+enviar` limpa por ssh logo depois de copiar, em vez de confiar na memória de
+alguém.
 
 ## O banco: a caixa analisa, o PC guarda
 

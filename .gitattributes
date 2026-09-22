@@ -8,3 +8,7 @@
 
 # O mesmo vale para qualquer coisa que o Linux va EXECUTAR.
 *.py text eol=lf
+
+# scripts de conveniencia ficam com fim de linha proprio
+pc.cmd text eol=crlf
+*.sh text eol=lf
