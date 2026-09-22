@@ -212,6 +212,13 @@ def main():
                 print(f"[aibox] {a.segundos:.0f}s cumpridos, encerrando.")
                 break
             ok, img = cap.read()
+            if ok is None:
+                # NAO e camera caida: e "ainda nao chegou quadro novo". A
+                # distincao importa — tratar isso como queda reabriria a camera
+                # varias vezes por segundo, e cada reabertura custa 1 a 2
+                # segundos de RTSP. O laco simplesmente espera um pouco.
+                time.sleep(0.002)
+                continue
             if not ok:
                 perdidos += 1
                 # Camera de escola cai. Reabrir e barato; deixar o processo
@@ -279,8 +286,15 @@ def main():
 
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()
-                fps = quadros / max(time.monotonic() - t0, 1e-6)
-                print(f"  {fps:5.1f} fps | rede {ms_rede:5.1f}ms | "
+                seg = max(time.monotonic() - t0, 1e-6)
+                fps = quadros / seg
+                # A TAXA DA CAMERA vem ao lado da taxa de analise, e nao e
+                # enfeite: se a camera entrega 15/s, 30/s e impossivel por mais
+                # que o modelo melhore. Sem este numero, otimizar o modelo pode
+                # ser trabalho jogado fora contra um teto que nao e dele.
+                cam = getattr(cap, "lidos", 0) / seg
+                print(f"  {fps:5.1f} fps | camera {cam:4.1f}/s | "
+                      f"rede {ms_rede:5.1f}ms | "
                       f"analise {ms_analise:5.1f}ms | cpu {custo.cpu_pct():5.1f}% | "
                       f"ram {custo.memoria_mb():6.1f}MB | "
                       f"{len(rebanho.trilhas)} corpo(s) | "
@@ -298,9 +312,16 @@ def main():
         if janela is not None:
             janela.fechar()
         seg = max(time.monotonic() - t0, 1e-6)
-        print(f"[aibox] {quadros} quadros em {seg:.0f}s "
+        print(f"[aibox] {quadros} quadros analisados em {seg:.0f}s "
               f"({quadros / seg:.1f} fps), {perdidos} reconexoes, "
               f"{fala.enviados} eventos enviados, {fala.falhas} falharam")
+        lidos = getattr(cap, "lidos", 0)
+        if lidos:
+            # O DESCARTE SAI NO RELATORIO. Quadro perdido em silencio faz
+            # parecer que a camera e lenta quando quem esta lenta e a analise.
+            print(f"[aibox] a camera entregou {lidos} quadros "
+                  f"({lidos / seg:.1f}/s); {getattr(cap, 'perdidos', 0)} foram "
+                  f"descartados por a analise nao alcancar")
     return 0
 
 

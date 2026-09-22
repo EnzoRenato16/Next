@@ -27,11 +27,18 @@ MODELO_MP = os.path.join(RAIZ, "vendor", "mediapipe", "pose_landmarker_lite.task
 class OlhoYolo:
     """YOLO11-pose pelo Ultralytics, com ByteTrack."""
 
-    def __init__(self, modelo="yolo11n-pose.onnx", conf=0.35, imgsz=640):
+    def __init__(self, modelo="yolo11n-pose.onnx", conf=None, imgsz=None):
         from ultralytics import YOLO          # noqa: PLC0415
         self.m = YOLO(modelo)
-        self.conf = conf
-        self.imgsz = imgsz
+        # Vem do .env para poder ajustar sem mexer no codigo. O tamanho da
+        # entrada e a unica manopla de desempenho que qualquer pessoa consegue
+        # girar na hora da instalacao, e obrigar um `sed` para isso e convite a
+        # erro de digitacao — ja custou uma rodada inteira nesta caixa.
+        #
+        # 320 e o padrao por medicao, nao por gosto: a 640 a caixa fez 1,5
+        # quadros por segundo, a 320 fez 8,7 com o mesmo modelo em ONNX.
+        self.conf = float(os.environ.get("CAM_CONF", conf or 0.35))
+        self.imgsz = int(os.environ.get("CAM_IMGSZ", imgsz or 320))
 
     def ver(self, img):
         # classes=[0] e "so pessoa". Sem isso o rastreador gasta identidade com

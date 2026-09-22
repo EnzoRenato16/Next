@@ -88,6 +88,52 @@ pontos no mesmo lugar que o MediaPipe. Os dois falam COCO-17, mas são modelos
 diferentes — pode haver diferença sistemática. A medição de calibração existe
 justamente para responder isso com número em vez de opinião.
 
+## Desempenho: o que foi medido e o que dá para esperar
+
+Na caixa do desafio (Qualcomm QCS6490, ARM, 8 núcleos, 7 GB):
+
+| configuração | quadros/s | modelo | nossa análise |
+|---|---|---|---|
+| PyTorch, entrada 640 | 1,5 | 600 ms | 0,2 ms |
+| PyTorch, entrada 320 | 3,1 | 300 ms | 0,0 ms |
+| **ONNX Runtime, entrada 320** | **8,7** | **~110 ms** | 0,5 ms |
+
+Quase **6× em relação ao ponto de partida**, no mesmo hardware e com o mesmo
+modelo — só trocando como ele é executado.
+
+A conclusão mais forte está na última coluna: **a nossa parte custa meio
+milissegundo.** Todo o peso é o modelo de pose.
+
+### Sobre a meta de 30 quadros por segundo
+
+Sendo honesto: **30/s com este modelo em CPU ARM é improvável.** A conta é
+direta — 30/s dá 33 ms por quadro, e ainda é preciso decodificar o vídeo,
+casar as trilhas e desenhar. Sobrariam uns 25 ms para uma inferência que hoje
+leva 110. São 4,4× e não há uma manopla só que dê isso.
+
+O que existe, em ordem de retorno:
+
+1. **Descobrir o teto da câmera primeiro.** `$P aibox/medir.py` mede isso
+   separado. Se o substream entrega 15/s, **30/s é impossível por mais rápido
+   que o modelo fique**, e a correção é no site da câmera, não no código.
+2. **Entrada menor** (`CAM_IMGSZ` no `.env`): 256 ou 192. Ganho grande, preço
+   real — pessoa longe passa a ser perdida.
+3. **INT8** (`$P aibox/quantizar.py`): converte e **mede**; se não adiantar,
+   ele mesmo avisa para não usar.
+4. **O NPU (Hexagon) da Qualcomm.** É o único caminho que daria 30/s de
+   verdade, e exige o *execution provider* QNN do ONNX Runtime — que a caixa
+   não tem instalado. É projeto à parte, não ajuste.
+
+### E quanto é suficiente de verdade
+
+A rede de queda exige **8 amostras dentro de 1 segundo**, e as 12
+características são normalizadas pela taxa MEDIDA (`fps` em
+`treino/extrair.py`) — então ela não depende de ser 30. Uma queda dura uns 400
+ms: a 15/s são 6 amostras dentro do tombo, e a 8,7/s são 3.
+
+Ou seja: **8,7 já funciona, e 15 seria confortável.** O número 30 vem do
+dataset de treino, não de uma exigência do detector.
+
 ## Os arquivos
 
 | arquivo | o que faz |
@@ -98,4 +144,7 @@ justamente para responder isso com número em vez de opinião.
 | `trilhas.py` | quem é quem entre um quadro e o outro |
 | `olho.py` | quem enxerga: YOLO (caixa) ou MediaPipe (PC) |
 | `custo.py` | CPU e memória, lidos do `/proc`, sem dependência nova |
+| `vivo.py` | a imagem ao vivo por MJPEG, com o esqueleto |
 | `sala.py` | o laço |
+| `medir.py` | separa o teto da câmera do teto do modelo |
+| `quantizar.py` | tenta INT8 e mede se adiantou |
