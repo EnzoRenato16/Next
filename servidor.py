@@ -1083,9 +1083,19 @@ def reconhecer(r: Rosto) -> dict:
                 perto, melhor = v, nome
 
     if melhor is None or perto >= LIMIAR_ROSTO:
-        # Distancia vai junto mesmo quando nao reconheceu: e o que deixa ajustar
-        # o limiar olhando numero, em vez de no chute.
-        return {"nome": None, "distancia": None if melhor is None else round(perto, 4),
+        # A DISTANCIA EXATA DE QUEM NAO FOI RECONHECIDO E UM ORACULO. Com ela,
+        # quem estiver na rede manda um rosto qualquer, le o quanto errou,
+        # corrige, manda de novo — e em algumas milhares de tentativas chega a
+        # um descritor que casa com alguem cadastrado, sem nunca ter visto a
+        # cara dessa pessoa. E ataque conhecido contra API de comparacao facial.
+        #
+        # Com CALIBRACAO=1 ela sai inteira, porque ai o numero serve para
+        # escolher o limiar olhando dado. Fora disso sai arredondada: da para
+        # ver que passou longe, nao da para subir a ladeira.
+        bruta = None if melhor is None else round(perto, 4)
+        return {"nome": None,
+                "distancia": bruta if CALIBRACAO else (
+                    None if bruta is None else round(bruta, 1)),
                 "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}
     return {"nome": melhor, "distancia": round(perto, 4),
             "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}

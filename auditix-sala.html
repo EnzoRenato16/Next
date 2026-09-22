@@ -2402,6 +2402,13 @@ function amarrar(achados){
        aberta como arquivo, rede fora), cai para o cadastro local e continua
        funcionando: uma demonstração que depende de rede é uma demonstração que
        não abre. */
+    /* Desistir para sempre também não serve: o servidor volta (alguém
+       reiniciou, o cabo voltou) e a sala ficaria o resto do dia no cadastro
+       local sem motivo. Re-testa de tempos em tempos, devagar o bastante para
+       não ficar alternando entre as duas listas a cada quadro. */
+    if(servidorRosto === false && agora - caiuEm > VOLTAR_A_TENTAR){
+      servidorRosto = true; falhasRosto = 0;
+    }
     if(servidorRosto !== false){ perguntarNome(f.descriptor, alvo); return; }
     reconhecerLocal(f.descriptor, alvo);
   });
@@ -2410,27 +2417,47 @@ function amarrar(achados){
 /* Uma pergunta por trilha de cada vez, e no máximo uma por segundo. Sem isto
    seriam duas requisições por segundo POR PESSOA na tela, e a resposta que
    chegasse fora de ordem podia recolar um nome já trocado. */
-const perguntando = new Map();
+/* Quantas respostas ruins seguidas até desistir do servidor, e quanto tempo
+   depois vale a pena tentar de novo. Uma falha isolada é rede; três seguidas é
+   servidor fora. */
+const FALHAS_ATE_DESISTIR = 3, VOLTAR_A_TENTAR = 30000;
+let falhasRosto = 0, caiuEm = 0;
+
 async function perguntarNome(desc, alvo){
   const agora = performance.now();
-  if((perguntando.get(alvo.id) || 0) > agora - 1000) return;
-  perguntando.set(alvo.id, agora);
+  /* O relógio mora NA TRILHA, não num mapa à parte. Um mapa por id cresce para
+     sempre numa sala que fica aberta o dia todo; aqui o relógio morre junto com
+     a pessoa que saiu do quadro. */
+  if((alvo.perguntadoEm || 0) > agora - 1000) return;
+  alvo.perguntadoEm = agora;
   try{
     const r = await fetch('/api/reconhecer', { method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ descritor: Array.from(desc) }) });
     if(!r.ok) throw new Error('HTTP ' + r.status);
-    servidorRosto = true;
     const j = await r.json();
+    if(falhasRosto >= FALHAS_ATE_DESISTIR){
+      anotar('', 'Servidor de reconhecimento voltou');
+    }
+    falhasRosto = 0; servidorRosto = true;
     /* A resposta demora uns milissegundos, e nesse meio tempo a trilha pode ter
        morrido (pessoa saiu do quadro). Batizar uma trilha que não existe mais
        ressuscitaria um nome preso a um corpo que ninguém está vendo. */
     if(j.nome && trilhas.includes(alvo)) batizar(alvo, j.nome, j.distancia, null);
   }catch(e){
-    /* Só desiste do servidor na PRIMEIRA falha, e aí para sempre nesta sessão.
-       Alternar entre os dois caminhos a cada falha de rede daria nome ora de um
-       cadastro ora do outro, e ninguém entenderia o que está vendo. */
-    if(servidorRosto === null) servidorRosto = false;
+    falhasRosto++;
+    /* NUNCA EM SILÊNCIO. A versão anterior desistia calada, e o efeito era o
+       pior possível numa demonstração: a tela continuava mostrando "Corpo #7"
+       como se ninguém estivesse cadastrado, e não havia nada indicando que o
+       reconhecimento tinha parado. Só a primeira tentativa é muda — é o caso de
+       abrir a página fora do servidor, onde cair para o cadastro local é o
+       comportamento certo e não uma falha. */
+    if(servidorRosto === null){ servidorRosto = false; return; }
+    if(falhasRosto === FALHAS_ATE_DESISTIR){
+      servidorRosto = false; caiuEm = agora;
+      anotar('', 'Servidor de reconhecimento não responde — usando o cadastro '
+               + 'deste navegador');
+    }
   }
 }
 

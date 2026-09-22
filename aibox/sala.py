@@ -114,12 +114,19 @@ class Fala:
         if self.req is not None:
             r = self.req.post(alvo, timeout=espera, json=corpo)
             return r.status_code
+        import urllib.error
         import urllib.request
         pedido = urllib.request.Request(
             alvo, data=json.dumps(corpo).encode("utf-8"),
             headers={"Content-Type": "application/json"}, method="POST")
-        with urllib.request.urlopen(pedido, timeout=espera) as r:
-            return r.status
+        try:
+            with urllib.request.urlopen(pedido, timeout=espera) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            # urllib LEVANTA em 4xx/5xx; requests devolve o codigo. Sem isto os
+            # dois caminhos se comportavam diferente, e o 403 de "calibracao
+            # desligada" — que e informacao, nao erro — virava falha de rede.
+            return e.code
 
     def evento(self, tipo, corpo):
         try:

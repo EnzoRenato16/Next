@@ -165,13 +165,20 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 
 ## O que ainda NÃO existe na caixa
 
-- **Reconhecimento facial NA CAIXA.** O cadastro é do servidor (`/cadastro`,
-  tabela `cadastros`) e a COMPARAÇÃO também (`POST /api/reconhecer`) — o
-  navegador manda o rosto de agora e recebe um nome. Mas quem MEDE o rosto
-  ainda é o navegador: a caixa detecta corpo e acompanha, e não sabe o nome de
-  ninguém. Para a caixa reconhecer seria preciso um modelo de rosto rodando
-  nela, e os descritores guardados vieram do face-api.js — outro modelo produz
-  números incomparáveis com os que já estão cadastrados.
+- **Reconhecimento facial DENTRO da `aibox/`.** A caixa detecta corpo e
+  acompanha, e não sabe o nome de ninguém: quem mede rosto hoje é o navegador
+  (`/cadastro` + `POST /api/reconhecer`).
+
+  **MAS O MOTOR JÁ EXISTE NESTE REPOSITÓRIO**, em `daten/` (EduVision):
+  YuNet + SFace em ONNX, feitos para CPU ARM, com conferência de paridade entre
+  OpenCV DNN e ONNX Runtime e detecção medida em 8,7 ms. Os dois modelos agora
+  vão versionados em `daten/models/` — antes eram "baixe localmente", e baixar
+  39 MB no laboratório é um passo que pode falhar no dia.
+
+  O que falta é **juntar**, não construir: `aibox/sala.py` chamando o
+  `FaceEngine` para batizar as trilhas. O ponto de atenção é o cadastro — os
+  descritores de `cadastros` vieram do face-api.js e **não são comparáveis** com
+  os do SFace. Duas listas, ou uma coluna de tipo.
 - **Mapa de calor** e **botão de pedir ajuda**: só no navegador.
 - **30 quadros por segundo.** O alvo hoje é 8,7. Ver `aibox/LEIA.md`.
 
