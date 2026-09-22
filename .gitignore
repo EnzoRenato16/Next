@@ -43,3 +43,7 @@ go2rtc
 
 # Amostras gravadas da câmera de casa: dados de ambiente privado
 treino/local/
+
+# A chave que protege os cadastros. NUNCA vai para o git: ela mora ao lado do
+# banco justamente para nao estar dentro dele.
+chave-bio.txt

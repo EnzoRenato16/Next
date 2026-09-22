@@ -128,14 +128,47 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 
 ## O que ainda NÃO existe na caixa
 
-- **Reconhecimento facial.** O CADASTRO agora é do servidor (`/cadastro`,
-  tabela `cadastros`), então vale para qualquer navegador e não some com o
-  cache. Mas quem RECONHECE continua sendo só o navegador: a caixa detecta
-  corpo e acompanha, e não sabe o nome de ninguém. Para a caixa reconhecer
-  seria preciso um modelo de rosto rodando nela — e isso custa quadros por
-  segundo, que é justamente o que está apertado.
+- **Reconhecimento facial NA CAIXA.** O cadastro é do servidor (`/cadastro`,
+  tabela `cadastros`) e a COMPARAÇÃO também (`POST /api/reconhecer`) — o
+  navegador manda o rosto de agora e recebe um nome. Mas quem MEDE o rosto
+  ainda é o navegador: a caixa detecta corpo e acompanha, e não sabe o nome de
+  ninguém. Para a caixa reconhecer seria preciso um modelo de rosto rodando
+  nela, e os descritores guardados vieram do face-api.js — outro modelo produz
+  números incomparáveis com os que já estão cadastrados.
 - **Mapa de calor** e **botão de pedir ajuda**: só no navegador.
 - **30 quadros por segundo.** O alvo hoje é 8,7. Ver `aibox/LEIA.md`.
+
+## Biometria: o que é guardado, e o que não é
+
+A imagem do rosto **não é guardada em lugar nenhum**. O cadastro grava 128
+números medidos no navegador; a foto de alerta sobe com a cabeça em **mosaico**
+(blocos de 4, feito reduzindo pela metade até caber — não é desfoque, que ainda
+deixa reconhecer).
+
+Os 128 números **ainda são dado biométrico**, então eles são **girados** antes
+de encostar no disco:
+
+- girar no espaço de 128 dimensões **não muda distância nenhuma**, então o
+  reconhecimento sai idêntico — medido em `testes/biometria.mjs`, diferença
+  de 1e-14;
+- os eixos do giro saem de `CHAVE_BIO`, que mora no `.env` ou em
+  `chave-bio.txt` **ao lado do banco, nunca dentro dele** (e no `.gitignore`);
+- quem copiar só o banco não consegue cruzar com outro cadastro de rostos;
+- trocar a chave invalida todos os cadastros — é a única forma de "trocar" uma
+  biometria vazada, porque rosto não se troca.
+
+**O limite, dito na cara:** isto protege contra o BANCO vazar. Quem tiver o
+servidor inteiro tem a chave junto. É o mesmo limite de qualquer coisa cifrada
+em disco, e o pitch diz isso.
+
+**Hash não serviria**, e o motivo importa: hash muda inteiro quando a entrada
+muda um fio. Dois rostos da mesma pessoa nunca dão os mesmos 128 números — dão
+números *parecidos*, e reconhecer é medir esse parecido. Hash apaga a
+semelhança junto com o resto.
+
+Migração automática: `migrar_cadastros()` gira o que já estava cru e marca a
+linha (`protegido = 1`). É UPDATE, nunca DELETE, e rodar duas vezes não gira
+duas vezes.
 
 ## Regras do projeto que não se quebram
 
@@ -154,4 +187,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 16 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 18 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).

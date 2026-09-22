@@ -31,7 +31,9 @@ propósito: demonstração que morre porque a nuvem caiu é demonstração perdi
 
 import hashlib
 import json
+import math
 import os
+import secrets
 import sqlite3
 import sys
 import time
@@ -153,6 +155,102 @@ CADASTRO_DIAS = float(os.environ.get("CADASTRO_DIAS", "365"))
 # Um descritor de rosto tem 128 numeros, e o cadastro guarda ate 6 amostras.
 # O teto existe para o endpoint nao virar porta de entrada de payload grande.
 CADASTRO_MAX = 12
+
+
+# ---- biometria cancelavel --------------------------------------------------
+# O PEDIDO ERA "nao guardar a imagem". Ela ja nao e guardada: o que o cadastro
+# grava sao 128 numeros medidos do rosto, e a foto de alerta sobe com a cabeca
+# em mosaico. Mas 128 numeros AINDA SAO dado biometrico — quem tiver o banco
+# pode comparar esses numeros com outro banco e descobrir que a mesma pessoa
+# esta nos dois. Isso e o que esta tabela protege daqui em diante.
+#
+# A IDEIA DO HASH NAO SERVE, e vale registrar por que: hash muda inteiro quando
+# a entrada muda um fio. Dois rostos da MESMA pessoa nunca dao os mesmos 128
+# numeros — dao numeros parecidos, e reconhecer e justamente medir esse
+# "parecido". Hash apaga a semelhanca junto com o resto, e nada mais reconhece.
+#
+# O QUE SERVE: girar os 128 numeros com uma chave secreta. Um giro no espaco de
+# 128 dimensoes NAO MUDA DISTANCIA NENHUMA — e por isso o reconhecimento sai
+# exatamente igual, numero por numero. Mas o banco passa a guardar os rostos num
+# sistema de eixos que so a chave conhece:
+#
+#   * quem copiar o banco nao consegue cruzar com outro banco de rostos;
+#   * quem quiser voltar a uma cara precisa dos eixos, que nao estao no banco;
+#   * se vazar, troca-se a chave e os cadastros antigos viram lixo — que e a
+#     unica coisa que biometria nao tem de nascenca: rosto nao se troca.
+#
+# O LIMITE, dito na cara: isto protege contra o BANCO vazar. Quem tiver o
+# servidor inteiro tem a chave junto, e ai nao protege nada. E honesto porque e
+# exatamente o mesmo limite de qualquer coisa cifrada em disco.
+#
+# O giro e feito por reflexoes de Householder: x -> x - 2(v.x)v, com v tirado da
+# chave. Cada reflexao e exata, a composicao de varias tambem, e nao precisa de
+# biblioteca de algebra nenhuma.
+REFLEXOES = 8
+
+
+def _chave_bio() -> str:
+    """A chave do giro. Fica FORA do banco, que e o que da sentido a ela."""
+    c = os.environ.get("CHAVE_BIO", "").strip()
+    if c:
+        return c
+    # Sem chave configurada o servidor faz uma e guarda ao lado do banco. Nao e
+    # o ideal — o ideal e no .env, longe do arquivo que ela protege — mas exigir
+    # configuracao aqui seria o servidor nao subir na maquina do laboratorio, e
+    # ai ninguem protege coisa nenhuma.
+    arq = SQLITE.with_name("chave-bio.txt")
+    if arq.exists():
+        return arq.read_text(encoding="utf-8").strip()
+    nova = secrets.token_hex(32)
+    arq.write_text(nova, encoding="utf-8")
+    try:
+        os.chmod(arq, 0o600)
+    except OSError:
+        pass
+    print(f"[bio] chave nova em {arq} — mova para CHAVE_BIO no .env", flush=True)
+    return nova
+
+
+def _refletores() -> list[list[float]]:
+    """Os eixos do giro, deduzidos da chave. Mesma chave, mesmos eixos."""
+    global _EIXOS
+    if _EIXOS is not None:
+        return _EIXOS
+    chave = _chave_bio()
+    eixos = []
+    for i in range(REFLEXOES):
+        bruto = b""
+        j = 0
+        while len(bruto) < 128 * 4:
+            bruto += hashlib.sha256(f"{chave}:{i}:{j}".encode()).digest()
+            j += 1
+        v = [int.from_bytes(bruto[k * 4:k * 4 + 4], "big") / 2**32 - 0.5
+             for k in range(128)]
+        n = math.sqrt(sum(x * x for x in v)) or 1.0
+        eixos.append([x / n for x in v])
+    _EIXOS = eixos
+    return eixos
+
+
+_EIXOS: list[list[float]] | None = None
+
+
+def proteger(d: list[float]) -> list[float]:
+    """Gira um descritor para o sistema de eixos da chave."""
+    x = list(d)
+    for v in _refletores():
+        s = 2.0 * sum(a * b for a, b in zip(v, x))
+        x = [a - s * b for a, b in zip(x, v)]
+    return x
+
+
+def distancia(a: list[float], b: list[float]) -> float:
+    return math.sqrt(sum((x - y) * (x - y) for x, y in zip(a, b)))
+
+
+# Limiar do reconhecimento. 0.5 e conservador de proposito; a literatura usa
+# 0.6. O mesmo numero vive em auditix-sala.html como LIMIAR_ROSTO.
+LIMIAR_ROSTO = float(os.environ.get("LIMIAR_ROSTO", "0.50"))
 
 
 def carregar_env() -> None:
@@ -314,7 +412,8 @@ def criar_tabelas() -> None:
                    descritores TEXT NOT NULL,
                    criado {ts} DEFAULT CURRENT_TIMESTAMP,
                    vence {ts},
-                   ativo INTEGER NOT NULL DEFAULT 1)"""
+                   ativo INTEGER NOT NULL DEFAULT 1,
+                   protegido INTEGER NOT NULL DEFAULT 0)"""
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_cad_nome ON cadastros (nome)"
@@ -347,6 +446,45 @@ def migrar_calibracao() -> None:
             # Ja existe. E o caso comum, e nao e problema.
             pass
 
+
+
+def migrar_cadastros() -> None:
+    """Quem ja tinha cadastro antes do giro tem os 128 numeros crus no banco.
+
+    Este passo gira o que ja esta la e marca a linha. E UPDATE, nunca DELETE: a
+    ficha continua a mesma, so muda o sistema de eixos em que ela esta escrita.
+    Rodar duas vezes nao gira duas vezes — quem ja esta marcado fica de fora."""
+    try:
+        with cursor(escrita=True) as (cur, _):
+            cur.execute(
+                "ALTER TABLE cadastros ADD COLUMN protegido INTEGER NOT NULL DEFAULT 0"
+            )
+    except Exception:
+        pass  # ja existe, que e o caso comum
+
+    try:
+        with cursor() as (cur, m):
+            cur.execute("SELECT id, descritores FROM cadastros WHERE protegido = 0")
+            pendentes = cur.fetchall()
+    except Exception:
+        return
+    if not pendentes:
+        return
+    for linha in pendentes:
+        ident, cru = linha[0], linha[1]
+        try:
+            amostras = json.loads(cru)
+            girados = [proteger(d) for d in amostras if len(d) == 128]
+        except Exception:
+            continue
+        if not girados:
+            continue
+        with cursor(escrita=True) as (cur, m):
+            cur.execute(
+                f"UPDATE cadastros SET descritores = {m}, protegido = 1 WHERE id = {m}",
+                (json.dumps(girados), ident),
+            )
+    print(f"[bio] {len(pendentes)} cadastro(s) protegido(s) com a chave", flush=True)
 
 # ------------------------------------------------------------ cadeia --------
 
@@ -449,6 +587,13 @@ class Remocao(BaseModel):
     nome: str = Field(min_length=1, max_length=80)
 
 
+class Rosto(BaseModel):
+    # Um rosto visto AGORA, para o servidor dizer de quem e. Chega cru, e girado
+    # aqui dentro, comparado girado-contra-girado e descartado no fim da
+    # requisicao. Nao e gravado em lugar nenhum.
+    descritor: list[float]
+
+
 class Calibracao(BaseModel):
     camera: str = Field(default="sala-12", max_length=60)
     amostras: list[Amostra]
@@ -458,6 +603,7 @@ class Calibracao(BaseModel):
 async def ciclo(_app: FastAPI):
     criar_tabelas()
     migrar_calibracao()
+    migrar_cadastros()
     podar_calibracao()
     podar_cadastros()
     yield
@@ -857,9 +1003,13 @@ def gravar_cadastro(c: Cadastro) -> dict:
         # antiga continuaria valendo — com o rosto que ela nao tem mais.
         cur.execute(f"UPDATE cadastros SET ativo = 0 WHERE nome = {m}", (nome,))
         cur.execute(
-            f"""INSERT INTO cadastros (nome, descritores, criado, vence, ativo)
-                VALUES ({m}, {m}, {m}, {m}, 1)""",
-            (nome, json.dumps(c.descritores), agora, vence),
+            f"""INSERT INTO cadastros (nome, descritores, criado, vence, ativo,
+                                      protegido)
+                VALUES ({m}, {m}, {m}, {m}, 1, 1)""",
+            # GIRADOS ANTES DE ENCOSTAR NO DISCO. O descritor cru existe na
+            # memoria desta requisicao e acaba com ela; o que fica gravado esta
+            # no sistema de eixos da chave, que nao mora no banco.
+            (nome, json.dumps([proteger(d) for d in c.descritores]), agora, vence),
         )
     return {"nome": nome, "amostras": len(c.descritores), "vence": vence}
 
@@ -886,10 +1036,59 @@ def listar_cadastros(descritores: int = 0) -> dict:
         ficha = {"nome": nome, "amostras": len(amostras),
                  "criado": str(criado)[:19], "vence": str(vence)[:19]}
         if descritores:
+            # GIRADOS. Sao 128 numeros num sistema de eixos que so a chave
+            # conhece: servem para conferir formato e quantidade, e nao servem
+            # para cruzar com outro banco de rostos.
             ficha["descritores"] = amostras
         saida.append(ficha)
     return {"cadastros": saida, "total": len(saida),
-            "prazo_dias": CADASTRO_DIAS}
+            "prazo_dias": CADASTRO_DIAS, "protegidos": True}
+
+
+@app.post("/api/reconhecer")
+def reconhecer(r: Rosto) -> dict:
+    """De quem e este rosto? Responde um nome, ou nenhum.
+
+    A COMPARACAO ACONTECE AQUI, e nao no navegador, por um motivo so: assim a
+    chave do giro nunca sai do servidor. Se o navegador comparasse, ele
+    precisaria dos descritores guardados e da chave para girar o rosto de agora
+    — e ai bastaria abrir o console da pagina para levar o banco inteiro.
+
+    O que sobe e um rosto avulso de quem esta na frente da camera neste
+    instante. O que desce e um nome. A imagem nao passa por aqui em nenhum
+    momento, e o descritor recebido morre com a requisicao."""
+    if len(r.descritor) != 128:
+        raise HTTPException(400,
+                            f"descritor com {len(r.descritor)} numeros; "
+                            "o esperado e 128")
+    alvo = proteger(r.descritor)
+    with cursor() as (cur, m):
+        cur.execute("SELECT nome, descritores FROM cadastros WHERE ativo = 1")
+        linhas = cur.fetchall()
+
+    melhor, perto = None, float("inf")
+    for nome, desc in linhas:
+        try:
+            amostras = json.loads(desc)
+        except Exception:
+            continue
+        # A MENOR distancia entre as amostras da pessoa, nao a media. Um rosto
+        # cadastrado de frente, de lado e olhando para baixo da tres pontos
+        # diferentes; a media deles nao e cara de ninguem.
+        for d in amostras:
+            if len(d) != 128:
+                continue
+            v = distancia(alvo, d)
+            if v < perto:
+                perto, melhor = v, nome
+
+    if melhor is None or perto >= LIMIAR_ROSTO:
+        # Distancia vai junto mesmo quando nao reconheceu: e o que deixa ajustar
+        # o limiar olhando numero, em vez de no chute.
+        return {"nome": None, "distancia": None if melhor is None else round(perto, 4),
+                "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}
+    return {"nome": melhor, "distancia": round(perto, 4),
+            "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}
 
 
 @app.post("/api/cadastro/remover")

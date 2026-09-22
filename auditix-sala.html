@@ -405,6 +405,10 @@ function distDe(desc, p){
   return melhor;
 }
 
+/* null = ainda não sei se o servidor reconhece; true = reconhece; false = não
+   respondeu e esta sessão inteira vai de cadastro local. */
+let servidorRosto = null;
+
 let pessoas = [], eventos = [];
 try{ pessoas = JSON.parse(localStorage.getItem('auditix.pessoas')||'[]'); }catch(e){}
 const gravar = () => { try{
@@ -2392,46 +2396,90 @@ function amarrar(achados){
       alvo.visto = agora;
     }
 
-    let melhor = null, dist = Infinity;
-    pessoas.forEach(p => {
-      const d = distDe(f.descriptor, p);
-      if(d < dist){ dist = d; melhor = p; }
-    });
-    if(!melhor || dist >= LIMIAR_ROSTO) return;
-
-    if(alvo.nome !== melhor.nome){
-      /* Uma pessoa não pode estar em dois corpos ao mesmo tempo. Se este nome
-         estava em outra trilha, ele muda de dono e a antiga volta a ser anônima. */
-      trilhas.forEach(t => {
-        if(t !== alvo && t.nome === melhor.nome){ t.nome = null; t.confirmado = -Infinity; }
-      });
-      /* Retoma o numero que esta pessoa ja teve, se nenhuma trilha viva estiver
-         usando ele — dois corpos com o mesmo numero seriam pior que o problema
-         que isto resolve. */
-      const antigo = numeroDe.get(melhor.nome);
-      if(antigo != null && antigo !== alvo.id &&
-         !trilhas.some(t => t !== alvo && t.id === antigo)){
-        alvo.id = antigo;
-      }
-      numeroDe.set(melhor.nome, alvo.id);
-      anotar('', melhor.nome + ' reconhecido no corpo #' + alvo.id);
-      /* Aqui vai o NOME, não o número do corpo: é o único evento em que a
-         pessoa se cadastrou de próprio punho na Portaria, e é o que permite ao
-         painel responder "há quantos dias fulano não aparece". Para queda
-         continua indo "corpo-N" — lá ninguém consentiu com nada. */
-      mandarEvento('reconhecido', melhor.nome);
-    }
-    alvo.nome = melhor.nome; alvo.turma = melhor.turma || '';
-    alvo.dist = dist; alvo.confirmado = agora;
-    /* Reconhecido hoje, o relógio da inatividade volta a zero. Gravar a cada
-       quadro de rosto seria escrita demais no localStorage, então só quando a
-       data realmente muda de dia. */
-    const hoje = new Date().toISOString();
-    if((melhor.vistoEm || '').slice(0,10) !== hoje.slice(0,10)){
-      melhor.vistoEm = hoje; gravar();
-    }
-    alvo.porAssinatura = false;   // agora quem afirma é o rosto, não a assinatura
+    /* QUEM COMPARA E O SERVIDOR. O navegador manda o rosto de agora e recebe um
+       nome — os 128 números de quem está cadastrado não passam por aqui, e a
+       chave que os protege também não. Se o servidor não responder (página
+       aberta como arquivo, rede fora), cai para o cadastro local e continua
+       funcionando: uma demonstração que depende de rede é uma demonstração que
+       não abre. */
+    if(servidorRosto !== false){ perguntarNome(f.descriptor, alvo); return; }
+    reconhecerLocal(f.descriptor, alvo);
   });
+}
+
+/* Uma pergunta por trilha de cada vez, e no máximo uma por segundo. Sem isto
+   seriam duas requisições por segundo POR PESSOA na tela, e a resposta que
+   chegasse fora de ordem podia recolar um nome já trocado. */
+const perguntando = new Map();
+async function perguntarNome(desc, alvo){
+  const agora = performance.now();
+  if((perguntando.get(alvo.id) || 0) > agora - 1000) return;
+  perguntando.set(alvo.id, agora);
+  try{
+    const r = await fetch('/api/reconhecer', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ descritor: Array.from(desc) }) });
+    if(!r.ok) throw new Error('HTTP ' + r.status);
+    servidorRosto = true;
+    const j = await r.json();
+    /* A resposta demora uns milissegundos, e nesse meio tempo a trilha pode ter
+       morrido (pessoa saiu do quadro). Batizar uma trilha que não existe mais
+       ressuscitaria um nome preso a um corpo que ninguém está vendo. */
+    if(j.nome && trilhas.includes(alvo)) batizar(alvo, j.nome, j.distancia, null);
+  }catch(e){
+    /* Só desiste do servidor na PRIMEIRA falha, e aí para sempre nesta sessão.
+       Alternar entre os dois caminhos a cada falha de rede daria nome ora de um
+       cadastro ora do outro, e ninguém entenderia o que está vendo. */
+    if(servidorRosto === null) servidorRosto = false;
+  }
+}
+
+function reconhecerLocal(desc, alvo){
+  let melhor = null, dist = Infinity;
+  pessoas.forEach(p => {
+    const d = distDe(desc, p);
+    if(d < dist){ dist = d; melhor = p; }
+  });
+  if(!melhor || dist >= LIMIAR_ROSTO) return;
+  batizar(alvo, melhor.nome, dist, melhor);
+}
+
+/* Colar um nome numa trilha. Serve aos dois caminhos: do servidor vem só o
+   nome, do cadastro local vem a ficha inteira. */
+function batizar(alvo, nome, dist, melhor){
+  const agora = performance.now();
+  if(alvo.nome !== nome){
+    /* Uma pessoa não pode estar em dois corpos ao mesmo tempo. Se este nome
+       estava em outra trilha, ele muda de dono e a antiga volta a ser anônima. */
+    trilhas.forEach(t => {
+      if(t !== alvo && t.nome === nome){ t.nome = null; t.confirmado = -Infinity; }
+    });
+    /* Retoma o numero que esta pessoa ja teve, se nenhuma trilha viva estiver
+       usando ele — dois corpos com o mesmo numero seriam pior que o problema
+       que isto resolve. */
+    const antigo = numeroDe.get(nome);
+    if(antigo != null && antigo !== alvo.id &&
+       !trilhas.some(t => t !== alvo && t.id === antigo)){
+      alvo.id = antigo;
+    }
+    numeroDe.set(nome, alvo.id);
+    anotar('', nome + ' reconhecido no corpo #' + alvo.id);
+    /* Aqui vai o NOME, não o número do corpo: é o único evento em que a
+       pessoa se cadastrou de próprio punho na Portaria, e é o que permite ao
+       painel responder "há quantos dias fulano não aparece". Para queda
+       continua indo "corpo-N" — lá ninguém consentiu com nada. */
+    mandarEvento('reconhecido', nome);
+  }
+  alvo.nome = nome; alvo.turma = (melhor && melhor.turma) || alvo.turma || '';
+  alvo.dist = dist; alvo.confirmado = agora;
+  /* Reconhecido hoje, o relógio da inatividade volta a zero. Gravar a cada
+     quadro de rosto seria escrita demais no localStorage, então só quando a
+     data realmente muda de dia. */
+  const hoje = new Date().toISOString();
+  if(melhor && (melhor.vistoEm || '').slice(0,10) !== hoje.slice(0,10)){
+    melhor.vistoEm = hoje; gravar();
+  }
+  alvo.porAssinatura = false;   // agora quem afirma é o rosto, não a assinatura
 }
 
 /* O rótulo enfraquece sozinho conforme o rosto deixa de ser reconfirmado. É o
@@ -2769,6 +2817,14 @@ el('pe-salvar').addEventListener('click', () => {
   pessoas.push({ nome, turma: el('pe-turma').value.trim(), descs: bufferRosto.slice(),
                  criadoEm: new Date().toISOString(), vistoEm: new Date().toISOString() });
   gravar();
+  /* SOBE TAMBÉM PARA O SERVIDOR. Sem isto, quem se cadastra pela Sala existe só
+     nesta máquina e quem se cadastra pela Portaria existe só no servidor — duas
+     listas de gente diferente com o mesmo nome de "cadastro". O local continua
+     sendo gravado porque é o que segura a Sala de pé se o servidor cair. */
+  fetch('/api/cadastro', { method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ nome, descritores: bufferRosto.map(d => Array.from(d)) }) })
+    .then(r => { if(r.ok) anotar('', nome + ' também salvo no servidor'); })
+    .catch(() => {});
   anotar('', nome + ' cadastrado com ' + bufferRosto.length + ' amostras de rosto');
   el('dlg-pes').close(); el('pe-nome').value = ''; el('pe-turma').value = '';
 });
