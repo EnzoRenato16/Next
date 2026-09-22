@@ -66,6 +66,31 @@ Para uma rodada curta de teste:
 bash aibox/ir.sh --segundos 30
 ```
 
+## 4b. Reconhecimento facial (opcional)
+
+Cadastre cada um pela câmera da caixa — são 6 amostras, mexendo a cabeça:
+
+```bash
+$P aibox/cadastrar.py --nome "Enzo Renato"
+```
+
+E rode com o reconhecimento ligado:
+
+```bash
+bash aibox/ir.sh --rosto
+```
+
+Aí a etiqueta na imagem ao vivo deixa de ser `#7` e passa a ser o nome, e o
+alerta no painel também.
+
+> **Vem desligado de propósito.** Rosto custa CPU, e a detecção de queda — que é
+> o que o desafio pede — não pode piorar por causa de um extra. Se os quadros
+> por segundo caírem demais, é só rodar sem `--rosto`.
+
+> O cadastro da caixa é **separado** do cadastro do navegador: são dois motores
+> de rosto diferentes, e os números de um não servem para o outro. Cadastre nos
+> dois se quiser ser reconhecido nas duas telas.
+
 ## 5. Ver
 
 | o quê | onde |
@@ -73,6 +98,7 @@ bash aibox/ir.sh --segundos 30
 | imagem ao vivo | `http://192.168.50.10:8080` |
 | painel de eventos | `http://127.0.0.1:8000/painel` |
 | cadastrar rosto | `http://127.0.0.1:8000/cadastro` |
+| conferir a cadeia | `http://127.0.0.1:8000/cadeia` |
 
 **Com `http://` na frente.** Sem isso o Chrome tenta HTTPS e dá
 `ERR_SSL_PROTOCOL_ERROR`.

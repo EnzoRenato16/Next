@@ -128,10 +128,10 @@ class Fala:
             # desligada" — que e informacao, nao erro — virava falha de rede.
             return e.code
 
-    def evento(self, tipo, corpo):
+    def evento(self, tipo, corpo, quem=None):
         try:
             if 200 <= self._post("/api/evento", dict(
-                    aluno_id=f"corpo-{corpo}"[:50], tipo_evento=tipo,
+                    aluno_id=(quem or f"corpo-{corpo}")[:50], tipo_evento=tipo,
                     localizacao=self.camera), 4) < 300:
                 self.enviados += 1
                 return True
@@ -178,6 +178,12 @@ def main():
     # cadeiras. 0 desliga.
     p.add_argument("--web", type=int, default=int(os.environ.get("WEB", "8080")),
                    help="porta da imagem ao vivo no navegador (0 desliga)")
+    # DESLIGADO POR PADRAO, e de proposito. O reconhecimento custa CPU numa
+    # caixa que ja esta apertada de quadros por segundo, e a analise de queda —
+    # que e o que o desafio pede — nao pode piorar porque um extra foi ligado
+    # sem ninguem decidir. Quem liga, decide.
+    p.add_argument("--rosto", action="store_true",
+                   help="reconhece quem esta cadastrado (usa o motor de daten/)")
     a = p.parse_args()
 
     if not a.camera:
@@ -201,6 +207,21 @@ def main():
     rebanho = trilhas.Rebanho()
     calib_ligada = os.environ.get("CALIBRACAO", "0").strip().lower() in ("1", "sim", "true")
     fila, ultimo_envio = [], time.monotonic()
+
+    cara = None
+    if a.rosto:
+        try:
+            from aibox import rosto as rosto_mod
+            cara = rosto_mod.Rosto(a.servidor)
+            print(f"[aibox] rosto: {cara.motor.backend}, "
+                  f"olhando a cada {cara.espera:.0f}s")
+        except FileNotFoundError as e:
+            # Modelo faltando e o caso comum, e a mensagem do FaceEngine ja
+            # explica. Seguir SEM rosto e melhor que nao subir: a analise de
+            # queda nao depende disto.
+            print(f"[aibox] rosto DESLIGADO: {e}")
+        except Exception as e:
+            print(f"[aibox] rosto DESLIGADO: {e}")
 
     janela = None
     if a.web:
@@ -265,10 +286,23 @@ def main():
             ms_rede, ms_analise = (m1 - m0) * 1000, (m2 - m1) * 1000
             quadros += 1
 
+            if cara is not None:
+                # Entrega e segue: quem espera e a outra thread, nunca este
+                # laco. O tempo gasto aqui e o de uma copia de quadro.
+                cara.ver(img, list(rebanho.trilhas.values()))
+                for t in rebanho.trilhas.values():
+                    t.nome = cara.nome_de(t.id)
+
             for al in alertas:
-                ok_env = fala.evento(al["tipo"], al["corpo"])
-                print(f"[{al['tipo'].upper()}] corpo #{al['corpo']} — "
-                      f"{al['porque']}" + ("" if ok_env else "   (NAO REGISTRADO)"))
+                # O NOME VAI NO EVENTO quando existe. "Enzo caiu" e uma frase
+                # que quem le entende; "corpo-7 caiu" obriga a ir procurar quem
+                # era o 7. Sem cadastro continua indo o numero — e la ninguem
+                # consentiu com nada, que e a razao de o numero existir.
+                quem = cara.nome_de(al["corpo"]) if cara is not None else None
+                ok_env = fala.evento(al["tipo"], al["corpo"], quem)
+                print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
+                      f" — {al['porque']}"
+                      + ("" if ok_env else "   (NAO REGISTRADO)"))
 
             if calib_ligada:
                 agora_por_corpo = {al["corpo"]: al["tipo"] for al in alertas}
@@ -333,6 +367,8 @@ def main():
         # trecho que alguem estava olhando quando resolveu parar.
         if calib_ligada and fila:
             fala.calibracao(fila[:LOTE_CALIB])
+        if cara is not None:
+            cara.fechar()
         cap.release()
         getattr(vis, "fechar", lambda: None)()
         if janela is not None:

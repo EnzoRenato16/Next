@@ -248,9 +248,25 @@ def distancia(a: list[float], b: list[float]) -> float:
     return math.sqrt(sum((x - y) * (x - y) for x, y in zip(a, b)))
 
 
-# Limiar do reconhecimento. 0.5 e conservador de proposito; a literatura usa
-# 0.6. O mesmo numero vive em auditix-sala.html como LIMIAR_ROSTO.
+# DOIS MOTORES DE ROSTO, E ELES NAO SE FALAM.
+#
+#   faceapi  o navegador, face-api.js. Distancia EUCLIDIANA, menor e mais
+#            parecido. 0.5 e conservador; a literatura usa 0.6.
+#   sface    a AIBOX, SFace do OpenCV Zoo. Similaridade de COSSENO, MAIOR e
+#            mais parecido. 0.363 e o limiar do proprio Zoo.
+#
+# Os dois produzem 128 numeros, e e exatamente por isso que misturar e perigoso:
+# nada estoura, a comparacao roda, e o resultado e ruido. Cada cadastro carrega
+# o tipo, e a comparacao so acontece dentro do mesmo tipo.
 LIMIAR_ROSTO = float(os.environ.get("LIMIAR_ROSTO", "0.50"))
+LIMIAR_SFACE = float(os.environ.get("LIMIAR_SFACE", "0.363"))
+TIPOS_ROSTO = ("faceapi", "sface")
+
+
+def cosseno(a: list[float], b: list[float]) -> float:
+    na = math.sqrt(sum(x * x for x in a)) or 1e-9
+    nb = math.sqrt(sum(x * x for x in b)) or 1e-9
+    return sum(x * y for x, y in zip(a, b)) / (na * nb)
 
 
 def carregar_env() -> None:
@@ -413,7 +429,8 @@ def criar_tabelas() -> None:
                    criado {ts} DEFAULT CURRENT_TIMESTAMP,
                    vence {ts},
                    ativo INTEGER NOT NULL DEFAULT 1,
-                   protegido INTEGER NOT NULL DEFAULT 0)"""
+                   protegido INTEGER NOT NULL DEFAULT 0,
+                   tipo VARCHAR(16) NOT NULL DEFAULT 'faceapi')"""
         )
         cur.execute(
             "CREATE INDEX IF NOT EXISTS ix_cad_nome ON cadastros (nome)"
@@ -454,13 +471,16 @@ def migrar_cadastros() -> None:
     Este passo gira o que ja esta la e marca a linha. E UPDATE, nunca DELETE: a
     ficha continua a mesma, so muda o sistema de eixos em que ela esta escrita.
     Rodar duas vezes nao gira duas vezes — quem ja esta marcado fica de fora."""
-    try:
-        with cursor(escrita=True) as (cur, _):
-            cur.execute(
-                "ALTER TABLE cadastros ADD COLUMN protegido INTEGER NOT NULL DEFAULT 0"
-            )
-    except Exception:
-        pass  # ja existe, que e o caso comum
+    for coluna, tipo in (("protegido", "INTEGER NOT NULL DEFAULT 0"),
+                         ("tipo", "VARCHAR(16) NOT NULL DEFAULT 'faceapi'")):
+        # Cada ALTER na sua propria transacao: no Postgres um comando que falha
+        # aborta a transacao inteira, e a segunda coluna morreria por causa da
+        # primeira ja existir.
+        try:
+            with cursor(escrita=True) as (cur, _):
+                cur.execute(f"ALTER TABLE cadastros ADD COLUMN {coluna} {tipo}")
+        except Exception:
+            pass  # ja existe, que e o caso comum
 
     try:
         with cursor() as (cur, m):
@@ -577,6 +597,9 @@ class Amostra(BaseModel):
 
 class Cadastro(BaseModel):
     nome: str = Field(min_length=1, max_length=80)
+    # Qual motor mediu este rosto. O padrao e o navegador, que e quem cadastrava
+    # antes de a caixa saber medir — cadastro antigo continua valendo sem mexer.
+    tipo: str = Field(default="faceapi", max_length=16)
     # Lista de amostras; cada amostra e um descritor de 128 numeros. Varias
     # amostras existem porque um rosto visto de dois angulos da dois pontos
     # diferentes, e comparar contra o mais proximo erra menos que contra a media.
@@ -592,6 +615,7 @@ class Rosto(BaseModel):
     # aqui dentro, comparado girado-contra-girado e descartado no fim da
     # requisicao. Nao e gravado em lugar nenhum.
     descritor: list[float]
+    tipo: str = Field(default="faceapi", max_length=16)
 
 
 class Calibracao(BaseModel):
@@ -656,6 +680,20 @@ def gravar_amostra(a: Amostra) -> dict:
     with AMOSTRAS.open(encoding="utf-8") as f:
         total = sum(1 for _ in f)
     return {"ok": True, "quadros": len(a.quadros), "total": total}
+
+
+@app.get("/cadeia")
+def pagina_cadeia() -> FileResponse:
+    """A cadeia de hash, conferida NO NAVEGADOR.
+
+    Existe /api/verificar, que responde se a cadeia fecha. So que isso e o
+    servidor dando atestado de si mesmo — e "auditavel" nao e o servidor
+    afirmar, e qualquer um poder refazer a conta. Esta pagina baixa os eventos
+    e recalcula os hashes com o SHA-256 do proprio navegador."""
+    alvo = AQUI / "auditix-cadeia.html"
+    if not alvo.exists():
+        raise HTTPException(404, "nao achei auditix-cadeia.html")
+    return FileResponse(alvo)
 
 
 @app.get("/cadastro")
@@ -792,13 +830,27 @@ def filtro_tipos(m: str) -> tuple[str, tuple]:
 
 
 @app.get("/api/eventos")
-def listar(limite: int = 50) -> list[dict]:
+def listar(limite: int = 50, completo: int = 0) -> list[dict]:
+    """Os eventos. `completo=1` devolve TODOS os tipos e o elo anterior.
+
+    O FILTRO DE TIPOS E DE VITRINE, E ISSO TEM UMA CONSEQUENCIA QUE MORDE.
+    A cadeia de hash encadeia TODA linha gravada, inclusive as que o painel
+    escolhe nao mostrar. Quem tentasse conferir a cadeia a partir da lista
+    filtrada estaria somando elos com buracos no meio — e concluiria que o
+    registro foi adulterado quando nao foi. Aconteceu aqui: um unico evento
+    `teste-conexao`, escondido do painel, fazia a pagina /cadeia acusar quebra a
+    partir do evento seguinte.
+
+    Por isso `completo=1` existe e por isso ele tambem devolve `hash_anterior`:
+    com o elo de entrada gravado, da para conferir um PEDACO da cadeia sem
+    precisar baixar ela inteira desde o comeco."""
     with cursor() as (cur, m):
         # O filtro vai no WHERE, nao depois: filtrar em Python devolveria menos
         # linhas do que o limite pedido sempre que houvesse evento escondido.
-        onde, vals = filtro_tipos(m)
+        onde, vals = ("", ()) if completo else filtro_tipos(m)
         cur.execute(
-            f"""SELECT id, timestamp, aluno_id, tipo_evento, localizacao, hash_atual
+            f"""SELECT id, timestamp, aluno_id, tipo_evento, localizacao,
+                       hash_atual, hash_anterior
                 FROM logs_seguranca_escola {onde} ORDER BY id DESC LIMIT {m}""",
             (*vals, max(1, min(limite, 500))),
         )
@@ -814,12 +866,15 @@ def listar(limite: int = 50) -> list[dict]:
                 tuple(ids),
             )
             com_foto = {r[0] for r in cur.fetchall()}
-        return [
-            {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
-             "tipo_evento": r[3], "localizacao": r[4], "hash_atual": r[5],
-             "tem_foto": r[0] in com_foto}
-            for r in linhas
-        ]
+        saida = []
+        for r in linhas:
+            ficha = {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
+                     "tipo_evento": r[3], "localizacao": r[4],
+                     "hash_atual": r[5], "tem_foto": r[0] in com_foto}
+            if completo:
+                ficha["hash_anterior"] = r[6]
+            saida.append(ficha)
+        return saida
 
 
 def limpar_fotos() -> int:
@@ -993,6 +1048,9 @@ def gravar_cadastro(c: Cadastro) -> dict:
         if len(d) != 128:
             raise HTTPException(400,
                                 f"descritor com {len(d)} numeros; o esperado e 128")
+    tipo = c.tipo.strip().lower()
+    if tipo not in TIPOS_ROSTO:
+        raise HTTPException(400, f"tipo {tipo!r}; o esperado e um de {TIPOS_ROSTO}")
     nome = c.nome.strip()
     agora = agora_iso()
     vence = (datetime.now(timezone.utc)
@@ -1001,17 +1059,23 @@ def gravar_cadastro(c: Cadastro) -> dict:
         # Recadastrar o mesmo nome SUBSTITUI. Sem isto, uma pessoa que refaz o
         # cadastro por ter mudado o cabelo passaria a ter duas fichas, e a
         # antiga continuaria valendo — com o rosto que ela nao tem mais.
-        cur.execute(f"UPDATE cadastros SET ativo = 0 WHERE nome = {m}", (nome,))
+        # SO substitui o cadastro DO MESMO TIPO. Uma pessoa pode estar
+        # cadastrada nos dois motores ao mesmo tempo — e e isso que se quer,
+        # para ser reconhecida tanto no navegador quanto na caixa.
+        cur.execute(f"UPDATE cadastros SET ativo = 0 WHERE nome = {m} AND tipo = {m}",
+                    (nome, tipo))
         cur.execute(
             f"""INSERT INTO cadastros (nome, descritores, criado, vence, ativo,
-                                      protegido)
-                VALUES ({m}, {m}, {m}, {m}, 1, 1)""",
+                                      protegido, tipo)
+                VALUES ({m}, {m}, {m}, {m}, 1, 1, {m})""",
             # GIRADOS ANTES DE ENCOSTAR NO DISCO. O descritor cru existe na
             # memoria desta requisicao e acaba com ela; o que fica gravado esta
             # no sistema de eixos da chave, que nao mora no banco.
-            (nome, json.dumps([proteger(d) for d in c.descritores]), agora, vence),
+            (nome, json.dumps([proteger(d) for d in c.descritores]), agora,
+             vence, tipo),
         )
-    return {"nome": nome, "amostras": len(c.descritores), "vence": vence}
+    return {"nome": nome, "amostras": len(c.descritores), "vence": vence,
+            "tipo": tipo}
 
 
 @app.get("/api/cadastros")
@@ -1023,17 +1087,17 @@ def listar_cadastros(descritores: int = 0) -> dict:
     prazos; so quem vai RECONHECER precisa dos numeros do rosto."""
     with cursor() as (cur, m):
         cur.execute(
-            f"""SELECT nome, descritores, criado, vence FROM cadastros
+            f"""SELECT nome, descritores, criado, vence, tipo FROM cadastros
                 WHERE ativo = 1 ORDER BY nome"""
         )
         linhas = cur.fetchall()
     saida = []
-    for nome, desc, criado, vence in linhas:
+    for nome, desc, criado, vence, tipo in linhas:
         try:
             amostras = json.loads(desc)
         except Exception:
             amostras = []
-        ficha = {"nome": nome, "amostras": len(amostras),
+        ficha = {"nome": nome, "amostras": len(amostras), "tipo": tipo,
                  "criado": str(criado)[:19], "vence": str(vence)[:19]}
         if descritores:
             # GIRADOS. Sao 128 numeros num sistema de eixos que so a chave
@@ -1061,28 +1125,44 @@ def reconhecer(r: Rosto) -> dict:
         raise HTTPException(400,
                             f"descritor com {len(r.descritor)} numeros; "
                             "o esperado e 128")
+    tipo = r.tipo.strip().lower()
+    if tipo not in TIPOS_ROSTO:
+        raise HTTPException(400, f"tipo {tipo!r}; o esperado e um de {TIPOS_ROSTO}")
+
+    # O GIRO SERVE AOS DOIS. Ele e uma rotacao, e rotacao preserva produto
+    # interno e norma — entao nao muda distancia euclidiana NEM cosseno. Os dois
+    # motores ficam protegidos pela mesma chave, sem cada um precisar da sua.
     alvo = proteger(r.descritor)
+    cos = tipo == "sface"
+    limiar = LIMIAR_SFACE if cos else LIMIAR_ROSTO
+
     with cursor() as (cur, m):
-        cur.execute("SELECT nome, descritores FROM cadastros WHERE ativo = 1")
+        cur.execute(f"SELECT nome, descritores FROM cadastros "
+                    f"WHERE ativo = 1 AND tipo = {m}", (tipo,))
         linhas = cur.fetchall()
 
-    melhor, perto = None, float("inf")
+    # No cosseno MAIOR e mais parecido; na euclidiana, menor. O sinal e a unica
+    # diferenca entre os dois caminhos, e inverte-lo em silencio seria um
+    # sistema que reconhece exatamente a pessoa errada.
+    melhor, perto = None, (-2.0 if cos else float("inf"))
     for nome, desc in linhas:
         try:
             amostras = json.loads(desc)
         except Exception:
             continue
-        # A MENOR distancia entre as amostras da pessoa, nao a media. Um rosto
-        # cadastrado de frente, de lado e olhando para baixo da tres pontos
-        # diferentes; a media deles nao e cara de ninguem.
+        # O MELHOR entre as amostras da pessoa, nao a media. Um rosto cadastrado
+        # de frente, de lado e olhando para baixo da tres pontos diferentes; a
+        # media deles nao e cara de ninguem.
         for d in amostras:
             if len(d) != 128:
                 continue
-            v = distancia(alvo, d)
-            if v < perto:
+            v = cosseno(alvo, d) if cos else distancia(alvo, d)
+            if (v > perto) if cos else (v < perto):
                 perto, melhor = v, nome
 
-    if melhor is None or perto >= LIMIAR_ROSTO:
+    reconheceu = melhor is not None and ((perto >= limiar) if cos
+                                         else (perto < limiar))
+    if not reconheceu:
         # A DISTANCIA EXATA DE QUEM NAO FOI RECONHECIDO E UM ORACULO. Com ela,
         # quem estiver na rede manda um rosto qualquer, le o quanto errou,
         # corrige, manda de novo — e em algumas milhares de tentativas chega a
@@ -1096,9 +1176,9 @@ def reconhecer(r: Rosto) -> dict:
         return {"nome": None,
                 "distancia": bruta if CALIBRACAO else (
                     None if bruta is None else round(bruta, 1)),
-                "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}
+                "limiar": limiar, "tipo": tipo, "cadastrados": len(linhas)}
     return {"nome": melhor, "distancia": round(perto, 4),
-            "limiar": LIMIAR_ROSTO, "cadastrados": len(linhas)}
+            "limiar": limiar, "tipo": tipo, "cadastrados": len(linhas)}
 
 
 @app.post("/api/cadastro/remover")

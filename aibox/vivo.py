@@ -104,7 +104,8 @@ setInterval(async () => {
       $('atalhos').dataset.pronto = '1';
       $('atalhos').innerHTML =
         '<a href="' + e.servidor + '/cadastro">Cadastrar rosto</a>' +
-        '<a href="' + e.servidor + '/painel">Painel de eventos</a>';
+        '<a href="' + e.servidor + '/painel">Painel de eventos</a>' +
+        '<a href="' + e.servidor + '/cadeia">Conferir a cadeia</a>';
     }
     document.body.classList.remove('morto');
   }catch(_){ document.body.classList.add('morto'); }
@@ -227,7 +228,12 @@ def desenhar(cv2, img, trilhas, conf_min=0.30):
             # A nota da rede fica na etiqueta de proposito: e o numero que
             # decide, e quem assiste tem de poder ver que ele NAO estourou o
             # limiar quando o sistema fica calado.
-            etiq = f"#{t.id}  {t.notaQueda:.2f}"
+            # O NOME NA FRENTE DO NUMERO. "Enzo 0.12" e uma frase; "#7 0.12"
+            # e um enigma. Quem nao foi reconhecido continua sendo um numero,
+            # e isso tambem e informacao: ninguem cadastrou aquela pessoa.
+            quem = getattr(t, "nome", None)
+            etiq = (f"{quem}  {t.notaQueda:.2f}" if quem
+                    else f"#{t.id}  {t.notaQueda:.2f}")
             cv2.putText(img, etiq, (x0, max(12, y0 - 6)),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.45, cor, 1, cv2.LINE_AA)
     return img

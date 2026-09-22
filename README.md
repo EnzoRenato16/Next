@@ -27,7 +27,7 @@ Sem `.env`, o servidor cai sozinho para SQLite local e avisa na tela. Copie
 `.env.example` para `.env` e preencha a senha para usar o Postgres do `db-fiap`.
 
 As outras páginas são arquivos soltos, abrem direto no navegador:
-`auditix-portaria.html`, `svatech-dashboard.html`, `svatech-scanner.html`,
+`svatech-dashboard.html`, `svatech-scanner.html`,
 `index.html` (pitch).
 
 O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/README.md).
@@ -40,7 +40,7 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 |---|---|
 | `servidor.py` | API + cadeia de hash SHA-256 + Postgres com queda para SQLite |
 | `auditix-sala.html` | Sala auditada: pose, rosto, assinatura de corpo, prova de vida, mapa de calor |
-| `auditix-portaria.html` | Portaria: leitor de palma, com consentimento do responsável |
+| `auditix-portaria.html` | Portaria com leitor de palma. **Superada** pelo `/cadastro` do servidor, que vale para qualquer navegador — esta guarda o cadastro num navegador só |
 | `auditix-painel.html` | Painel de leitura servido em `/painel` |
 | `svatech-dashboard.html` | Caixa-preta cirúrgica (OPME) |
 | `svatech-scanner.html` | Leitor de patrimônio (código de barras / QR) |

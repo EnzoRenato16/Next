@@ -165,22 +165,57 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 
 ## O que ainda NÃO existe na caixa
 
-- **Reconhecimento facial DENTRO da `aibox/`.** A caixa detecta corpo e
-  acompanha, e não sabe o nome de ninguém: quem mede rosto hoje é o navegador
-  (`/cadastro` + `POST /api/reconhecer`).
-
-  **MAS O MOTOR JÁ EXISTE NESTE REPOSITÓRIO**, em `daten/` (EduVision):
-  YuNet + SFace em ONNX, feitos para CPU ARM, com conferência de paridade entre
-  OpenCV DNN e ONNX Runtime e detecção medida em 8,7 ms. Os dois modelos agora
-  vão versionados em `daten/models/` — antes eram "baixe localmente", e baixar
-  39 MB no laboratório é um passo que pode falhar no dia.
-
-  O que falta é **juntar**, não construir: `aibox/sala.py` chamando o
-  `FaceEngine` para batizar as trilhas. O ponto de atenção é o cadastro — os
-  descritores de `cadastros` vieram do face-api.js e **não são comparáveis** com
-  os do SFace. Duas listas, ou uma coluna de tipo.
 - **Mapa de calor** e **botão de pedir ajuda**: só no navegador.
 - **30 quadros por segundo.** O alvo hoje é 8,7. Ver `aibox/LEIA.md`.
+
+## Rosto na caixa (`--rosto`)
+
+O motor é o `daten/` (EduVision), que já existia: **YuNet** acha o rosto e cinco
+pontos, **SFace** alinha e devolve 128 números. ONNX, CPU ARM, sem GPU. Os dois
+modelos vão **versionados** em `daten/models/` (conferidos por sha256 contra o
+opencv_zoo) — baixar 39 MB no laboratório é um passo que pode falhar no dia.
+
+```bash
+$P aibox/cadastrar.py --nome "Enzo Renato"   # colhe 6 amostras pela câmera
+bash aibox/ir.sh --rosto                     # e a caixa passa a chamar pelo nome
+```
+
+**Desligado por padrão, de propósito:** custa CPU numa caixa que já está
+apertada de quadros por segundo, e a análise de queda não pode piorar porque um
+extra foi ligado sem ninguém decidir.
+
+Duas decisões que sustentam isso:
+
+1. **Roda em outra thread.** O laço principal entrega um quadro e segue; quando
+   a resposta chega, o nome aparece. Rosto pago dentro do laço sairia direto dos
+   8,7 quadros por segundo.
+2. **Não olha todo quadro.** A cada 2 s para quem não tem nome, 10 s para
+   reconferir quem já tem. Ninguém troca de cara entre um quadro e outro.
+
+**DOIS MOTORES QUE NÃO SE FALAM.** `faceapi` (navegador, distância euclidiana,
+menor = mais parecido) e `sface` (caixa, cosseno, **maior** = mais parecido).
+Os dois devolvem 128 números, e é por isso que misturar é perigoso: nada
+estoura, a comparação roda, e o resultado é ruído. Cada cadastro carrega o
+`tipo`, e a comparação só acontece dentro do mesmo tipo. A mesma pessoa pode —
+e deve — estar cadastrada nos dois.
+
+A caixa **nunca tem o cadastro na mão**: ela manda os 128 números e recebe um
+nome. Quem levar a caixa embora não leva rosto de ninguém.
+
+## A cadeia conferida no navegador (`/cadeia`)
+
+`/api/verificar` responde se a cadeia fecha, mas isso é o servidor dando
+atestado de si mesmo. A página `/cadeia` **baixa os eventos e recalcula os
+hashes com o SHA-256 do próprio navegador**, e tem um botão que adultera uma
+linha para mostrar a quebra se propagando. **Nada é gravado** — a alteração
+acontece só na cópia do navegador.
+
+**A armadilha que isso revelou:** `/api/eventos` filtra por `PAINEL_TIPOS`, e a
+cadeia encadeia **toda** linha gravada. Conferir a partir da lista filtrada é
+somar elos com buraco no meio e concluir que houve adulteração onde não houve —
+um único evento `teste-conexao` do `conferir.py --gravar` já fazia isso. Por
+isso existe `/api/eventos?completo=1`, que devolve todos os tipos e o
+`hash_anterior` de entrada.
 
 ## Biometria: o que é guardado, e o que não é
 
@@ -231,4 +266,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 18 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 20 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).

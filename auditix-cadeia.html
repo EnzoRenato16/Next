@@ -1,0 +1,211 @@
+<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auditix IA — a cadeia</title>
+<style>
+:root{color-scheme:dark light;
+  --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;
+  --fraco:#8FB3A7;--verde:#5FBFA0;--rubi:#E08A9B;--ambar:#E5C07B}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+     font:15.5px/1.55 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
+       padding:18px 20px;border-bottom:1px solid var(--linha)}
+h1{margin:0;font-size:21px;letter-spacing:-.3px}
+h1 i{font-style:normal;color:var(--verde)}
+.sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+header a{margin-left:auto;color:var(--verde);font-size:14px}
+main{padding:20px;max-width:1000px;margin:0 auto;display:grid;gap:18px}
+.cartao{background:var(--caixa);border:1px solid var(--linha);border-radius:12px;padding:16px}
+h2{margin:0 0 10px;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--fraco)}
+p{margin:0 0 10px}
+.formula{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;
+  background:#0e1f1b;border:1px solid var(--linha);border-radius:8px;padding:10px 12px;
+  overflow-x:auto;white-space:nowrap}
+.veredito{font-size:17px;font-weight:600;display:flex;align-items:center;gap:10px}
+.veredito .bolha{width:12px;height:12px;border-radius:50%;background:var(--verde);flex:none}
+.veredito.mau .bolha{background:var(--rubi)}
+.veredito.mau{color:var(--rubi)}
+button{font:inherit;border:0;border-radius:999px;padding:10px 18px;cursor:pointer;
+       background:var(--verde);color:#08201A;font-weight:600}
+button.claro{background:#0e1f1b;color:var(--texto);border:1px solid var(--linha);font-weight:400}
+button:disabled{opacity:.45;cursor:not-allowed}
+.linha{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:500;color:var(--fraco);font-size:11.5px;
+   letter-spacing:.09em;text-transform:uppercase;padding:0 8px 8px 0}
+td{padding:8px 8px 8px 0;border-top:1px solid var(--linha);vertical-align:middle}
+td.n{font-variant-numeric:tabular-nums;color:var(--fraco)}
+.hash{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--fraco)}
+tr.quebrado td{background:rgba(224,138,155,.09)}
+tr.quebrado .hash{color:var(--rubi)}
+tr.culpado td{background:rgba(224,138,155,.2)}
+.elo{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--verde)}
+.elo.mau{background:var(--rubi)}
+.nota{color:var(--fraco);font-size:13px;margin-top:12px}
+.aviso{color:var(--ambar)}
+.editando{color:var(--ambar);font-weight:600}
+.vazio{color:var(--fraco);padding:18px 0;text-align:center}
+</style>
+
+<header>
+  <h1>Audit<i>ix</i> IA</h1>
+  <span class="sub">a cadeia</span>
+  <a href="/painel">← painel</a>
+</header>
+
+<main>
+  <section class="cartao">
+    <h2>Por que isto prova alguma coisa</h2>
+    <p>Cada evento carrega o <b>hash da linha anterior</b>. Mudar qualquer campo
+    de uma linha muda o hash dela — e como a seguinte foi calculada <i>com</i> o
+    hash antigo, ela também deixa de fechar. E a seguinte. E todas até o fim.</p>
+    <div class="formula" id="formula">hash = SHA-256( momento | aluno | tipo | local | hash_anterior )</div>
+    <p class="nota">A conferência usa <b>todos</b> os eventos gravados, e não só
+    os tipos que o painel mostra: a cadeia encadeia toda linha, e conferir a
+    partir de uma lista filtrada acusaria quebra onde não há.</p>
+    <p class="nota">Esta página <b>não pergunta ao servidor se está tudo certo</b>.
+    Ela baixa os eventos e <b>recalcula os hashes aqui no seu navegador</b>, com
+    o SHA-256 do próprio navegador. É essa a diferença entre auditável e
+    "confie em mim": qualquer um com os dados na mão refaz a conta.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Veredito</h2>
+    <div class="veredito" id="veredito"><span class="bolha"></span><span id="txt">carregando…</span></div>
+    <div class="linha">
+      <button id="adulterar">Adulterar uma linha</button>
+      <button id="restaurar" class="claro" disabled>Desfazer</button>
+    </div>
+    <p class="nota" id="explica">Aperte para mudar um campo de um evento do meio
+    da lista, e veja o que acontece com todos os seguintes.
+    <b>Nada é gravado</b> — a alteração acontece só na cópia que este navegador
+    baixou. O banco não é tocado.</p>
+  </section>
+
+  <section class="cartao">
+    <h2>Os eventos</h2>
+    <div id="tabela"><p class="vazio">carregando…</p></div>
+  </section>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const GENESE = '0'.repeat(64);
+
+let eventos = [], adulterado = null;
+
+async function sha256(texto){
+  const bytes = new TextEncoder().encode(texto);
+  const saida = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(saida))
+              .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* Recalcula a cadeia inteira do zero e devolve, por linha, o hash que a conta
+   dá e se ele bate com o que está gravado. */
+async function recalcular(linhas){
+  /* Começa no elo GRAVADO da primeira linha desta janela, e não no zero: assim
+     dá para conferir os últimos N eventos sem baixar a cadeia inteira desde o
+     começo. Quando a janela pega o primeiro evento de todos, esse elo É o zero. */
+  let anterior = linhas.length ? (linhas[0].hash_anterior || GENESE) : GENESE;
+  const saida = [];
+  for(const e of linhas){
+    const cru = [e.timestamp, e.aluno_id, e.tipo_evento, e.localizacao, anterior].join('|');
+    const meu = await sha256(cru);
+    saida.push({ ...e, recalculado: meu, bate: meu === e.hash_atual });
+    /* O ELO SEGUE COM O HASH RECALCULADO, não com o gravado. É isso que faz o
+       estrago se propagar: a linha seguinte foi assinada com o hash antigo, e
+       agora o anterior é outro. Seguir com o gravado esconderia exatamente o
+       que esta página existe para mostrar. */
+    anterior = meu;
+  }
+  return saida;
+}
+
+function pintar(linhas){
+  if(!linhas.length){
+    $('tabela').innerHTML = '<p class="vazio">Nenhum evento ainda. '
+      + 'Gere um alerta e volte aqui.</p>';
+    $('txt').textContent = 'nada para conferir ainda';
+    return;
+  }
+  const primeiroMau = linhas.findIndex(l => !l.bate);
+  const v = $('veredito');
+  if(primeiroMau < 0){
+    v.classList.remove('mau');
+    $('txt').textContent = 'A cadeia fecha. ' + linhas.length
+      + ' eventos, todos os hashes recalculados batem.';
+  }else{
+    v.classList.add('mau');
+    const quantos = linhas.length - primeiroMau;
+    $('txt').textContent = 'A cadeia QUEBROU no evento #' + linhas[primeiroMau].id
+      + ' — e ' + quantos + ' linha' + (quantos > 1 ? 's' : '')
+      + ' deixaram de fechar por causa dele.';
+  }
+
+  const corpo = linhas.map((l, i) => {
+    const classe = !l.bate ? (i === primeiroMau ? 'quebrado culpado' : 'quebrado') : '';
+    const campo = (texto, chave) => l.mexido === chave
+      ? '<span class="editando">' + texto + '</span>' : texto;
+    return '<tr class="' + classe + '">'
+      + '<td class="n">#' + l.id + '</td>'
+      + '<td>' + campo(l.tipo_evento, 'tipo_evento') + '</td>'
+      + '<td>' + campo(l.aluno_id, 'aluno_id') + '</td>'
+      + '<td class="n">' + l.timestamp.slice(5, 16) + '</td>'
+      + '<td class="hash">' + l.recalculado.slice(0, 12) + '…</td>'
+      + '<td><span class="elo' + (l.bate ? '' : ' mau') + '"></span></td>'
+      + '</tr>';
+  }).join('');
+  $('tabela').innerHTML = '<table><thead><tr><th>#</th><th>tipo</th>'
+    + '<th>quem</th><th>quando</th><th>hash recalculado</th><th>elo</th>'
+    + '</tr></thead><tbody>' + corpo + '</tbody></table>';
+}
+
+async function mostrar(){
+  const copia = eventos.map((e, i) => i === adulterado
+    ? { ...e, tipo_evento: 'nada_aconteceu', mexido:'tipo_evento' }
+    : { ...e });
+  pintar(await recalcular(copia));
+}
+
+$('adulterar').addEventListener('click', async () => {
+  if(eventos.length < 2) return;
+  /* Mexe no MEIO da lista de propósito: adulterar a última não mostraria a
+     propagação, que é justamente o ponto. */
+  adulterado = Math.floor(eventos.length / 2);
+  $('restaurar').disabled = false;
+  $('adulterar').disabled = true;
+  $('explica').innerHTML = 'Troquei o tipo do evento #' + eventos[adulterado].id
+    + ' por <b>nada_aconteceu</b> — é o que alguém faria para esconder que uma '
+    + 'queda aconteceu. Repare que não foi só aquela linha que ficou vermelha. '
+    + '<b>O banco não foi tocado</b>: isto está acontecendo só na cópia deste navegador.';
+  await mostrar();
+});
+
+$('restaurar').addEventListener('click', async () => {
+  adulterado = null;
+  $('restaurar').disabled = true;
+  $('adulterar').disabled = false;
+  $('explica').textContent = 'Desfeito. A cadeia volta a fechar, porque o dado '
+    + 'original é o que bate com os hashes gravados.';
+  await mostrar();
+});
+
+(async () => {
+  try{
+    /* completo=1 É OBRIGATÓRIO AQUI. A lista normal esconde os tipos que o
+       painel não mostra, e a cadeia encadeia TODA linha gravada — conferir a
+       partir da lista filtrada é somar elos com buraco no meio e concluir que
+       houve adulteração quando não houve. Foi o que aconteceu na primeira
+       versão desta página, por causa de um único evento de teste de conexão. */
+    const r = await fetch('/api/eventos?limite=200&completo=1');
+    /* A API devolve do mais novo para o mais velho, e a cadeia se lê ao
+       contrário: cada linha depende da que veio ANTES dela. */
+    eventos = (await r.json()).slice().sort((a, b) => a.id - b.id);
+    await mostrar();
+  }catch(e){
+    $('tabela').innerHTML = '<p class="vazio erro">O servidor não respondeu.</p>';
+    $('txt').textContent = 'não consegui baixar os eventos';
+  }
+})();
+</script>
