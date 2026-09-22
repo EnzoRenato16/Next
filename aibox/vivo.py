@@ -74,6 +74,7 @@ main{padding:20px;max-width:1100px;margin:0 auto}
     <div class="n"><b id="ram">--</b><span>ram (MB)</span></div>
     <div class="n"><b id="corpos">--</b><span>pessoas</span></div>
     <div class="n"><b id="alertas">--</b><span>alertas enviados</span></div>
+    <div class="n"><b id="perdidos">--</b><span>nao chegaram</span></div>
   </div>
   <p class="nota">Os pontos e as linhas sao os 17 pontos do corpo que o modelo
   devolveu <b>e que a analise realmente usou</b> — nao uma ilustracao. Uma
@@ -91,6 +92,11 @@ setInterval(async () => {
     $('ram').textContent = Math.round(e.ram);
     $('corpos').textContent = e.corpos;
     $('alertas').textContent = e.enviados;
+    /* O QUE NAO CHEGOU FICA NA CARA. Um enviador que erra calado e
+       indistinguivel de um que funciona: o painel ficaria vazio e ninguem
+       saberia se e porque nada aconteceu ou porque nada chegou. */
+    $('perdidos').textContent = e.falhas;
+    $('perdidos').style.color = e.falhas ? '#ff6b6b' : '';
     /* Os atalhos apontam para o SERVIDOR, que roda noutra maquina — a caixa so
        enxerga e avisa. O endereco vem do .env pelo /estado, e nao escrito na
        pagina, porque numa outra instalacao o servidor tem outro IP. */
@@ -114,7 +120,8 @@ class Vivo:
         self.porta = porta
         self.jpeg = None
         self.estado = dict(fps=0.0, rede=0.0, analise=0.0, cpu=0.0,
-                           ram=0.0, corpos=0, enviados=0, servidor="")
+                           ram=0.0, corpos=0, enviados=0, falhas=0,
+                           servidor="")
         self.clientes = 0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))

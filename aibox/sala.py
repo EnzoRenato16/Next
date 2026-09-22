@@ -35,6 +35,7 @@ ela engasgar no meio da demonstracao, e a analise nao ganha nada com 4K — os
 pontos do corpo saem iguais.
 """
 import argparse
+import json
 import os
 import sys
 import time
@@ -94,19 +95,37 @@ class Fala:
     funciona, e foi assim que a foto do alerta ficou um dia sem subir."""
 
     def __init__(self, base, camera):
-        import requests
-        self.req = requests
+        # `requests` e o caminho bom, mas ele NAO E GARANTIDO no venv da caixa, e
+        # um ImportError aqui derrubaria a analise inteira por causa do envio —
+        # a parte que pode falhar sem matar nada. urllib vem no Python.
+        try:
+            import requests
+            self.req = requests
+        except ImportError:
+            self.req = None
         self.base = base.rstrip("/")
         self.camera = camera
         self.enviados = 0
         self.falhas = 0
 
+    def _post(self, rota, corpo, espera):
+        """Devolve o codigo HTTP, ou 0 se nem chegou a falar com o servidor."""
+        alvo = f"{self.base}{rota}"
+        if self.req is not None:
+            r = self.req.post(alvo, timeout=espera, json=corpo)
+            return r.status_code
+        import urllib.request
+        pedido = urllib.request.Request(
+            alvo, data=json.dumps(corpo).encode("utf-8"),
+            headers={"Content-Type": "application/json"}, method="POST")
+        with urllib.request.urlopen(pedido, timeout=espera) as r:
+            return r.status
+
     def evento(self, tipo, corpo):
         try:
-            r = self.req.post(f"{self.base}/api/evento", timeout=4, json=dict(
-                aluno_id=f"corpo-{corpo}"[:50], tipo_evento=tipo,
-                localizacao=self.camera))
-            if r.ok:
+            if 200 <= self._post("/api/evento", dict(
+                    aluno_id=f"corpo-{corpo}"[:50], tipo_evento=tipo,
+                    localizacao=self.camera), 4) < 300:
                 self.enviados += 1
                 return True
         except Exception:
@@ -116,11 +135,10 @@ class Fala:
 
     def calibracao(self, amostras):
         try:
-            r = self.req.post(f"{self.base}/api/calibracao", timeout=6,
-                              json=dict(camera=self.camera, amostras=amostras))
-            return r.status_code            # 403 = registro desligado la
+            return self._post("/api/calibracao",
+                              dict(camera=self.camera, amostras=amostras), 6)
         except Exception:
-            return 0
+            return 0                        # 403 = registro desligado la
 
 
 def amostra_de(t, alertou, ms_rede, ms_analise):
@@ -283,7 +301,7 @@ def main():
                         rede=ms_rede, analise=ms_analise,
                         cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
                         corpos=len(rebanho.trilhas), enviados=fala.enviados,
-                        servidor=fala.base))
+                        falhas=fala.falhas, servidor=fala.base))
 
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()

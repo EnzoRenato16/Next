@@ -89,6 +89,35 @@ O Git converte para fim de linha do Windows no checkout; o bash da caixa lê o
 `\r` como parte do comando. O `.gitattributes` já impede isso em clones novos,
 mas o clone do laboratório é anterior a ele.
 
+## O banco: a caixa analisa, o PC guarda
+
+A AIBOX **não tem banco**. Ela analisa e manda cada alerta para o servidor do
+PC (`SERVIDOR` no `.env` da caixa), e é o PC que grava — no Postgres da AWS, ou
+em SQLite local quando o RDS não responde. **Os painéis leem do PC**, então
+banco parado = painel vazio, mesmo com a caixa funcionando perfeitamente.
+
+Para saber se está tudo ligado, na caixa:
+
+```bash
+$P aibox/conferir.py            # só olha, não grava nada
+$P aibox/conferir.py --gravar   # grava um evento de teste e confere que chegou
+```
+
+Ele responde, em português: se `SERVIDOR` está configurado, se a porta do PC
+responde, **qual banco está realmente em uso** (é aqui que se descobre que caiu
+para SQLite), se a cadeia de hash fecha, se o painel e o cadastro abrem, e —
+com `--gravar` — se a linha chegou mesmo ao banco.
+
+A tela ao vivo da caixa também mostra **"não chegaram"** em vermelho ao lado de
+"alertas enviados". Um enviador que erra calado é indistinguível de um que
+funciona, e foi assim que a foto do alerta ficou um dia sem subir.
+
+As três causas de "não responde", em ordem de frequência:
+
+1. o servidor no PC subiu **sem** `set HOST=0.0.0.0`
+2. o firewall do Windows barrando a porta
+3. o PC voltou para DHCP e perdeu o `192.168.50.72`
+
 ## As armadilhas que já custaram tempo
 
 1. **O OpenCV da caixa não abre RTSP.** `FFMPEG: YES` na lista, mas o plugin
