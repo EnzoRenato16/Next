@@ -44,7 +44,7 @@ RAIZ = os.path.dirname(AQUI)
 if RAIZ not in sys.path:
     sys.path.insert(0, RAIZ)
 
-from aibox import custo, olho as olho_mod, trilhas  # noqa: E402
+from aibox import custo, olho as olho_mod, trilhas, vivo as vivo_mod  # noqa: E402
 
 LOTE_CALIB = 200           # o servidor recusa acima de 500
 ENVIA_CALIB_S = 15.0
@@ -148,6 +148,11 @@ def main():
     # depender de alguem lembrar de apertar Ctrl+C na hora certa.
     p.add_argument("--segundos", type=float, default=0,
                    help="para sozinho depois deste tempo (0 = roda ate Ctrl+C)")
+    # A janela ao vivo. Sem imagem ninguem confia no que o sistema diz — e com
+    # razao: "3 corpos" numa linha de texto pode ser tres pessoas ou tres
+    # cadeiras. 0 desliga.
+    p.add_argument("--web", type=int, default=int(os.environ.get("WEB", "8080")),
+                   help="porta da imagem ao vivo no navegador (0 desliga)")
     a = p.parse_args()
 
     if not a.camera:
@@ -156,13 +161,26 @@ def main():
         return 2
     fonte = int(a.camera) if str(a.camera).isdigit() else a.camera
 
-    print(f"[aibox] olho: {a.olho}   camera: "
-          f"{'webcam ' + str(fonte) if isinstance(fonte, int) else '(rtsp do .env)'}")
+    # A ORIGEM SAI NA TELA, sem senha. A primeira versao escrevia sempre
+    # "(rtsp do .env)", inclusive quando a origem era um arquivo de video —
+    # mentira pequena que faz perder tempo procurando defeito na camera errada.
+    if isinstance(fonte, int):
+        de_onde = f"webcam {fonte}"
+    elif str(fonte).startswith("rtsp"):
+        de_onde = "rtsp " + str(fonte).split("@")[-1].split("?")[0]
+    else:
+        de_onde = str(fonte)
+    print(f"[aibox] olho: {a.olho}   camera: {de_onde}")
     vis = olho_mod.abrir(a.olho, a.modelo)
     fala = Fala(a.servidor, a.local)
     rebanho = trilhas.Rebanho()
     calib_ligada = os.environ.get("CALIBRACAO", "0").strip().lower() in ("1", "sim", "true")
     fila, ultimo_envio = [], time.monotonic()
+
+    janela = None
+    if a.web:
+        janela = vivo_mod.Vivo(a.web)
+        print(f"[aibox] imagem ao vivo em http://<ip-da-caixa>:{a.web}")
 
     import cv2
     cap = abrir_camera(fonte)
@@ -243,6 +261,22 @@ def main():
                     if len(fila) > 2000:
                         fila = fila[-500:]
 
+            # A JANELA SO CUSTA COM ALGUEM OLHANDO. Sem navegador conectado
+            # nao ha copia, nao ha desenho e nao ha JPEG — detectar queda vale
+            # mais que exibi-la, e numa caixa a 8 quadros por segundo essa
+            # diferenca e a demonstracao inteira.
+            if janela is not None and janela.clientes:
+                pintado = vivo_mod.desenhar(cv2, img.copy(),
+                                            list(rebanho.trilhas.values()))
+                feito, buf = cv2.imencode(".jpg", pintado,
+                                          [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                if feito:
+                    janela.publicar(buf.tobytes(), dict(
+                        fps=quadros / max(time.monotonic() - t0, 1e-6),
+                        rede=ms_rede, analise=ms_analise,
+                        cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
+                        corpos=len(rebanho.trilhas), enviados=fala.enviados))
+
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()
                 fps = quadros / max(time.monotonic() - t0, 1e-6)
@@ -261,6 +295,8 @@ def main():
             fala.calibracao(fila[:LOTE_CALIB])
         cap.release()
         getattr(vis, "fechar", lambda: None)()
+        if janela is not None:
+            janela.fechar()
         seg = max(time.monotonic() - t0, 1e-6)
         print(f"[aibox] {quadros} quadros em {seg:.0f}s "
               f"({quadros / seg:.1f} fps), {perdidos} reconexoes, "
