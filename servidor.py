@@ -284,6 +284,23 @@ def carregar_env() -> None:
 
 carregar_env()
 URL_BANCO = os.environ.get("DATABASE_URL", "").strip()
+
+# QUEM PODE ESCREVER. Vazio (o padrao) = qualquer um, como sempre foi.
+#
+# Na rede da AIBOX so duas maquinas precisam gravar: o proprio PC (Sala,
+# cadastro, painel) e a caixa. Mas os notebooks dos outros grupos ficam na mesma
+# 192.168.50.x — e sem isto qualquer um deles grava uma queda falsa na cadeia
+# (onde ela fica para sempre), ou apaga o cadastro de rosto de outra pessoa.
+#
+#   QUEM_ESCREVE=127.0.0.1,192.168.50.10
+#
+# Quem nao esta na lista continua LENDO tudo: painel, cadeia, eventos. So nao
+# grava. E trava de prototipo, dita como tal: numa rede com switch forjar o IP
+# nao e trivial, mas nao e impossivel.
+QUEM_ESCREVE = {x.strip() for x in os.environ.get("QUEM_ESCREVE", "").split(",")
+                if x.strip()}
+if "127.0.0.1" in QUEM_ESCREVE:
+    QUEM_ESCREVE.add("::1")     # o mesmo PC, falando IPv6
 WEBHOOK = os.environ.get("WEBHOOK_URL", "").strip()
 # Segredo combinado com o outro lado. Uma URL de Lambda e publica: sem isto,
 # qualquer um que a descubra dispara e-mails em nome de voces — e paga.
@@ -587,6 +604,10 @@ class Evento(BaseModel):
     poses: list[list[list[float]]] | None = Field(default=None, max_length=64)
 
 
+class Ciente(BaseModel):
+    evento_id: int
+
+
 class Foto(BaseModel):
     evento_id: int
     imagem: str = Field(max_length=FOTO_MAX)
@@ -670,6 +691,21 @@ async def ciclo(_app: FastAPI):
 
 
 app = FastAPI(title="Auditix, sala auditada", lifespan=ciclo)
+
+
+@app.middleware("http")
+async def so_quem_pode_escreve(req: Request, seguir):
+    """Todo POST passa por aqui. Rota por rota, a proxima rota nova esqueceria."""
+    if QUEM_ESCREVE and req.method == "POST":
+        origem = req.client.host if req.client else "?"
+        if origem not in QUEM_ESCREVE:
+            # A mensagem diz o IP que o servidor VIU. Sem isso, a caixa com o IP
+            # errado na lista tem todo alerta recusado e ninguem entende por que.
+            return JSONResponse(status_code=403, content={"detail": (
+                f"a maquina {origem} nao pode gravar aqui. "
+                f"Quem pode: {', '.join(sorted(QUEM_ESCREVE))} "
+                f"(QUEM_ESCREVE no .env do servidor)")})
+    return await seguir(req)
 
 
 @app.get("/")
@@ -878,6 +914,66 @@ def disparar_webhook(novo_id, momento, ev: Evento, hash_atual: str) -> None:
         print(f"[auditix] webhook falhou, evento gravado mesmo assim: {erro}")
 
 
+def _como_data(v):
+    """O Postgres devolve datetime; o SQLite devolve texto."""
+    return v if isinstance(v, datetime) else _ler_momento(str(v))
+
+
+@app.post("/api/ciente")
+def marcar_ciente(c: Ciente, req: Request) -> dict:
+    """ALGUEM VIU O ALERTA. Vira uma linha na cadeia, apontando para ele.
+
+    Ate aqui a cadeia provava que o sistema DETECTOU a queda. Com isto ela prova
+    que uma pessoa REAGIU, e em quanto tempo: "queda as 14:02:11, ciente as
+    14:02:40". Os dois horarios vem do relogio do servidor, e nunca se subtrai o
+    relogio de uma maquina do da outra.
+
+    Uma vez por alerta. Dois cliques, ou duas pessoas clicando juntas, sao UM
+    registro: a conferencia acontece depois do cadeado da cadeia, a mesma trava
+    que impede dois elos irmaos.
+
+    Sem login, o servidor nao sabe QUEM clicou — sabe de que maquina veio, e so
+    isso ele afirma."""
+    ref = f"evento-{c.evento_id}"
+    with cursor(escrita=True) as (cur, m):
+        travar(cur, m)
+        cur.execute(
+            f"""SELECT id, timestamp, tipo_evento, localizacao
+                FROM logs_seguranca_escola WHERE id = {m}""", (c.evento_id,))
+        ev = cur.fetchone()
+        if not ev:
+            raise HTTPException(404, f"nao existe o evento {c.evento_id}")
+        if ev[2] not in GRAVES:
+            raise HTTPException(400, f"'{ev[2]}' nao e alerta grave; so alerta grave tem ciente")
+
+        cur.execute(
+            f"""SELECT id, timestamp FROM logs_seguranca_escola
+                WHERE tipo_evento = 'ciente' AND aluno_id = {m}""", (ref,))
+        ja = cur.fetchone()
+        if ja:
+            ciente_id, momento, repetido = ja[0], str(ja[1]), True
+        else:
+            momento = agora_iso()
+            anterior = ponta(cur, m)
+            atual = hash_linha(momento, ref, "ciente", ev[3], anterior)
+            cur.execute(
+                f"""INSERT INTO logs_seguranca_escola
+                    (timestamp, aluno_id, tipo_evento, localizacao, hash_anterior, hash_atual)
+                    VALUES ({m}, {m}, {m}, {m}, {m}, {m})"""
+                + (" RETURNING id" if USANDO_PG else ""),
+                (momento, ref, "ciente", ev[3], anterior, atual),
+            )
+            ciente_id = cur.fetchone()[0] if USANDO_PG else cur.lastrowid
+            repetido = False
+
+    t_ev, t_ci = _como_data(ev[1]), _como_data(momento)
+    resposta = (round((t_ci - t_ev).total_seconds())
+                if t_ev is not None and t_ci is not None else None)
+    return {"evento_id": c.evento_id, "ciente_id": ciente_id, "momento": momento,
+            "resposta_s": resposta, "repetido": repetido,
+            "origem": req.client.host if req.client else None}
+
+
 @app.get("/api/verificar")
 def verificar() -> dict:
     """
@@ -962,6 +1058,7 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
         # existem para eventos que vieram da AIBOX.
         atraso: dict[int, int] = {}
         com_esqueleto: set[int] = set()
+        ciente_em: dict = {}
         if ids:
             marcas = ', '.join([m] * len(ids))
             cur.execute(f"SELECT evento_id, atraso_ms FROM recebidos "
@@ -970,6 +1067,13 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
             cur.execute(f"SELECT evento_id FROM esqueletos "
                         f"WHERE evento_id IN ({marcas})", tuple(ids))
             com_esqueleto = {r[0] for r in cur.fetchall()}
+            # Quem ja foi visto por alguem, e quando. O "ciente" e uma linha da
+            # propria cadeia que aponta para o alerta: evento-<id>.
+            refs = [f"evento-{i}" for i in ids]
+            cur.execute(f"""SELECT aluno_id, timestamp FROM logs_seguranca_escola
+                            WHERE tipo_evento = 'ciente' AND aluno_id IN ({marcas})""",
+                        tuple(refs))
+            ciente_em = {int(r[0].split("-", 1)[1]): r[1] for r in cur.fetchall()}
         saida = []
         for r in linhas:
             ficha = {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
@@ -979,7 +1083,13 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
                      # Segundos entre o fato e o registro. So aparece quando
                      # passa de 2 s: abaixo disso e o tempo normal de rede.
                      "atraso_s": (round(atraso[r[0]] / 1000)
-                                  if atraso.get(r[0], 0) >= 2000 else None)}
+                                  if atraso.get(r[0], 0) >= 2000 else None),
+                     # Segundos do registro do alerta ate alguem ficar ciente.
+                     "ciente_s": None}
+            if r[0] in ciente_em:
+                t_ev, t_ci = _como_data(r[1]), _como_data(ciente_em[r[0]])
+                if t_ev is not None and t_ci is not None:
+                    ficha["ciente_s"] = max(0, round((t_ci - t_ev).total_seconds()))
             if completo:
                 ficha["hash_anterior"] = r[6]
             saida.append(ficha)
@@ -1739,6 +1849,9 @@ if __name__ == "__main__":
     # o notebook da apresentacao). O padrao continua so nesta maquina.
     host = os.environ.get("HOST", "127.0.0.1")
 
+    if QUEM_ESCREVE:
+        print(f"[auditix] so gravam: {', '.join(sorted(QUEM_ESCREVE))} — "
+              "o resto da rede so le")
     print(f"[auditix] sala   -> http://127.0.0.1:{porta}/")
     print(f"[auditix] painel -> http://127.0.0.1:{porta}/painel")
     # Sem esta linha, um .env nao lido (ou salvo como .env.txt) some sem

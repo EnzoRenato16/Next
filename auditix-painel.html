@@ -172,6 +172,30 @@ header .marca p{ margin:3px 0 0; color:var(--ink-2); font-size:13.5px; }
 /* O atributo hidden NÃO vence um display escrito no próprio elemento: a imagem
    quebrada aparecia por cima do esqueleto. Aqui ele passa a valer de verdade. */
 #visor-img[hidden], #visor-corpo[hidden]{ display:none !important; }
+#alarme{ position:fixed; inset:0; z-index:55; display:flex; align-items:center;
+  justify-content:center; padding:18px; background:rgba(120,20,35,.72);
+  animation:alarme-pulsa 1.6s ease-in-out infinite; }
+#alarme[hidden]{ display:none; }
+@keyframes alarme-pulsa{ 50%{ background:rgba(120,20,35,.55); } }
+@media (prefers-reduced-motion:reduce){ #alarme{ animation:none; } }
+.alarme-cartao{ background:var(--card); color:var(--ink); border-radius:16px;
+  padding:26px 28px; max-width:min(520px,94vw); box-shadow:0 20px 60px rgba(0,0,0,.35);
+  border:2px solid var(--rubi); }
+.alarme-pre{ margin:0; color:var(--rubi); font-weight:600; letter-spacing:.12em;
+  text-transform:uppercase; font-size:13px; }
+/* Legível a dois metros: quem olha o painel de relance precisa ler o que
+   aconteceu sem chegar perto. */
+#alarme-tit{ margin:6px 0 4px; font-family:var(--disp); font-size:40px; line-height:1.05;
+  color:var(--rubi); }
+#alarme-onde{ margin:0; font-size:20px; }
+.alarme-ha{ margin:4px 0 18px; color:var(--ink-2); font-variant-numeric:tabular-nums; }
+.alarme-botoes{ display:flex; gap:10px; flex-wrap:wrap; }
+.alarme-ciente{ background:var(--rubi); color:#fff; border-color:var(--rubi);
+  font-size:18px; padding:12px 22px; font-weight:600; }
+.alarme-ciente:hover{ background:var(--rubi); color:#fff; filter:brightness(1.1); }
+.alarme-nota{ margin:14px 0 0; color:var(--ink-3); font-size:13px; }
+.marca-ciente{ color:var(--verde); font-size:12px; white-space:nowrap; }
+.marca-espera{ color:var(--rubi); font-size:12px; font-weight:600; white-space:nowrap; }
 .legenda i{ width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
 .legenda i.linha{ height:3px; border-radius:2px; }
 
@@ -236,16 +260,36 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
 <header>
   <div class="marca">
     <h1>Painel Auditix</h1>
-    <p>Leitura do banco da escola · esta página <b>não grava nada</b></p>
+    <p>Leitura do banco da escola · esta página só grava uma coisa: <b>quem ficou ciente de um alerta</b></p>
   </div>
   <div class="selos">
     <span class="selo" id="s-banco"><span class="pisca"></span>conectando…</span>
     <span class="selo" id="s-atual">—</span>
     <a class="btn" href="/cadeia" title="Recalcular os hashes no seu navegador"
        >Conferir a cadeia</a>
+    <button class="btn" id="b-som" aria-pressed="false"
+            title="O navegador só toca som depois de um clique na página">Ativar som</button>
     <button class="btn" id="b-tema" title="Alternar tema">Tema</button>
   </div>
 </header>
+
+<!-- O ALERTA QUE NÃO DÁ PARA NÃO VER. Uma queda na linha 14 de uma tabela é
+     uma queda que ninguém viu. Tela inteira, sirene até alguém assumir. -->
+<div id="alarme" hidden role="alertdialog" aria-modal="true" aria-labelledby="alarme-tit">
+  <div class="alarme-cartao">
+    <p class="alarme-pre">▲ alerta grave</p>
+    <h2 id="alarme-tit">—</h2>
+    <p id="alarme-onde">—</p>
+    <p id="alarme-ha" class="alarme-ha">—</p>
+    <div class="alarme-botoes">
+      <button class="btn alarme-ciente" id="alarme-ciente">Estou ciente</button>
+      <button class="btn" id="alarme-corpo" hidden>ver o corpo</button>
+    </div>
+    <p class="alarme-nota">"Estou ciente" vira uma linha na cadeia de hash, com o horário.
+      É o que prova que alguém reagiu — e em quanto tempo.</p>
+    <p class="alarme-nota" id="alarme-mais"></p>
+  </div>
+</div>
 
 <!-- ===================== integridade + KPIs ===================== -->
 <div class="faixa">
@@ -424,7 +468,7 @@ const NS = 'http://www.w3.org/2000/svg';
    tratada como emergência. Duas listas que discordam fariam o painel pintar de
    vermelho um evento que nunca gerou e-mail — e quem olha o painel confia nele
    para saber o que foi escalado. */
-const GRAVES = new Set(['queda','briga','pedido_ajuda',
+const GRAVES = new Set(['queda','briga','pedido_ajuda','agitacao',
                        'objeto_perigoso','patrimonio_sumiu']);
 const ROTULO = {
   queda:'queda', corrida:'corrida', briga:'briga',
@@ -877,6 +921,7 @@ function pintarTabela(){
              descer até a sala merece saber de qual das duas veio a linha. */
           (REGRA.has(e.tipo_evento) ? ' <span class="marca-regra">regra</span>' : '') +
           (HUMANO.has(e.tipo_evento) ? ' <span class="marca-humano">humano</span>' : '') +
+          (grave ? ' ' + marcaCiente(e) : '') +
           '</td>' +
         '<td>' + e.localizacao + '</td>' +
         '<td class="hash">' + e.aluno_id + '</td>' +
@@ -949,6 +994,135 @@ function evidencia(e){
     'enquanto o servidor estava fora e mandou quando ele voltou. O horário da ' +
     'linha é o da chegada.">aconteceu ' + e.atraso_s + ' s antes</span>');
   return b.length ? b.join(' ') : '<span style="color:var(--ink-3)">—</span>';
+}
+
+function marcaCiente(e){
+  if(e.ciente_s != null) return '<span class="marca-ciente" title="Tempo entre o registro ' +
+    'do alerta e alguém apertar Estou ciente. Os dois horários são do relógio do servidor.">' +
+    '✓ ciente em ' + duracao(e.ciente_s) + '</span>';
+  return pendente(e) ? '<span class="marca-espera">aguardando alguém</span>' : '';
+}
+
+function duracao(s){
+  if(s < 60) return s + ' s';
+  const m = Math.floor(s / 60), r = s % 60;
+  return m < 60 ? m + ' min' + (r ? ' ' + r + ' s' : '') : Math.round(m / 60) + ' h';
+}
+
+/* ================================================== alarme ================ */
+/* PENDENTE = grave, ninguém ciente, e dos últimos 10 minutos. A janela existe
+   para o painel aberto de manhã não disparar sirene pelos alertas de ontem —
+   e é larga o bastante para uma página recarregada no meio de uma ocorrência
+   não esquecer dela. */
+const JANELA_PENDENTE = 10 * 60 * 1000;
+function momentoDe(e){ return new Date(e.timestamp.replace(' ','T') + 'Z').getTime(); }
+function pendente(e){
+  return GRAVES.has(e.tipo_evento) && e.ciente_s == null &&
+         Date.now() - momentoDe(e) < JANELA_PENDENTE;
+}
+
+/* SOM. Oscilador puro, sem arquivo de áudio — adaptado do alarme do EPI Guard.
+   O navegador NÃO toca som antes de um clique na página; em vez de fingir que
+   vai tocar, o botão "Ativar som" diz o estado real. */
+let audio = null, somQuer = true;
+try{ somQuer = localStorage.getItem('auditix.som') !== '0'; }catch(e){}
+function somTocando(){ return !!audio && audio.state === 'running' && somQuer; }
+function pintarSom(){
+  const b = el('b-som');
+  b.setAttribute('aria-pressed', String(somTocando()));
+  b.textContent = somTocando() ? 'Som ligado' : (somQuer ? 'Ativar som' : 'Som desligado');
+}
+function destravarSom(){
+  try{
+    if(!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if(audio.state !== 'running') audio.resume().then(pintarSom).catch(() => {});
+  }catch(e){}
+  pintarSom();
+}
+/* Qualquer clique na página destrava o som, uma vez. */
+addEventListener('pointerdown', destravarSom, { once:true });
+el('b-som').addEventListener('click', () => {
+  if(somTocando()){ somQuer = false; }
+  else { somQuer = true; destravarSom(); }
+  try{ localStorage.setItem('auditix.som', somQuer ? '1' : '0'); }catch(e){}
+  pintarSom();
+});
+
+function sirene(){
+  if(!somTocando()) return;
+  for(let k = 0; k < 3; k++){
+    const osc = audio.createOscillator(), vol = audio.createGain();
+    osc.type = 'square'; osc.frequency.value = 880;
+    const t = audio.currentTime + k * 0.28;
+    vol.gain.setValueAtTime(0.0001, t);
+    vol.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+    vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(vol).connect(audio.destination);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+}
+
+let pendentes = [], mostrando = null, toque = null;
+
+function pintarAlarme(){
+  const a = el('alarme');
+  if(!pendentes.length){
+    a.hidden = true; mostrando = null;
+    clearInterval(toque); toque = null;
+    return;
+  }
+  /* O MAIS ANTIGO primeiro: é o que está esperando há mais tempo. */
+  const e = pendentes[0];
+  mostrando = e;
+  el('alarme-tit').textContent = nome(e.tipo_evento);
+  el('alarme-onde').textContent = e.localizacao + ' · ' + e.aluno_id;
+  el('alarme-ha').textContent = 'há ' + duracao(Math.max(0,
+    Math.round((Date.now() - momentoDe(e)) / 1000))) + ' sem ninguém ciente';
+  el('alarme-corpo').hidden = !e.tem_esqueleto;
+  el('alarme-mais').textContent = pendentes.length > 1
+    ? 'Mais ' + (pendentes.length - 1) + ' alerta(s) esperando depois deste.' : '';
+  if(a.hidden){
+    a.hidden = false;
+    el('alarme-ciente').focus();
+  }
+  if(!toque){ sirene(); toque = setInterval(sirene, 2000); }
+}
+
+el('alarme-ciente').addEventListener('click', async () => {
+  const e = mostrando; if(!e) return;
+  const b = el('alarme-ciente');
+  b.disabled = true;
+  try{
+    const r = await fetch('/api/ciente', { method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ evento_id: e.id }) });
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+    e.ciente_s = d.resposta_s;
+    pendentes = pendentes.filter(p => p.id !== e.id);
+    pintarAlarme();
+    carregar();
+  }catch(err){
+    el('alarme-mais').textContent = 'Não consegui registrar: ' + err.message;
+  }
+  b.disabled = false;
+});
+el('alarme-corpo').addEventListener('click', () => { if(mostrando) abrirCorpo(mostrando.id); });
+
+/* A VIGIA. A cada 2 s pergunta só os últimos alertas — com o banco no mesmo
+   PC isso não custa nada. A carga pesada (a cadeia inteira) continua a cada
+   15 s. Antes, uma queda levava até 15 s para aparecer, e esse atraso entraria
+   calado no tempo de resposta. */
+let maiorId = 0;
+async function vigiar(){
+  try{
+    const evs = await pegar('/api/eventos?limite=15');
+    pendentes = evs.filter(pendente).sort((a, b) => a.id - b.id);
+    pintarAlarme();
+    const topo = evs.reduce((m, e) => Math.max(m, e.id), 0);
+    if(maiorId && topo > maiorId) carregar();
+    maiorId = Math.max(maiorId, topo);
+  }catch(e){}
 }
 
 /* ================================================== visor do corpo ======= */
@@ -1232,6 +1406,9 @@ try{
 
 carregar();
 setInterval(carregar, 15000);
+pintarSom();
+vigiar();
+setInterval(vigiar, 2000);
 </script>
 </body>
 </html>
