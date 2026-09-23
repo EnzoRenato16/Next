@@ -11,6 +11,9 @@ correndo nao e o cenario de vigilancia para o qual ByteTrack foi feito, e um
 rastreador ruim escondido atras de um nome bonito e pior que um simples
 declarado.
 """
+import collections
+import math
+
 from . import medidas, regras
 
 SUMIU_MS = 1500      # tempo sem ver antes de encerrar a trilha
@@ -28,6 +31,41 @@ def _iou(a, b):
     ua = (a[2] - a[0]) * (a[3] - a[1])
     ub = (b[2] - b[0]) * (b[3] - b[1])
     return inter / max(ua + ub - inter, 1e-9)
+
+
+# A PROVA SEM ROSTO. Cada pessoa carrega os ultimos segundos de pontos do corpo,
+# para que um alerta de queda leve junto o corpo DESCENDO — evidencia que mostra
+# o que aconteceu sem identificar ninguem. E so uma lista de referencias: o
+# custo por quadro e praticamente zero, e so no alerta os numeros sao copiados.
+POSES_MS = 3000
+
+
+def poses_da_prova(t, agora, asp, janela_ms=2500, maximo=24):
+    """Os ultimos segundos do corpo, prontos para ir junto com o alerta.
+
+    O x sai MULTIPLICADO pela proporcao da imagem: os pontos chegam de 0 a 1 na
+    largura e de 0 a 1 na altura, e desenhados assim numa tela quadrada o corpo
+    sairia esticado. Com x em "alturas de quadro", quem desenha nao precisa
+    saber a resolucao da camera.
+
+    Mais que `maximo` quadros e rarefeito por igual, mantendo SEMPRE o ultimo —
+    ele e o corpo no chao, que e o que a prova precisa mostrar."""
+    q = [kp for (tq, kp) in getattr(t, "_poses", ()) if agora - tq <= janela_ms]
+    if not q:
+        return None
+    if len(q) > maximo:
+        passo = (len(q) - 1) / (maximo - 1)
+        q = [q[round(i * passo)] for i in range(maximo)]
+    saida = []
+    for kp in q:
+        quadro = []
+        for ponto in kp:
+            x, y, c = float(ponto[0]), float(ponto[1]), float(ponto[2])
+            if not (math.isfinite(x) and math.isfinite(y) and math.isfinite(c)):
+                x, y, c = 0.0, 0.0, 0.0     # ponto que o detector nao viu
+            quadro.append([round(x * asp, 4), round(y, 4), round(c, 3)])
+        saida.append(quadro)
+    return saida
 
 
 class Rebanho:
@@ -92,6 +130,12 @@ class Rebanho:
         for tid in list(vistos):
             t = self.trilhas[tid]
             t.caixa = medidas.caixa(t._kp)
+            poses = getattr(t, "_poses", None)
+            if poses is None:
+                poses = t._poses = collections.deque()
+            poses.append((agora, t._kp))
+            while poses and agora - poses[0][0] > POSES_MS:
+                poses.popleft()
             alertas += t.ver(t._kp, asp, agora)
 
         # 4. A briga vem DEPOIS de todas as trilhas analisadas, nunca no meio:

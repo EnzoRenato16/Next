@@ -169,6 +169,9 @@ header .marca p{ margin:3px 0 0; color:var(--ink-2); font-size:13.5px; }
    continua por cima da página inteira, invisível, comendo todo clique. */
 #visor{ display:flex; }
 #visor[hidden]{ display:none; }
+/* O atributo hidden NÃO vence um display escrito no próprio elemento: a imagem
+   quebrada aparecia por cima do esqueleto. Aqui ele passa a valer de verdade. */
+#visor-img[hidden], #visor-corpo[hidden]{ display:none !important; }
 .legenda i{ width:11px; height:11px; border-radius:3px; display:inline-block; flex:none; }
 .legenda i.linha{ height:3px; border-radius:2px; }
 
@@ -385,6 +388,8 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
     </div>
     <div class="corpo">
       <img id="visor-img" alt="Recorte do instante do alerta" style="width:100%; border-radius:8px; display:block">
+      <svg id="visor-corpo" hidden role="img" aria-label="Esqueleto do corpo nos segundos do alerta"
+           style="width:100%; aspect-ratio:4/3; background:var(--sunk); border-radius:8px; display:block"></svg>
       <p class="nota" id="visor-nota" style="margin:10px 0 0"></p>
     </div>
   </div>
@@ -856,7 +861,7 @@ function pintarTabela(){
   if(!evs.length){ vazio(el('tabela'), 'Nenhum evento gravado ainda.'); return; }
   el('tabela').innerHTML =
     '<table><thead><tr><th>#</th><th>Quando</th><th>Tipo</th><th>Local</th>' +
-    '<th>Aluno</th><th>Hash</th><th>Imagem</th></tr></thead><tbody>' +
+    '<th>Aluno</th><th>Hash</th><th>Evidência</th></tr></thead><tbody>' +
     evs.map(e => {
       const grave = GRAVES.has(e.tipo_evento);
       const q = new Date(e.timestamp.replace(' ','T') + 'Z');
@@ -876,11 +881,10 @@ function pintarTabela(){
         '<td>' + e.localizacao + '</td>' +
         '<td class="hash">' + e.aluno_id + '</td>' +
         '<td><span class="hash">' + e.hash_atual.slice(0,12) + '…</span></td>' +
-        /* O botão só aparece onde existe imagem: oferecer um que abre "não tem
-           nada aqui" é pior do que não oferecer nada. */
-        '<td>' + (e.tem_foto
-          ? '<button class="btn" data-foto="' + e.id + '">ver</button>'
-          : '<span style="color:var(--ink-3)">—</span>') + '</td></tr>';
+        /* O botão só aparece onde existe evidência: oferecer um que abre "não
+           tem nada aqui" é pior do que não oferecer nada. A foto vem da Sala do
+           navegador; o CORPO vem da AIBOX, que não manda foto. */
+        '<td>' + evidencia(e) + '</td></tr>';
     }).join('') + '</tbody></table>';
 }
 
@@ -935,10 +939,119 @@ function desdeHoras(h){
   return 'há ' + d + (d === 1 ? ' dia' : ' dias');
 }
 
+function evidencia(e){
+  const b = [];
+  if(e.tem_foto) b.push('<button class="btn" data-foto="' + e.id + '">foto</button>');
+  if(e.tem_esqueleto) b.push('<button class="btn" data-corpo="' + e.id + '">corpo</button>');
+  /* Chegou atrasado porque a caixa guardou o alerta enquanto o servidor estava
+     fora. O horário da linha é o da CHEGADA; o fato foi antes, e isso é dito. */
+  if(e.atraso_s) b.push('<span class="marca-comum" title="A caixa guardou este alerta ' +
+    'enquanto o servidor estava fora e mandou quando ele voltou. O horário da ' +
+    'linha é o da chegada.">aconteceu ' + e.atraso_s + ' s antes</span>');
+  return b.length ? b.join(' ') : '<span style="color:var(--ink-3)">—</span>';
+}
+
+/* ================================================== visor do corpo ======= */
+/* A PROVA SEM ROSTO. Os 17 pontos do corpo nos segundos do alerta, desenhados
+   quadro a quadro: dá para ver o corpo descendo, e não dá para ver de quem é. */
+const OSSOS = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],
+               [11,13],[13,15],[12,14],[14,16],[0,1],[0,2],[1,3],[2,4]];
+const CONF_MIN = 0.30;
+let animaCorpo = null;
+
+function desenharCorpo(svg, poses, i, caixa){
+  const [x0, y0, lado] = caixa;
+  const X = v => ((v - x0) / lado * 400).toFixed(1);
+  const Y = v => ((v - y0) / lado * 400).toFixed(1);
+  const q = poses[i];
+  const ultimo = i === poses.length - 1;
+  const cor = ultimo ? 'var(--rubi)' : 'var(--verde)';
+  let h = '';
+  /* Rastro: os quadros anteriores em cinza, para a descida aparecer mesmo
+     numa imagem parada. */
+  for(let k = 0; k < i; k += Math.max(1, Math.floor(poses.length / 6))){
+    for(const [a, b] of OSSOS){
+      const p = poses[k][a], r = poses[k][b];
+      if(p[2] < CONF_MIN || r[2] < CONF_MIN) continue;
+      h += '<line x1="' + X(p[0]) + '" y1="' + Y(p[1]) + '" x2="' + X(r[0]) +
+           '" y2="' + Y(r[1]) + '" stroke="currentColor" stroke-opacity=".14" stroke-width="2"/>';
+    }
+  }
+  for(const [a, b] of OSSOS){
+    const p = q[a], r = q[b];
+    if(p[2] < CONF_MIN || r[2] < CONF_MIN) continue;
+    h += '<line x1="' + X(p[0]) + '" y1="' + Y(p[1]) + '" x2="' + X(r[0]) +
+         '" y2="' + Y(r[1]) + '" stroke="' + cor + '" stroke-width="5" stroke-linecap="round"/>';
+  }
+  for(const p of q){
+    if(p[2] < CONF_MIN) continue;
+    h += '<circle cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="4" fill="currentColor"/>';
+  }
+  svg.innerHTML = h;
+}
+
+/* Um enquadramento só para a sequência inteira: com uma caixa por quadro o
+   boneco ficaria sempre do mesmo tamanho e a queda não apareceria. */
+function enquadrar(poses){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for(const q of poses) for(const p of q){
+    if(p[2] < CONF_MIN) continue;
+    x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]);
+    y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]);
+  }
+  if(!isFinite(x0)) return [0, 0, 1];
+  const lado = Math.max(x1 - x0, (y1 - y0)) * 1.25 || 1;
+  return [(x0 + x1) / 2 - lado / 2, (y0 + y1) / 2 - lado / 2, lado];
+}
+
+async function abrirCorpo(id){
+  const v = el('visor'), svg = el('visor-corpo');
+  el('visor-tit').textContent = 'O corpo no evento #' + id;
+  /* toggleAttribute, e não .hidden: num <svg> a propriedade hidden não existe,
+     e escrever nela não mexe no atributo — o esqueleto ficava escondido. */
+  el('visor-img').toggleAttribute('hidden', true);
+  svg.toggleAttribute('hidden', false);
+  svg.setAttribute('viewBox', '0 0 400 400');
+  svg.style.color = 'var(--ink-2)';
+  svg.innerHTML = '';
+  el('visor-nota').textContent = 'abrindo…';
+  v.hidden = false;
+  clearInterval(animaCorpo);
+  try{
+    const d = await pegar('/api/esqueleto/' + id);
+    const poses = d.poses, caixa = enquadrar(poses);
+    let i = 0, pausa = 0;
+    desenharCorpo(svg, poses, 0, caixa);
+    /* Toca a sequência e segura o último quadro — o corpo no chão — antes de
+       recomeçar. É o quadro que a conferência humana precisa ver. */
+    animaCorpo = setInterval(() => {
+      if(i < poses.length - 1){ i++; desenharCorpo(svg, poses, i, caixa); return; }
+      if(++pausa > 12){ i = 0; pausa = 0; desenharCorpo(svg, poses, 0, caixa); }
+    }, 110);
+    el('visor-nota').textContent =
+      'Os ' + poses.length + ' últimos quadros do corpo antes do alerta, em vermelho ' +
+      'o último. São só os 17 pontos do corpo: nenhuma imagem da câmera, e nada ' +
+      'que diga de quem é o corpo. É evidência de apoio para a conferência humana — ' +
+      'o que a cadeia de hash protege é o fato de o alerta ter existido.';
+  }catch(err){
+    el('visor-nota').textContent = 'Sem esqueleto para este evento.';
+  }
+}
+
+function fecharVisor(){
+  el('visor').hidden = true;
+  clearInterval(animaCorpo);
+  el('visor-img').toggleAttribute('hidden', false);
+  el('visor-corpo').toggleAttribute('hidden', true);
+}
+
 /* ================================================== visor da imagem ====== */
 async function abrirFoto(id){
   const v = el('visor');
   el('visor-tit').textContent = 'Imagem do evento #' + id;
+  clearInterval(animaCorpo);
+  el('visor-corpo').toggleAttribute('hidden', true);
+  el('visor-img').toggleAttribute('hidden', false);
   el('visor-img').removeAttribute('src');
   el('visor-nota').textContent = 'abrindo…';
   v.hidden = false;
@@ -957,15 +1070,17 @@ async function abrirFoto(id){
   }
 }
 
-el('visor-fechar').addEventListener('click', () => { el('visor').hidden = true; });
+el('visor-fechar').addEventListener('click', fecharVisor);
 el('visor').addEventListener('click', e => {
-  if(e.target === el('visor')) el('visor').hidden = true;
+  if(e.target === el('visor')) fecharVisor();
 });
-addEventListener('keydown', e => { if(e.key === 'Escape') el('visor').hidden = true; });
+addEventListener('keydown', e => { if(e.key === 'Escape') fecharVisor(); });
 
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-foto]');
   if(b) abrirFoto(+b.dataset.foto);
+  const c = e.target.closest('[data-corpo]');
+  if(c) abrirCorpo(+c.dataset.corpo);
 });
 
 document.querySelectorAll('[data-mapa]').forEach(b => {

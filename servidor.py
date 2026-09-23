@@ -1035,6 +1035,24 @@ def guardar_foto(f: Foto) -> dict:
     return {"guardada": f.evento_id, "apaga_em_dias": FOTO_DIAS}
 
 
+@app.get("/api/esqueleto/{evento_id}")
+def ler_esqueleto(evento_id: int) -> dict:
+    """Os pontos do corpo nos segundos do alerta — a prova sem rosto.
+
+    Diferente da foto, esta leitura NAO vira linha de registro de acesso: 17
+    pontos de um corpo nao dizem de quem e o corpo. O registro de acesso da foto
+    existe porque a foto identifica; aqui nao ha o que proteger dessa forma.
+
+    O x vem em "alturas de quadro" (a caixa ja multiplicou pela proporcao da
+    imagem), entao quem desenha nao precisa saber a resolucao da camera."""
+    with cursor() as (cur, m):
+        cur.execute(f"SELECT poses FROM esqueletos WHERE evento_id = {m}", (evento_id,))
+        linha = cur.fetchone()
+    if not linha:
+        raise HTTPException(404, "este evento nao tem esqueleto")
+    return {"evento_id": evento_id, "poses": json.loads(linha[0])}
+
+
 @app.get("/api/foto/{evento_id}")
 def ler_foto(evento_id: int, req: Request) -> dict:
     """Devolve a imagem E registra a consulta. Ver quem caiu e um ato que deixa

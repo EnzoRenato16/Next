@@ -254,7 +254,14 @@ def main():
                 quem = cara.nome_de(al["corpo"]) if cara is not None else None
                 # Entrega e segue. Se o PC nao responder, quem guarda e reenvia
                 # e a thread de entrega — e ela avisa na tela quando isso acontece.
-                fala.evento(al["tipo"], al["corpo"], quem, t_quadro=t_quadro)
+                # A PROVA SEM ROSTO vai junto: os ultimos segundos do corpo,
+                # em numeros. Sem ela o alerta da caixa chegava ao painel sem
+                # evidencia nenhuma — a caixa nao manda foto.
+                dono = rebanho.trilhas.get(al["corpo"])
+                poses = (trilhas.poses_da_prova(dono, agora, asp)
+                         if dono is not None else None)
+                fala.evento(al["tipo"], al["corpo"], quem, poses=poses,
+                            t_quadro=t_quadro)
                 print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
                       f" — {al['porque']}")
 
