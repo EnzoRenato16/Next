@@ -127,6 +127,11 @@ def main():
     # caixa que ja esta apertada de quadros por segundo, e a analise de queda —
     # que e o que o desafio pede — nao pode piorar porque um extra foi ligado
     # sem ninguem decidir. Quem liga, decide.
+    # VIDEO FLUIDO: a imagem ao vivo no ritmo da camera, e nao no da analise.
+    # Desligado por padrao: codificar JPEG a 25/s custa CPU numa caixa cheia.
+    # Ligue e compare a linha do --mostrar (analise/s) com e sem ele.
+    p.add_argument("--fluido", action="store_true",
+                   help="imagem ao vivo no ritmo da camera (custa CPU; meca)")
     p.add_argument("--rosto", action="store_true",
                    help="reconhece quem esta cadastrado (usa o motor de daten/)")
     a = p.parse_args()
@@ -183,7 +188,24 @@ def main():
         print(f"[aibox] imagem ao vivo em http://<ip-da-caixa>:{a.web}")
 
     import cv2
-    cap = abrir_camera(fonte)
+    pintor = None
+    if a.fluido:
+        if janela is None:
+            print("[aibox] --fluido sem janela ao vivo (--web 0): ignorado")
+        else:
+            pintor = vivo_mod.Pintor(janela, cv2)
+
+    def ligar(c):
+        # O espiao e reposto a CADA reabertura: a camera nova e outro objeto, e
+        # sem isto a tela fluida congelaria no primeiro soluco da rede.
+        if pintor is not None:
+            if hasattr(c, "espiar"):
+                c.espiar = pintor.novo_quadro
+            else:
+                print("[aibox] --fluido so funciona com camera RTSP (gstcam)")
+        return c
+
+    cap = ligar(abrir_camera(fonte))
     # FALHA CEDO E EM VOZ ALTA. Sem isto, uma URL errada entra no laco de
     # reconexao e fica tentando para sempre, calada — e quem esta instalando
     # passa vinte minutos achando que a camera e que esta ruim.
@@ -225,7 +247,7 @@ def main():
                 # morrer no meio da aula nao e.
                 cap.release()
                 time.sleep(RECONECTA_S)
-                cap = abrir_camera(fonte)
+                cap = ligar(abrir_camera(fonte))
                 continue
 
             # O relogio do alerta comeca AQUI, quando o quadro chegou a analise.
@@ -296,18 +318,26 @@ def main():
             # mais que exibi-la, e numa caixa a 8 quadros por segundo essa
             # diferenca e a demonstracao inteira.
             if janela is not None and janela.clientes:
-                pintado = vivo_mod.desenhar(cv2, img.copy(),
-                                            list(rebanho.trilhas.values()))
-                feito, buf = cv2.imencode(".jpg", pintado,
-                                          [int(cv2.IMWRITE_JPEG_QUALITY), 70])
-                if feito:
-                    janela.publicar(buf.tobytes(), dict(
-                        fps=quadros / max(time.monotonic() - t0, 1e-6),
-                        rede=ms_rede, analise=ms_analise,
-                        cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
-                        corpos=len(rebanho.trilhas), enviados=fala.enviados,
-                        falhas=fala.falhas, pendentes=fala.pendentes,
-                        ultimo_ms=fala.ultimo_ms, servidor=fala.base))
+                numeros = dict(
+                    fps=quadros / max(time.monotonic() - t0, 1e-6),
+                    rede=ms_rede, analise=ms_analise,
+                    cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
+                    corpos=len(rebanho.trilhas), enviados=fala.enviados,
+                    falhas=fala.falhas, pendentes=fala.pendentes,
+                    ultimo_ms=fala.ultimo_ms, servidor=fala.base)
+                if pintor is not None:
+                    # Quem desenha e o pintor, no ritmo da camera. Aqui so vai
+                    # a lista (NOVA, porque o dicionario muda de tamanho
+                    # enquanto ele desenha) e os numeros.
+                    pintor.trilhas_da_analise(list(rebanho.trilhas.values()))
+                    janela.numeros(numeros)
+                else:
+                    pintado = vivo_mod.desenhar(cv2, img.copy(),
+                                                list(rebanho.trilhas.values()))
+                    feito, buf = cv2.imencode(".jpg", pintado,
+                                              [int(cv2.IMWRITE_JPEG_QUALITY), 70])
+                    if feito:
+                        janela.publicar(buf.tobytes(), numeros)
 
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()
@@ -342,6 +372,8 @@ def main():
             cara.fechar()
         cap.release()
         getattr(vis, "fechar", lambda: None)()
+        if pintor is not None:
+            pintor.fechar()
         if janela is not None:
             janela.fechar()
         seg = max(time.monotonic() - t0, 1e-6)

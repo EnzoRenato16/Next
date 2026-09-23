@@ -86,6 +86,10 @@ class Gst:
         # Aqui o descarte e explicito e o atraso fica limitado a um quadro.
         self.ultimo = None
         self.vivo = True
+        # Quem mais quer ver cada quadro, alem da analise: a tela fluida
+        # (--fluido). So recebe a REFERENCIA do quadro, na hora — codificar
+        # JPEG aqui dentro atrasaria a leitura da camera.
+        self.espiar = None
         self.lidos = 0          # quantos a camera entregou
         self.perdidos = 0       # quantos foram descartados por atraso
         self._trava = threading.Lock()
@@ -111,6 +115,9 @@ class Gst:
                     self.perdidos += 1
                 self.ultimo = q
                 self.lidos += 1
+            espiao = self.espiar
+            if espiao is not None:
+                espiao(q)
 
     def isOpened(self):
         return self.p.poll() is None

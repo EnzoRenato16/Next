@@ -67,7 +67,8 @@ main{padding:20px;max-width:1100px;margin:0 auto}
 <main>
   <div class="palco"><img src="/video" alt="imagem ao vivo da camera da sala"></div>
   <div class="nums">
-    <div class="n"><b id="fps">--</b><span>quadros/s</span></div>
+    <div class="n"><b id="fps">--</b><span>analise/s</span></div>
+    <div class="n"><b id="video">--</b><span>video/s</span></div>
     <div class="n"><b id="rede">--</b><span>modelo (ms)</span></div>
     <div class="n"><b id="analise">--</b><span>analise (ms)</span></div>
     <div class="n"><b id="cpu">--</b><span>cpu</span></div>
@@ -88,6 +89,10 @@ setInterval(async () => {
   try{
     const e = await (await fetch('/estado')).json();
     $('fps').textContent = e.fps.toFixed(1);
+    /* Sem --fluido o video anda junto com a analise, e os dois numeros sao o
+       mesmo. Com --fluido, o video anda no ritmo da camera — e o numero da
+       analise continua ali do lado, para ninguem confundir um com o outro. */
+    $('video').textContent = (e.video || e.fps).toFixed(1);
     $('rede').textContent = Math.round(e.rede);
     $('analise').textContent = e.analise.toFixed(1);
     $('cpu').textContent = Math.round(e.cpu) + '%';
@@ -131,7 +136,8 @@ class Vivo:
         self.jpeg = None
         self.estado = dict(fps=0.0, rede=0.0, analise=0.0, cpu=0.0,
                            ram=0.0, corpos=0, enviados=0, falhas=0,
-                           pendentes=0, ultimo_ms=None, servidor="")
+                           pendentes=0, ultimo_ms=None, video=0.0,
+                           servidor="")
         self.clientes = 0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))
@@ -143,6 +149,12 @@ class Vivo:
             self.jpeg = jpeg
             self.estado.update(estado)
 
+    def numeros(self, estado):
+        """So os numeros, sem mexer no quadro. E o que o laco da analise usa
+        quando quem desenha o video e o Pintor (--fluido)."""
+        with self._trava:
+            self.estado.update(estado)
+
     def pegar(self):
         with self._trava:
             return self.jpeg
@@ -152,6 +164,78 @@ class Vivo:
             self._srv.shutdown()
         except Exception:
             pass
+
+
+class Pintor:
+    """VIDEO FLUIDO (--fluido): a tela no ritmo da camera, e nao no da analise.
+
+    Sem isto, a imagem ao vivo so ganhava quadro novo quando a analise terminava
+    um — e ficava travada nos ~8,7 quadros por segundo do modelo, mesmo com a
+    camera entregando mais. A deteccao de queda nao precisa de mais que isso (a
+    rede normaliza pela taxa medida); quem precisa e o olho de quem assiste.
+
+    O PRECO, dito na cara: o esqueleto desenhado num quadro novo e o da ULTIMA
+    analise, entao fica ate um intervalo de analise atras do corpo. Nao ha
+    interpolacao de proposito: desenhar um esqueleto entre duas analises seria
+    desenhar pontos que o modelo NAO mediu, num sistema que se vende como
+    auditavel. A tela mostra os dois ritmos lado a lado.
+
+    O CUSTO: codificar JPEG no ritmo da camera gasta CPU numa caixa que ja esta
+    cheia. Por isso so trabalha com ALGUEM ASSISTINDO, tem teto de quadros por
+    segundo, e vem desligado.
+    """
+
+    def __init__(self, janela, cv2, teto=25.0):
+        self.janela = janela
+        self.cv2 = cv2
+        self.intervalo = 1.0 / max(teto, 1.0)
+        self.trilhas = []
+        self.fps_video = 0.0
+        self._quadro = None
+        self._novo = threading.Event()
+        self._vivo = True
+        threading.Thread(target=self._laco, name="pintor", daemon=True).start()
+
+    def novo_quadro(self, q):
+        """Chamado pela thread da camera. So guarda a referencia e avisa."""
+        self._quadro = q
+        self._novo.set()
+
+    def trilhas_da_analise(self, trilhas):
+        """Chamado pelo laco da analise, com uma LISTA NOVA a cada quadro:
+        o dicionario de trilhas muda de tamanho enquanto o pintor desenha."""
+        self.trilhas = trilhas
+
+    def fechar(self):
+        self._vivo = False
+        self._novo.set()
+
+    def _laco(self):
+        import time
+        feitos, marco = 0, time.monotonic()
+        while self._vivo:
+            self._novo.wait(timeout=1.0)
+            self._novo.clear()
+            q = self._quadro
+            if q is None or not self.janela.clientes:
+                continue          # ninguem olhando: custo zero
+            t0 = time.monotonic()
+            img = desenhar(self.cv2, q.copy(), self.trilhas)
+            feito, buf = self.cv2.imencode(".jpg", img,
+                                           [int(self.cv2.IMWRITE_JPEG_QUALITY), 70])
+            if feito:
+                with self.janela._trava:
+                    self.janela.jpeg = buf.tobytes()
+                feitos += 1
+            agora = time.monotonic()
+            if agora - marco >= 1.0:
+                self.fps_video = feitos / (agora - marco)
+                feitos, marco = 0, agora
+                self.janela.numeros(dict(video=self.fps_video))
+            # O teto: sobra de tempo vira folga para a analise, nao quadro a mais.
+            resto = self.intervalo - (time.monotonic() - t0)
+            if resto > 0:
+                time.sleep(resto)
 
 
 def _fabricar(vivo):
