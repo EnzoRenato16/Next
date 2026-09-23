@@ -7,6 +7,7 @@
     python3 aibox/medir.py            # tudo
     python3 aibox/medir.py --camera   # so o teto da camera
     python3 aibox/medir.py --modelo   # so o modelo
+    python3 aibox/medir.py --nucleos  # nucleos grandes x todos (QCS6490)
 
 POR QUE MEDIR ANTES DE OTIMIZAR. O alvo de 30 quadros por segundo tem DOIS
 tetos independentes, e mexer no errado e trabalho jogado fora:
@@ -120,13 +121,81 @@ def teto_do_modelo():
     return saida
 
 
+def _uma_bancada(modo):
+    """Roda DENTRO de um processo novo: o modelo so aprende em quais nucleos
+    pode rodar no momento em que e carregado. Imprime MEDIANA=<ms>."""
+    import numpy as np
+    from ultralytics import YOLO
+    from aibox import nucleos
+    if modo == "grandes":
+        nucleos.prender_nos_grandes()
+    t = int(os.environ.get("CAM_IMGSZ", "320"))
+    m = YOLO(os.environ.get("MODELO", "yolo11n-pose.pt"))
+    img = np.random.randint(0, 255, (360, 640, 3), dtype=np.uint8)
+    for _ in range(AQUECE):
+        m.predict(img, imgsz=t, verbose=False, classes=[0])
+    tempos = []
+    for _ in range(MEDE):
+        a = time.perf_counter()
+        m.predict(img, imgsz=t, verbose=False, classes=[0])
+        tempos.append((time.perf_counter() - a) * 1000)
+    print(f"MEDIANA={statistics.median(tempos):.2f}", flush=True)
+
+
+def comparar_nucleos():
+    """Todos os nucleos contra so os grandes, no tamanho que a caixa usa.
+
+    Existe porque a QCS6490 tem nucleos de dois tamanhos e o ONNX Runtime
+    divide o modelo igualmente entre todos — o que pode fazer os pequenos virem
+    o gargalo. Pode. Por isso e medido, e nao ligado por palpite."""
+    import subprocess
+    from aibox import nucleos
+    fq = nucleos.frequencias()
+    grandes, pequenos = nucleos.grupos()
+    if not fq:
+        print("  nao consegui ler as frequencias em /sys; pulando")
+        return None
+    for n in sorted(fq):
+        tipo = "grande" if n in grandes else ("pequeno" if n in pequenos else "")
+        print(f"  nucleo {n}: {fq[n] / 1e6:.2f} GHz  {tipo}")
+    if not grandes:
+        print("  todos iguais: nao ha o que separar")
+        return None
+
+    res = {}
+    for modo in ("todos", "grandes"):
+        r = subprocess.run([sys.executable, os.path.abspath(__file__), "--_bancada", modo],
+                           capture_output=True, text=True, cwd=RAIZ)
+        linha = [x for x in r.stdout.splitlines() if x.startswith("MEDIANA=")]
+        if not linha:
+            print(f"  {modo}: falhou  {(r.stderr or '').strip()[-200:]}")
+            return None
+        res[modo] = float(linha[0].split("=")[1])
+    t, g = res["todos"], res["grandes"]
+    print(f"\n  todos os {len(fq)} nucleos : {t:6.1f} ms  ({1000 / t:4.1f}/s)")
+    print(f"  so os {len(grandes)} grandes  : {g:6.1f} ms  ({1000 / g:4.1f}/s)")
+    # 5% de folga: menos que isso e ruido de medida, e trocar configuracao por
+    # ruido e o jeito mais facil de piorar sem perceber.
+    if g < t * 0.95:
+        print(f"  GANHA {100 * (1 - g / t):.0f}%. Ponha no .env:  NUCLEOS=grandes")
+        print("  e confira na linha do --mostrar que os quadros/s subiram de verdade:")
+        print("  esta bancada mede o modelo sozinho, sem a camera decodificando junto.")
+    else:
+        print("  NAO GANHA nesta caixa. Deixe como esta (sem NUCLEOS no .env).")
+    return res
+
+
 def main():
     carregar_env()
     p = argparse.ArgumentParser(description="quanto esta caixa aguenta")
     p.add_argument("--camera", action="store_true")
     p.add_argument("--modelo", action="store_true")
+    p.add_argument("--nucleos", action="store_true")
+    p.add_argument("--_bancada", help=argparse.SUPPRESS)
     a = p.parse_args()
-    tudo = not (a.camera or a.modelo)
+    if a._bancada:
+        return _uma_bancada(a._bancada)
+    tudo = not (a.camera or a.modelo or a.nucleos)
 
     taxa = None
     if tudo or a.camera:
@@ -136,6 +205,10 @@ def main():
     if tudo or a.modelo:
         print("\n=== TETO DO MODELO ===")
         modelo = teto_do_modelo()
+
+    if tudo or a.nucleos:
+        print("\n=== NUCLEOS GRANDES x TODOS ===")
+        comparar_nucleos()
 
     if modelo:
         print("\n=== LEITURA ===")

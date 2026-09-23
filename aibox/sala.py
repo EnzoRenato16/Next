@@ -147,6 +147,11 @@ def main():
     else:
         de_onde = str(fonte)
     print(f"[aibox] olho: {a.olho}   camera: {de_onde}")
+    # ANTES de carregar o modelo: as threads do ONNX Runtime herdam o nucleo
+    # de quem as cria. Ver aibox/nucleos.py — e so ligue depois de medir.
+    if os.environ.get("NUCLEOS", "").strip().lower() == "grandes":
+        from aibox import nucleos
+        print(f"[aibox] nucleos: {nucleos.prender_nos_grandes()}")
     vis = olho_mod.abrir(a.olho, a.modelo)
     fala = Fala(a.servidor, a.local)
     rebanho = trilhas.Rebanho()

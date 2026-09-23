@@ -68,7 +68,13 @@ class Gst:
         # GStreamer escreve "Unauthorized (401)" ali — e quem esta instalando
         # precisa VER isso. Um leitor que falha calado faz a pessoa procurar o
         # defeito no lugar errado por vinte minutos.
-        self.p = subprocess.Popen(_comando(url), stdout=subprocess.PIPE)
+        # Com NUCLEOS=grandes, o Python fica nos nucleos grandes (o modelo) e
+        # este filho nasce nos pequenos: decodificar e leve e cabe neles, e nao
+        # disputa com a inferencia. Sem a variavel, nao muda nada.
+        from aibox import nucleos
+        self.p = subprocess.Popen(_comando(url), stdout=subprocess.PIPE,
+                                  preexec_fn=(nucleos.soltar_nos_pequenos
+                                              if os.name == "posix" else None))
 
         # O QUADRO E LIDO NUMA THREAD PROPRIA, e so o MAIS NOVO e guardado.
         #
