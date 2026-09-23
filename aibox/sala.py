@@ -35,7 +35,6 @@ ela engasgar no meio da demonstracao, e a analise nao ganha nada com 4K — os
 pontos do corpo saem iguais.
 """
 import argparse
-import json
 import os
 import sys
 import time
@@ -89,63 +88,9 @@ def abrir_camera(url):
     return cap
 
 
-class Fala:
-    """Conversa com o servidor. Falha em silencio para nao derrubar o laco, mas
-    CONTA as falhas — um enviador que erra calado e indistinguivel de um que
-    funciona, e foi assim que a foto do alerta ficou um dia sem subir."""
-
-    def __init__(self, base, camera):
-        # `requests` e o caminho bom, mas ele NAO E GARANTIDO no venv da caixa, e
-        # um ImportError aqui derrubaria a analise inteira por causa do envio —
-        # a parte que pode falhar sem matar nada. urllib vem no Python.
-        try:
-            import requests
-            self.req = requests
-        except ImportError:
-            self.req = None
-        self.base = base.rstrip("/")
-        self.camera = camera
-        self.enviados = 0
-        self.falhas = 0
-
-    def _post(self, rota, corpo, espera):
-        """Devolve o codigo HTTP, ou 0 se nem chegou a falar com o servidor."""
-        alvo = f"{self.base}{rota}"
-        if self.req is not None:
-            r = self.req.post(alvo, timeout=espera, json=corpo)
-            return r.status_code
-        import urllib.error
-        import urllib.request
-        pedido = urllib.request.Request(
-            alvo, data=json.dumps(corpo).encode("utf-8"),
-            headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with urllib.request.urlopen(pedido, timeout=espera) as r:
-                return r.status
-        except urllib.error.HTTPError as e:
-            # urllib LEVANTA em 4xx/5xx; requests devolve o codigo. Sem isto os
-            # dois caminhos se comportavam diferente, e o 403 de "calibracao
-            # desligada" — que e informacao, nao erro — virava falha de rede.
-            return e.code
-
-    def evento(self, tipo, corpo, quem=None):
-        try:
-            if 200 <= self._post("/api/evento", dict(
-                    aluno_id=(quem or f"corpo-{corpo}")[:50], tipo_evento=tipo,
-                    localizacao=self.camera), 4) < 300:
-                self.enviados += 1
-                return True
-        except Exception:
-            pass
-        self.falhas += 1
-        return False
-
-    def calibracao(self, amostras):
-        try:
-            return self._post("/api/calibracao",
-                              dict(camera=self.camera, amostras=amostras), 6)
-        except Exception:
-            return 0                        # 403 = registro desligado la
+# A entrega mora em aibox/entrega.py: fila, thread e reenvio sem duplicar.
+# O laco daqui so ENTREGA e segue — nunca espera a rede.
+from aibox.entrega import Fala  # noqa: E402
 
 
 def amostra_de(t, alertou, ms_rede, ms_analise):
@@ -278,6 +223,10 @@ def main():
                 cap = abrir_camera(fonte)
                 continue
 
+            # O relogio do alerta comeca AQUI, quando o quadro chegou a analise.
+            # Nao inclui o caminho da camera ate a caixa (RTSP e buffer da
+            # camera), que daqui nao da para medir — e a tela diz isso.
+            t_quadro = time.monotonic()
             alt, larg = img.shape[:2]
             asp = larg / max(alt, 1)
             agora = (time.monotonic() - t0) * 1000.0
@@ -303,10 +252,11 @@ def main():
                 # era o 7. Sem cadastro continua indo o numero — e la ninguem
                 # consentiu com nada, que e a razao de o numero existir.
                 quem = cara.nome_de(al["corpo"]) if cara is not None else None
-                ok_env = fala.evento(al["tipo"], al["corpo"], quem)
+                # Entrega e segue. Se o PC nao responder, quem guarda e reenvia
+                # e a thread de entrega — e ela avisa na tela quando isso acontece.
+                fala.evento(al["tipo"], al["corpo"], quem, t_quadro=t_quadro)
                 print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
-                      f" — {al['porque']}"
-                      + ("" if ok_env else "   (NAO REGISTRADO)"))
+                      f" — {al['porque']}")
 
             if calib_ligada:
                 agora_por_corpo = {al["corpo"]: al["tipo"] for al in alertas}
@@ -320,16 +270,14 @@ def main():
                     fila.append(amostra_de(t, agora_por_corpo.get(t.id, ""),
                                            ms_rede, ms_analise))
                 if fila and time.monotonic() - ultimo_envio > ENVIA_CALIB_S:
-                    st = fala.calibracao(fila[:LOTE_CALIB])
-                    if st == 403:
-                        print("[aibox] o servidor esta com CALIBRACAO=0; parei de medir")
-                        calib_ligada, fila = False, []
-                    elif st:
-                        fila = fila[LOTE_CALIB:]
+                    # Entrega o lote e segue; nao espera o servidor. Lote de
+                    # medicao que nao chega e descartado — ele nao pode ficar na
+                    # frente de um alerta de queda esperando a rede voltar.
+                    fala.calibracao(fila[:LOTE_CALIB])
+                    fila = fila[LOTE_CALIB:]
                     ultimo_envio = time.monotonic()
-                    # Teto de seguranca: servidor mudo nao pode encher a memoria
-                    if len(fila) > 2000:
-                        fila = fila[-500:]
+                if fala.calib_recusada:
+                    calib_ligada, fila = False, []
 
             # A JANELA SO CUSTA COM ALGUEM OLHANDO. Sem navegador conectado
             # nao ha copia, nao ha desenho e nao ha JPEG — detectar queda vale
@@ -346,7 +294,8 @@ def main():
                         rede=ms_rede, analise=ms_analise,
                         cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
                         corpos=len(rebanho.trilhas), enviados=fala.enviados,
-                        falhas=fala.falhas, servidor=fala.base))
+                        falhas=fala.falhas, pendentes=fala.pendentes,
+                        ultimo_ms=fala.ultimo_ms, servidor=fala.base))
 
             if a.mostrar and time.monotonic() - ultima_linha >= 1.0:
                 ultima_linha = time.monotonic()
@@ -362,7 +311,8 @@ def main():
                       f"analise {ms_analise:5.1f}ms | cpu {custo.cpu_pct():5.1f}% | "
                       f"ram {custo.memoria_mb():6.1f}MB | "
                       f"{len(rebanho.trilhas)} corpo(s) | "
-                      f"{fala.enviados} enviados, {fala.falhas} falhas")
+                      f"{fala.enviados} enviados, {fala.pendentes} na fila, "
+                      f"{fala.falhas} falhas")
     except KeyboardInterrupt:
         print("\n[aibox] encerrando.")
     finally:
@@ -371,6 +321,11 @@ def main():
         # trecho que alguem estava olhando quando resolveu parar.
         if calib_ligada and fila:
             fala.calibracao(fila[:LOTE_CALIB])
+        # Alerta que ficou na fila e dito em voz alta, nunca engolido.
+        sobrou = fala.fechar(prazo=8.0)
+        if sobrou:
+            print(f"[aibox] ATENCAO: {sobrou} alerta(s) NAO chegaram ao servidor "
+                  f"(ultimo erro: {fala.ultimo_erro})")
         if cara is not None:
             cara.fechar()
         cap.release()
@@ -380,7 +335,9 @@ def main():
         seg = max(time.monotonic() - t0, 1e-6)
         print(f"[aibox] {quadros} quadros analisados em {seg:.0f}s "
               f"({quadros / seg:.1f} fps), {perdidos} reconexoes, "
-              f"{fala.enviados} eventos enviados, {fala.falhas} falharam")
+              f"{fala.enviados} eventos enviados "
+              f"({fala.atrasados} depois de reenvio, {fala.repetidos} ja estavam la), "
+              f"{fala.falhas} falharam")
         lidos = getattr(cap, "lidos", 0)
         if lidos:
             # O DESCARTE SAI NO RELATORIO. Quadro perdido em silencio faz

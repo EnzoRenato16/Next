@@ -41,7 +41,7 @@ from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
@@ -295,7 +295,7 @@ ALERTA_TIPOS = os.environ.get("ALERTA_TIPOS", "graves").strip().lower()
 # poucos segundos e a forma mais rapida de a caixa de entrada virar lixo e
 # ninguem mais ler nenhum.
 ALERTA_ESPERA = float(os.environ.get("ALERTA_ESPERA", "60"))
-_ultimo_alerta: dict[str, float] = {}
+_ultimo_alerta: dict[tuple[str, str], float] = {}
 
 # ---------------------------------------------------------------- banco -----
 # Postgres usa %s e SQLite usa ?. Em vez de espalhar if pelo código todo, o
@@ -380,6 +380,30 @@ def criar_tabelas() -> None:
                    evento_id INTEGER PRIMARY KEY,
                    momento {ts} DEFAULT CURRENT_TIMESTAMP,
                    imagem TEXT NOT NULL)"""
+        )
+        # QUEM JA CHEGOU. A AIBOX guarda o alerta e reenvia quando a rede volta;
+        # sem isto, cada reenvio seria uma queda nova na cadeia — e linha de
+        # cadeia nao se apaga. A caixa gera a chave, o servidor lembra dela.
+        #
+        # O ATRASO mora aqui e nao na cadeia: o momento da cadeia e o do
+        # REGISTRO, e a formula do hash nao pode mudar sem invalidar tudo o que
+        # ja foi gravado. Este numero diz quanto antes disso o fato aconteceu,
+        # medido no relogio da propria caixa — nunca subtraindo o relogio de uma
+        # maquina do da outra.
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS recebidos (
+                   chave VARCHAR(64) PRIMARY KEY,
+                   evento_id INTEGER NOT NULL,
+                   atraso_ms INTEGER NOT NULL DEFAULT 0)"""
+        )
+        # A PROVA SEM ROSTO. Os 17 pontos do corpo nos segundos da queda:
+        # numeros, nao imagem. Mostra o corpo descendo sem identificar ninguem.
+        # Fica fora da cadeia pela mesma razao da foto — e evidencia de apoio; o
+        # que a cadeia protege e o fato de o alerta ter existido.
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS esqueletos (
+                   evento_id INTEGER PRIMARY KEY,
+                   poses TEXT NOT NULL)"""
         )
         # Quem olhou a imagem de quem, e quando. Sem login o servidor conhece a
         # maquina, nao a pessoa — o registro diz de onde veio a consulta, e isso
@@ -549,6 +573,18 @@ class Evento(BaseModel):
     aluno_id: str = Field(max_length=50)
     tipo_evento: str = Field(max_length=100)
     localizacao: str = Field(max_length=100)
+    # Os tres abaixo sao OPCIONAIS de proposito: o navegador nao manda nenhum
+    # e continua funcionando exatamente como antes.
+    #
+    # chave: gerada por quem pode reenviar (a AIBOX). A mesma chave duas vezes
+    # devolve o evento original em vez de gravar outro.
+    chave: str | None = Field(default=None, min_length=8, max_length=64)
+    # Ha quantos ms o fato aconteceu, no relogio de quem manda. Relativo, e nao
+    # uma hora: a caixa e o PC nao tem o mesmo relogio.
+    ocorreu_ha_ms: int = Field(default=0, ge=0, le=7 * 24 * 3600 * 1000)
+    # Poses do corpo nos segundos do evento: lista de quadros, cada quadro com
+    # 17 pontos [x, y, confianca] normalizados. Teto de 64 quadros.
+    poses: list[list[list[float]]] | None = Field(default=None, max_length=64)
 
 
 class Foto(BaseModel):
@@ -725,11 +761,43 @@ def estatico(caminho: str) -> FileResponse:
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+def _conferir_poses(poses) -> str | None:
+    """Devolve o motivo da recusa, ou None. Cada quadro: 17 pontos [x, y, c]."""
+    for i, quadro in enumerate(poses):
+        if len(quadro) != 17:
+            return f"quadro {i} com {len(quadro)} pontos; o esperado e 17"
+        for ponto in quadro:
+            if len(ponto) != 3 or not all(math.isfinite(v) for v in ponto):
+                return f"quadro {i} com ponto invalido"
+    return None
+
+
 @app.post("/api/evento")
-def gravar_evento(ev: Evento) -> dict:
+def gravar_evento(ev: Evento, tarefas: BackgroundTasks) -> dict:
+    if ev.poses:
+        motivo = _conferir_poses(ev.poses)
+        if motivo:
+            raise HTTPException(400, motivo)
+
     momento = agora_iso()
     with cursor(escrita=True) as (cur, m):
         travar(cur, m)
+        # REENVIO. A conferencia acontece DEPOIS do cadeado, e isso importa:
+        # duas copias do mesmo alerta chegando juntas seriam lidas as duas como
+        # "ainda nao existe" se a pergunta viesse antes, e as duas gravariam.
+        if ev.chave:
+            cur.execute(f"SELECT evento_id FROM recebidos WHERE chave = {m}", (ev.chave,))
+            ja = cur.fetchone()
+            if ja:
+                cur.execute(
+                    f"""SELECT id, timestamp, hash_anterior, hash_atual
+                        FROM logs_seguranca_escola WHERE id = {m}""", (ja[0],))
+                o = cur.fetchone()
+                # Sem novo e-mail e sem nova linha: e o MESMO alerta.
+                return {"id": o[0], "timestamp": str(o[1]), "hash_anterior": o[2],
+                        "hash_atual": o[3], "repetido": True,
+                        "banco": "postgres" if USANDO_PG else "sqlite"}
+
         anterior = ponta(cur, m)
         atual = hash_linha(momento, ev.aluno_id, ev.tipo_evento, ev.localizacao, anterior)
         cur.execute(
@@ -741,24 +809,48 @@ def gravar_evento(ev: Evento) -> dict:
         )
         novo_id = cur.fetchone()[0] if USANDO_PG else cur.lastrowid
 
-    if WEBHOOK and deve_alertar(ev.tipo_evento):
-        disparar_webhook(novo_id, momento, ev, atual)
+        # Na MESMA transacao do elo: se o elo gravou, a chave gravou. Um elo sem
+        # chave faria o proximo reenvio gravar a queda de novo.
+        if ev.chave:
+            cur.execute(
+                f"INSERT INTO recebidos (chave, evento_id, atraso_ms) VALUES ({m}, {m}, {m})",
+                (ev.chave, novo_id, ev.ocorreu_ha_ms),
+            )
+        if ev.poses:
+            cur.execute(
+                f"INSERT INTO esqueletos (evento_id, poses) VALUES ({m}, {m})",
+                (novo_id, json.dumps(ev.poses, separators=(",", ":"))),
+            )
+
+    # O E-MAIL VAI DEPOIS DA RESPOSTA. Antes ele era chamado aqui dentro, com
+    # 5 s de prazo — e a AIBOX desiste em 4. Sem internet (a rede da caixa nao
+    # tem), o evento era GRAVADO e a caixa contava como "nao chegou". Com a fila
+    # de reenvio, isso viraria a mesma queda duas vezes na cadeia.
+    if WEBHOOK and deve_alertar(ev.tipo_evento, ev.aluno_id):
+        tarefas.add_task(disparar_webhook, novo_id, momento, ev, atual)
 
     return {"id": novo_id, "timestamp": momento, "hash_anterior": anterior,
-            "hash_atual": atual, "banco": "postgres" if USANDO_PG else "sqlite"}
+            "hash_atual": atual, "repetido": False,
+            "banco": "postgres" if USANDO_PG else "sqlite"}
 
 
-def deve_alertar(tipo: str) -> bool:
-    """Vale a pena acordar alguem por este evento, agora?"""
+def deve_alertar(tipo: str, quem: str = "") -> bool:
+    """Vale a pena acordar alguem por este evento, agora?
+
+    A espera e por TIPO E PESSOA. Era so por tipo: se dois alunos caissem com
+    menos de um minuto de diferenca, o segundo nao gerava e-mail — justamente o
+    caso (tumulto, escada) em que mais gente precisa saber. Um e-mail repetido
+    custa um incomodo; um que nao sai custa a queda de alguem."""
     if ALERTA_TIPOS == "todos":
         pass
     elif tipo not in GRAVES:
         return False
     agora = time.monotonic()
-    ultimo = _ultimo_alerta.get(tipo)
+    chave = (tipo, quem)
+    ultimo = _ultimo_alerta.get(chave)
     if ultimo is not None and agora - ultimo < ALERTA_ESPERA:
         return False
-    _ultimo_alerta[tipo] = agora
+    _ultimo_alerta[chave] = agora
     return True
 
 
@@ -866,11 +958,28 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
                 tuple(ids),
             )
             com_foto = {r[0] for r in cur.fetchall()}
+        # Atraso de entrega e esqueleto: os dois vivem fora da cadeia, e so
+        # existem para eventos que vieram da AIBOX.
+        atraso: dict[int, int] = {}
+        com_esqueleto: set[int] = set()
+        if ids:
+            marcas = ', '.join([m] * len(ids))
+            cur.execute(f"SELECT evento_id, atraso_ms FROM recebidos "
+                        f"WHERE evento_id IN ({marcas})", tuple(ids))
+            atraso = {r[0]: r[1] for r in cur.fetchall()}
+            cur.execute(f"SELECT evento_id FROM esqueletos "
+                        f"WHERE evento_id IN ({marcas})", tuple(ids))
+            com_esqueleto = {r[0] for r in cur.fetchall()}
         saida = []
         for r in linhas:
             ficha = {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
                      "tipo_evento": r[3], "localizacao": r[4],
-                     "hash_atual": r[5], "tem_foto": r[0] in com_foto}
+                     "hash_atual": r[5], "tem_foto": r[0] in com_foto,
+                     "tem_esqueleto": r[0] in com_esqueleto,
+                     # Segundos entre o fato e o registro. So aparece quando
+                     # passa de 2 s: abaixo disso e o tempo normal de rede.
+                     "atraso_s": (round(atraso[r[0]] / 1000)
+                                  if atraso.get(r[0], 0) >= 2000 else None)}
             if completo:
                 ficha["hash_anterior"] = r[6]
             saida.append(ficha)
