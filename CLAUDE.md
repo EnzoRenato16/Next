@@ -342,4 +342,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 25 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 26 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).

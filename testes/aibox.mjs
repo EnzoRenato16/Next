@@ -37,7 +37,7 @@
  *     diferença existe e é essa.
  */
 import { chromium } from 'playwright';
-import { existsSync } from 'node:fs';
+import { existsSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 
 const BASE = process.env.BASE || 'http://127.0.0.1:8000';
@@ -183,6 +183,13 @@ const qsB = cenario(caindo);
 const jsB = await noNavegador(qsB.map(q => ({ ...q, box: caixaDos17(q.lm) })));
 const pyB = py({ aspecto: ASP,
                  quadros: qsB.map(q => ({ t:q.t, kp: paraCoco(q.lm) })) });
+/* O MESMO tombo, gravado para o teste de ponta a ponta da sala.py
+   (testes/sala-ponta.mjs) — que precisa de uma queda que a rede de verdade
+   reconheça, e esta é a que os dois lados já concordam que é queda. */
+if(process.env.DUMP_QUEDA){
+  writeFileSync(process.env.DUMP_QUEDA, JSON.stringify({ aspecto: ASP,
+    quadros: qsB.map(q => ({ t:q.t, kp: paraCoco(q.lm) })) }));
+}
 
 const primeiro = (a) => { const i = a.findIndex(x => x.armado); return i < 0 ? null : a[i].t; };
 ok('queda: os DOIS acusam',
