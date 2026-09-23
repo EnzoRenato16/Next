@@ -73,7 +73,8 @@ python servidor.py
 
 ```cmd
 pc puxar      DHCP, git pull, e volta para o IP fixo
-pc enviar     copia aibox\*.py e *.sh, e ja limpa o \r do lado de la
+pc enviar     copia aibox\*.py, *.sh e daten\app, e ja limpa o \r do lado de la
+pc modelos    copia os modelos de rosto (39 MB, uma vez so)
 pc servidor   sobe o servidor com HOST=0.0.0.0
 pc entrar     ssh na caixa
 ```
@@ -172,8 +173,22 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 
 O motor é o `daten/` (EduVision), que já existia: **YuNet** acha o rosto e cinco
 pontos, **SFace** alinha e devolve 128 números. ONNX, CPU ARM, sem GPU. Os dois
-modelos vão **versionados** em `daten/models/` (conferidos por sha256 contra o
+modelos vão versionados em `daten/models/` (conferidos por sha256 contra o
 opencv_zoo) — baixar 39 MB no laboratório é um passo que pode falhar no dia.
+
+> **Isto já falhou em silêncio uma vez.** Uma regra `daten/models/*.onnx` no
+> `.gitignore` da raiz barrou os modelos; o `git add -A` pulou sem avisar e o
+> commit dizia que eles iam versionados. Confira sempre com
+> `git ls-files daten/models` — têm de aparecer os dois `.onnx`.
+
+Levar para a caixa (no PC):
+
+```cmd
+pc enviar     o código, incluindo daten\app
+pc modelos    os dois .onnx, 39 MB, uma vez só
+```
+
+E na caixa:
 
 ```bash
 $P aibox/cadastrar.py --nome "Enzo Renato"   # colhe 6 amostras pela câmera

@@ -21,6 +21,7 @@ if "%1"=="" goto menu
 if /i "%1"=="puxar"    goto puxar
 if /i "%1"=="rede"     goto rede
 if /i "%1"=="enviar"   goto enviar
+if /i "%1"=="modelos"  goto modelos
 if /i "%1"=="entrar"   goto entrar
 if /i "%1"=="servidor" goto servidor
 goto menu
@@ -29,7 +30,8 @@ goto menu
 echo.
 echo   pc puxar      internet, git pull, e volta para o IP fixo
 echo   pc rede       so volta para o IP fixo (192.168.50.72)
-echo   pc enviar     copia aibox\*.py para a caixa
+echo   pc enviar     copia o codigo (aibox e daten\app) para a caixa
+echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
 echo.
@@ -92,20 +94,47 @@ goto fim
 
 :enviar
 echo.
-echo -- copiando aibox\*.py e aibox\*.sh para a caixa --
-scp aibox\*.py aibox\*.sh %CAIXA%:~/auditix/aibox/
+echo -- copiando o codigo para a caixa --
+REM daten\app e o motor de rosto do --rosto. Sem ele a caixa sobe, mas o
+REM reconhecimento sai desligado com "No module named daten". As pastas sao
+REM criadas antes porque o scp nao cria pasta que nao existe do lado de la.
+ssh %CAIXA% "mkdir -p ~/auditix/aibox ~/auditix/daten/app ~/auditix/daten/models"
 if errorlevel 1 (
   echo.
-  echo    !! nao copiou. Rode  pc rede  primeiro: sem o IP fixo a caixa nao existe.
+  echo    !! a caixa nao respondeu. Rode  pc rede  primeiro: sem o IP fixo ela nao existe.
+  goto fim
+)
+scp aibox\*.py aibox\*.sh %CAIXA%:~/auditix/aibox/
+scp daten\app\*.py %CAIXA%:~/auditix/daten/app/
+if errorlevel 1 (
+  echo.
+  echo    !! nao copiou tudo. Veja a mensagem acima.
   goto fim
 )
 REM O \r do Windows morre AQUI, do lado de la, e nao depois. Deixar para o
 REM usuario lembrar e o que fez o bash da caixa responder "$'\r': command not
 REM found" - uma mensagem que nao parece nem de longe com a causa.
 echo    limpando o fim de linha do Windows do lado de la...
-ssh %CAIXA% "cd ~/auditix && sed -i 's/\r$//' aibox/*.py aibox/*.sh"
+ssh %CAIXA% "cd ~/auditix && sed -i 's/\r$//' aibox/*.py aibox/*.sh daten/app/*.py"
 echo.
 echo    PRONTO. Na caixa agora e so:   bash aibox/ir.sh
+goto fim
+
+:modelos
+echo.
+echo -- copiando os modelos de rosto (YuNet + SFace, 39 MB) --
+echo    So precisa uma vez: eles nao mudam. O --rosto nao funciona sem eles.
+ssh %CAIXA% "mkdir -p ~/auditix/daten/models"
+scp daten\models\*.onnx %CAIXA%:~/auditix/daten/models/
+if errorlevel 1 (
+  echo.
+  echo    !! nao copiou. Confira se os arquivos existem aqui:  dir daten\models
+  echo       se nao existirem, rode  pc puxar  antes.
+  goto fim
+)
+echo.
+echo    PRONTO. Conferindo o tamanho do lado de la (o SFace tem que dar ~38 MB):
+ssh %CAIXA% "ls -la ~/auditix/daten/models/"
 goto fim
 
 :entrar

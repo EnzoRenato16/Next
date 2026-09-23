@@ -13,8 +13,11 @@ daten/config/camera.env
 daten/data/
 daten/logs/
 
-# Modelos grandes do OpenCV Zoo (baixe localmente, ver daten/models/README.md)
-daten/models/*.onnx
+# Os modelos do OpenCV Zoo em daten/models/ SOBEM para o git, de proposito.
+# A regra antiga aqui era "daten/models/*.onnx" (baixe localmente), e ela
+# barrou os arquivos EM SILENCIO: o git add pulou, o commit dizia que os
+# modelos iam versionados, e o --rosto so ia falhar no laboratorio, sem
+# internet para baixar. Conferir sempre com:  git ls-files daten/models
 
 # Python
 __pycache__/

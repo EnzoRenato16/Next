@@ -68,7 +68,17 @@ bash aibox/ir.sh --segundos 30
 
 ## 4b. Reconhecimento facial (opcional)
 
-Cadastre cada um pela câmera da caixa — são 6 amostras, mexendo a cabeça:
+**Uma vez só**, no PC, mande os modelos de rosto para a caixa (39 MB):
+
+```cmd
+pc modelos
+```
+
+Ele confere o tamanho no fim: o SFace tem que aparecer com ~38 MB. Se
+aparecer com poucos bytes, o arquivo não veio inteiro.
+
+Depois, cadastre cada um pela câmera da caixa — são 6 amostras, mexendo a
+cabeça:
 
 ```bash
 $P aibox/cadastrar.py --nome "Enzo Renato"

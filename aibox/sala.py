@@ -215,11 +215,15 @@ def main():
             cara = rosto_mod.Rosto(a.servidor)
             print(f"[aibox] rosto: {cara.motor.backend}, "
                   f"olhando a cada {cara.espera:.0f}s")
-        except FileNotFoundError as e:
-            # Modelo faltando e o caso comum, e a mensagem do FaceEngine ja
-            # explica. Seguir SEM rosto e melhor que nao subir: a analise de
-            # queda nao depende disto.
-            print(f"[aibox] rosto DESLIGADO: {e}")
+        except FileNotFoundError:
+            # Seguir SEM rosto e melhor que nao subir: a analise de queda nao
+            # depende disto. Mas a mensagem diz o CONSERTO, e nao so o erro —
+            # quem le isto esta na frente da caixa, sem internet.
+            print("[aibox] rosto DESLIGADO: faltam os modelos em daten/models/.\n"
+                  "         no PC, na pasta do projeto:  pc modelos")
+        except ImportError as e:
+            print(f"[aibox] rosto DESLIGADO: {e}\n"
+                  "         falta o codigo de daten/app na caixa. no PC:  pc enviar")
         except Exception as e:
             print(f"[aibox] rosto DESLIGADO: {e}")
 
