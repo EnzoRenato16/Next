@@ -86,7 +86,7 @@ if [ ! -f "$RAIZ/.env" ]; then
 # Na duvida, abra http://<ip-da-camera> no navegador: a marca esta na pagina.
 CAMERA_RTSP=rtsp://192.168.50.108:554/cam/realmonitor?channel=1&subtype=1
 # Usuario e senha vao SEPARADOS do endereco de proposito. Dentro da URL, uma
-# senha com "@" — como fiap@2026 — parte o endereco no lugar errado, e a saida
+# senha com "@" — como "algo@2026" — parte o endereco no lugar errado, e a saida
 # seria escapar para %40 e torcer para cada camada decodificar igual.
 CAM_USER=Fiap
 CAM_PW=SENHA_DA_CAMERA

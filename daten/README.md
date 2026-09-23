@@ -33,7 +33,7 @@ scp -r "C:\Users\EWZ\Desktop\Next\daten\*" grupo11@<IP_AIBOX>:/home/grupo11/eduv
 
 ## 1. Entrar no AIBOX (Passo 1)
 ```bash
-ssh grupo11@<IP_AIBOX>        # senha: grupo112026
+ssh grupo11@<IP_AIBOX>        # senha: a que o professor passou (nao versionar)
 whoami                        # -> grupo11   (se aparecer root, PARE)
 cd ~/eduvision
 ```
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 ## 3. Credenciais da câmera (Passo 4 — fora do código)
 ```bash
 cp config/camera.env.example config/camera.env
-nano config/camera.env        # confira usuário/senha da câmera (FIAP / fiap@2026)
+nano config/camera.env        # confira usuário/senha da câmera (usuario e senha que o professor passou)
 chmod 600 config/camera.env
 source config/camera.env
 ```

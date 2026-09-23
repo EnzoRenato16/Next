@@ -323,7 +323,14 @@ semelhança junto com o resto.
 
 Migração automática: `migrar_cadastros()` gira o que já estava cru e marca a
 linha (`protegido = 1`). É UPDATE, nunca DELETE, e rodar duas vezes não gira
-duas vezes.
+duas vezes. `testes/banco-antigo.mjs` cria o banco com as versões antigas do
+servidor (as que o laboratório pode ter rodado) e cobra que o aluno cadastrado
+antes continua sendo reconhecido.
+
+> **Copiou o `auditix.db` para outro PC? Copie o `chave-bio.txt` junto.** Sem
+> ele o servidor cria uma chave nova, e todo cadastro girado com a antiga vira
+> ruído — nada quebra, ninguém é reconhecido. O servidor avisa com `[bio]
+> ATENCAO` na partida quando isso acontece.
 
 ## Regras do projeto que não se quebram
 
@@ -342,4 +349,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 26 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 27 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).

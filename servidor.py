@@ -202,6 +202,8 @@ def _chave_bio() -> str:
     if arq.exists():
         return arq.read_text(encoding="utf-8").strip()
     nova = secrets.token_hex(32)
+    global _CHAVE_NOVA
+    _CHAVE_NOVA = True
     arq.write_text(nova, encoding="utf-8")
     try:
         os.chmod(arq, 0o600)
@@ -233,6 +235,7 @@ def _refletores() -> list[list[float]]:
 
 
 _EIXOS: list[list[float]] | None = None
+_CHAVE_NOVA = False     # a chave nasceu NESTA partida (nao havia arquivo)
 
 
 def proteger(d: list[float]) -> list[float]:
@@ -525,10 +528,24 @@ def migrar_cadastros() -> None:
 
     try:
         with cursor() as (cur, m):
+            cur.execute("SELECT COUNT(*) FROM cadastros WHERE protegido = 1 AND ativo = 1")
+            ja_girados = cur.fetchone()[0]
             cur.execute("SELECT id, descritores FROM cadastros WHERE protegido = 0")
             pendentes = cur.fetchall()
     except Exception:
         return
+
+    # A CHAVE SUMIU? Ela mora FORA do banco, de proposito — e isso tem um preco:
+    # quem copia o auditix.db para outro PC sem o chave-bio.txt faz o servidor
+    # criar uma chave nova, e todo cadastro girado com a antiga vira ruido. Nada
+    # quebra, ninguem e reconhecido, e ninguem sabe por que. Aqui isso grita.
+    _refletores()
+    if _CHAVE_NOVA and ja_girados:
+        print(f"[bio] ATENCAO: criei uma chave NOVA, mas o banco tem {ja_girados} "
+              "cadastro(s) girado(s) com OUTRA chave. Eles NAO serao reconhecidos.\n"
+              "      Copie o chave-bio.txt antigo para o lado do banco (ou ponha a "
+              "chave em CHAVE_BIO no .env) e reinicie — ou recadastre as pessoas.",
+              flush=True)
     if not pendentes:
         return
     for linha in pendentes:
