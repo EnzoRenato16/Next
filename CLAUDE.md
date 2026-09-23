@@ -339,8 +339,8 @@ antes continua sendo reconhecido.
 - **O `.env` não vai para o git.** É onde mora a senha da câmera.
 - Corrida e briga são **regra**, não modelo treinado, e o código, a tela e o
   pitch dizem isso. Queda é modelo, com 4.509 clipes por trás.
-- `svatech-dashboard.html`, `svatech-scanner.html` e `SVATech_Health.md` são de
-  outro projeto. Não mexer.
+- A ideia do hospital (SVATech Health) saiu do projeto: não há mais arquivos
+  dela. Se voltar a aparecer alguma menção, é resto — pode tirar.
 
 ## Testes
 

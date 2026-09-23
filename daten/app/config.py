@@ -63,7 +63,7 @@ GROUP_ID = os.environ.get("GROUP_ID", "grupo11")
 #     rosto de  90 px                -> so aparece a partir de W=640
 #     rosto de 117 px                -> so aparece a partir de W=480
 # Numa sala com gente sentada o rosto costuma dar 60-120 px em 720p, por isso o
-# padrao aqui e 640 e NAO os 320 do SVATech_Health.md: 320 serve para uma caixa
+# padrao aqui e 640 e NAO os 320 de um projeto anterior: 320 serve para uma caixa
 # de OPME a um metro da camera, nao para uma sala inteira.
 #
 # Regra pratica para calibrar: rosto_em_pixels * (DETECT_WIDTH / largura_do_frame)

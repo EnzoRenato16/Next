@@ -278,7 +278,7 @@ function rodape(s, n){
     ['HOJE','Uma sala, uma câmera, um alerta','DE PÉ','Queda ao vivo, evento na corrente, e-mail na coordenação, imagem com rosto apagado. Roda sem internet, numa máquina comum.'],
     ['PRÓXIMO','Escola-piloto','A VALIDAR','A medida que ainda não temos: quantos alertas por dia a coordenação aguenta. É esse número, e não a revocação, que decide se é usável.'],
     ['DEPOIS','Várias câmeras, uma corrente só','A CONSTRUIR','Cada sala com seu detector na borda, todas na mesma trilha auditável.'],
-    ['A TESE','A mesma base, outros lugares','EM ESTUDO','Borda que decide mais prova que não se altera: portaria com consentimento, e a área da saúde.']
+    ['A TESE','A mesma base, outros lugares','EM ESTUDO','Borda que decide mais prova que não se altera: portaria com consentimento, e a segurança patrimonial.']
   ];
   r.forEach((it, i) => {
     const y = 2.55 + i * 1.12;

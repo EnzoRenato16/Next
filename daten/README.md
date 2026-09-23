@@ -158,7 +158,7 @@ Medido aqui em 1280×720, 4 threads, OpenCV 4.10:
 O limite é o **tamanho do rosto depois de reduzir**: abaixo de ~40 px o YuNet
 simplesmente não acha. Um rosto de 90 px em 720p some se você reduzir para 480.
 
-> Por isso o padrão é **640 e não os 320** do `SVATech_Health.md`: 320 serve para
+> Por isso o padrão é **640 e não os 320** de um projeto anterior: 320 serve para
 > uma caixa de OPME a um metro da câmera, não para uma sala com gente sentada ao
 > fundo. Rode o `app.bench` com o frame da sala real e escolha a **menor largura
 > que ainda ache todo mundo**.

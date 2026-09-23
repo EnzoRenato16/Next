@@ -29,7 +29,6 @@ venv/
 node_modules/
 
 # Cache de ferramentas (regenerável, não precisa versionar)
-graphify-out/cache/
 
 # Sistema operacional
 .DS_Store

@@ -26,10 +26,6 @@ uv run servidor.py           # http://127.0.0.1:8000
 Sem `.env`, o servidor cai sozinho para SQLite local e avisa na tela. Copie
 `.env.example` para `.env` e preencha a senha para usar o Postgres do `db-fiap`.
 
-As outras páginas são arquivos soltos, abrem direto no navegador:
-`svatech-dashboard.html`, `svatech-scanner.html`,
-`index.html` (pitch).
-
 O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/README.md).
 
 ---
@@ -42,13 +38,10 @@ O **EduVision** roda separado, no AIBOX — veja [`daten/README.md`](daten/READM
 | `auditix-sala.html` | Sala auditada: pose, rosto, assinatura de corpo, prova de vida, mapa de calor |
 | `auditix-portaria.html` | Portaria com leitor de palma. **Superada** pelo `/cadastro` do servidor, que vale para qualquer navegador — esta guarda o cadastro num navegador só |
 | `auditix-painel.html` | Painel de leitura servido em `/painel` |
-| `svatech-dashboard.html` | Caixa-preta cirúrgica (OPME) |
-| `svatech-scanner.html` | Leitor de patrimônio (código de barras / QR) |
 | `views_powerbi.sql` | Visões agregadas para o Power BI — nunca a tabela crua |
 | `testes/` | Testes das regras de visão — `node testes/<arquivo>.mjs` |
 | `treino/` | Rede de detecção de queda: dados, treino e provas — [`treino/LEIA.md`](treino/LEIA.md) |
 | `daten/` | EduVision: reconhecimento facial em Python no AIBOX |
-| `SVATech_Health.md` | A tese do SVATech Health |
 
 ---
 
