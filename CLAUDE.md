@@ -127,6 +127,67 @@ As três causas de "não responde", em ordem de frequência:
 2. o firewall do Windows barrando a porta
 3. o PC voltou para DHCP e perdeu o `192.168.50.72`
 
+## A entrega dos alertas (`aibox/entrega.py`)
+
+O laço da análise **nunca espera a rede**: entrega o alerta numa fila e segue
+(0,05 ms medido com o servidor levando 1,5 s). Uma thread envia; se o PC não
+responde, **guarda e reenvia** com espera crescente até 30 s. Recusa (4xx) não
+se repete. Lote de calibração que falha é descartado — não pode ficar na frente
+de uma queda.
+
+**Reenviar sem duplicar.** Cada alerta nasce com uma `chave`; o servidor que já
+viu a chave devolve o evento original (tabela `recebidos`). A conferência é
+DEPOIS do cadeado da cadeia: cinco cópias juntas viram uma linha (testado).
+
+**O horário.** O servidor carimba a chegada. A caixa manda `ocorreu_ha_ms`,
+medido no relógio DELA na hora de mandar — um intervalo, nunca uma hora, porque
+subtrair o relógio de uma máquina do da outra faz a diferença entre relógios
+parecer atraso. Fica em `recebidos`, FORA da fórmula da cadeia.
+
+**O e-mail sai depois da resposta** (`BackgroundTasks`). Rodava dentro do
+`/api/evento` com 5 s de prazo e a caixa desiste em 4: sem internet, o evento
+era gravado e contado como "não chegou". A espera do e-mail é por **tipo e
+pessoa** — só por tipo, duas quedas de alunos diferentes davam um e-mail.
+
+## Prova sem rosto (`esqueletos`)
+
+A AIBOX não manda foto. Cada trilha carrega 3 s de pontos (`trilhas.POSES_MS`)
+e o alerta leva os últimos 2,5 s (até 24 quadros × 17 pontos, ~8 KB), com o x
+**multiplicado pela proporção da imagem**. O painel desenha em "corpo", com
+rastro e o último quadro em vermelho. Fora da cadeia, como a foto, e sem
+registro de acesso: não identifica ninguém.
+
+## "Estou ciente" e a sirene (painel)
+
+Queda nova toma a tela inteira em ~1 s (a vigia pergunta a cada 2 s; a carga
+pesada continua a cada 15 s), com sirene de oscilador puro (adaptada do EPI
+Guard, com aval do autor) até alguém apertar **Estou ciente**. O clique vira
+uma linha da CADEIA — `tipo_evento='ciente'`, `aluno_id='evento-<id>'` — e a
+tabela mostra "ciente em X s". Uma vez por alerta, mesmo com cinco cliques
+juntos. Só alerta grave aceita. O alarme usa `completo=1`: não passa pelo filtro
+de vitrine `PAINEL_TIPOS`.
+
+**Armadilhas de tela pegas em foto, não em teste:** `hidden` perde para um
+`display` escrito no próprio elemento; e num `<svg>` a propriedade `.hidden`
+não existe (use `toggleAttribute`). Teste de tela confere `getComputedStyle`,
+não o atributo.
+
+## Três chaves que vêm DESLIGADAS de propósito
+
+| chave | onde | o que faz | por que desligada |
+|---|---|---|---|
+| `QUEM_ESCREVE=127.0.0.1,192.168.50.10` | `.env` do PC | todo POST de fora da lista é recusado; o resto da rede só lê | IP errado na lista = todo alerta recusado (a recusa diz o IP visto) |
+| `NUCLEOS=grandes` | `.env` da caixa | modelo nos núcleos A78, `gst-launch` nos A55 | só depois de `medir.py --nucleos` dizer GANHA |
+| `--fluido` | `ir.sh` | vídeo ao vivo no ritmo da câmera (teto 25/s) | JPEG a 25/s custa CPU; compare `análise/s` com e sem |
+
+`taskset` no terminal seria errado para os núcleos: prende também os FILHOS, e
+o `gst-launch` é filho — a decodificação disputaria os núcleos grandes com o
+modelo. Por isso `aibox/nucleos.py` faz por dentro, com `preexec_fn`.
+
+O vídeo fluido NÃO interpola o esqueleto (o EPI Guard interpola): desenhar
+pontos que o modelo não mediu não cabe num sistema auditável. O esqueleto de um
+quadro novo é o da última análise, e a tela mostra `análise/s` e `vídeo/s`.
+
 ## As armadilhas que já custaram tempo
 
 1. **O OpenCV da caixa não abre RTSP.** `FFMPEG: YES` na lista, mas o plugin
@@ -281,4 +342,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 20 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 25 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).

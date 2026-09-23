@@ -1116,7 +1116,11 @@ el('alarme-corpo').addEventListener('click', () => { if(mostrando) abrirCorpo(mo
 let maiorId = 0;
 async function vigiar(){
   try{
-    const evs = await pegar('/api/eventos?limite=15');
+    /* completo=1: o alarme NÃO passa pelo filtro de vitrine (PAINEL_TIPOS).
+       Com PAINEL_TIPOS=queda, um pedido de ajuda — alguém chamando um adulto —
+       nunca tocaria a sirene. A tabela pode escolher o que mostra; o alarme
+       não escolhe o que ignora. */
+    const evs = await pegar('/api/eventos?limite=15&completo=1');
     pendentes = evs.filter(pendente).sort((a, b) => a.id - b.id);
     pintarAlarme();
     const topo = evs.reduce((m, e) => Math.max(m, e.id), 0);

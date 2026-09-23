@@ -118,6 +118,71 @@ chegaram**. O segundo em vermelho é o banco não recebendo.
 
 ---
 
+## 6. O alarme e o "Estou ciente" (no painel)
+
+1. Abra `http://127.0.0.1:8000/painel` e **clique em "Ativar som"**. O navegador
+   não deixa tocar som antes de um clique na página, e o botão diz o estado real.
+2. Provoque uma queda na frente da câmera.
+3. Em 1 ou 2 segundos a tela inteira fica vermelha, com sirene a cada 2 s.
+4. Clique em **"ver o corpo"**: o esqueleto dos últimos segundos, sem imagem
+   nenhuma da câmera.
+5. Clique em **"Estou ciente"**. A sirene para, e a linha do alerta passa a dizer
+   **"ciente em X s"**. Esse clique virou uma linha da cadeia: abra
+   `/cadeia` e ele está lá.
+
+Para a banca: *"a cadeia não prova só que o sistema viu a queda — prova que
+alguém reagiu, e em quanto tempo."*
+
+## 7. Medir, antes de ligar qualquer coisa nova
+
+As duas coisas abaixo **vêm desligadas**, porque podem ajudar ou atrapalhar, e
+só medindo nesta caixa dá para saber.
+
+**Núcleos grandes para o modelo:**
+
+```bash
+$P aibox/medir.py --nucleos
+```
+
+Ele roda o modelo com todos os núcleos e só com os grandes, e diz **GANHA** ou
+**NÃO GANHA**. Só se disser GANHA:
+
+```bash
+echo "NUCLEOS=grandes" >> .env
+```
+
+**Vídeo fluido** (a imagem ao vivo no ritmo da câmera, e não da análise):
+
+```bash
+bash aibox/ir.sh --fluido
+```
+
+Compare o número **análise/s** na tela com e sem `--fluido`. Se ele cair muito,
+rode sem: detectar a queda vale mais que a imagem bonita. O número **vídeo/s**
+é só a imagem; quem detecta é o **análise/s**.
+
+## 8. Opcional
+
+**Só a caixa e o PC gravam.** No `.env` do **PC**:
+
+```
+QUEM_ESCREVE=127.0.0.1,192.168.50.10
+```
+
+Os notebooks dos outros grupos continuam vendo o painel, mas não gravam nada.
+Se a caixa estiver com outro IP, **todo alerta é recusado**, e a tela da caixa
+mostra o motivo, com o IP que o servidor viu.
+
+**E-mail chegando de verdade.** A rede da caixa não tem internet, então o
+e-mail não sai. Ligue o celular no PC pelo cabo USB e ative a **ancoragem USB**.
+O cabo de rede continua na 192.168.50.x, e só a internet passa pelo celular.
+Deixe o **banco local** (`DATABASE_URL` vazio no `.env` do PC), senão cada
+gravação dependeria do 4G até o servidor da AWS.
+
+**Se a rede cair no meio**, a caixa **guarda os alertas** e manda quando a rede
+voltar. A tela dela mostra **"na fila"** em amarelo enquanto isso. Nenhum se
+perde, e reenviar não duplica nada na cadeia.
+
 ## Se alguma coisa der errado
 
 **Primeiro, sempre:**
