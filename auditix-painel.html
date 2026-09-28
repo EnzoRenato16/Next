@@ -265,6 +265,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
   <div class="selos">
     <span class="selo" id="s-banco"><span class="pisca"></span>conectando…</span>
     <span class="selo" id="s-atual">—</span>
+    <span id="s-caixas"></span>
     <a class="btn" href="/cadeia" title="Recalcular os hashes no seu navegador"
        >Conferir a cadeia</a>
     <button class="btn" id="b-som" aria-pressed="false"
@@ -470,7 +471,15 @@ const NS = 'http://www.w3.org/2000/svg';
    para saber o que foi escalado. */
 const GRAVES = new Set(['queda','briga','pedido_ajuda','agitacao',
                        'objeto_perigoso','patrimonio_sumiu']);
+/* O SISTEMA FICOU CEGO: não é ocorrência na sala, é o vigia que parou de ver.
+   Toca a sirene e pede "estou ciente" como um alerta grave, mas fica fora de
+   GRAVES para não inflar a contagem de ocorrências. Mesma lista do servidor. */
+const CEGUEIRA = new Set(['sem_sinal','camera_sem_imagem','camera_tampada']);
+const ALARMES = new Set([...GRAVES, ...CEGUEIRA]);
 const ROTULO = {
+  sem_sinal:'caixa sem sinal', camera_sem_imagem:'câmera sem imagem',
+  camera_tampada:'câmera tampada ou no escuro', sinal_voltou:'sinal voltou',
+  caixa_parada:'análise parada',
   queda:'queda', corrida:'corrida', briga:'briga',
   pedido_ajuda:'pedido de ajuda',
   objeto_perigoso:'objeto perigoso',
@@ -1017,7 +1026,7 @@ function duracao(s){
 const JANELA_PENDENTE = 10 * 60 * 1000;
 function momentoDe(e){ return new Date(e.timestamp.replace(' ','T') + 'Z').getTime(); }
 function pendente(e){
-  return GRAVES.has(e.tipo_evento) && e.ciente_s == null &&
+  return ALARMES.has(e.tipo_evento) && e.ciente_s == null &&
          Date.now() - momentoDe(e) < JANELA_PENDENTE;
 }
 
@@ -1075,7 +1084,8 @@ function pintarAlarme(){
   const e = pendentes[0];
   mostrando = e;
   el('alarme-tit').textContent = nome(e.tipo_evento);
-  el('alarme-onde').textContent = e.localizacao + ' · ' + e.aluno_id;
+  el('alarme-onde').textContent = e.localizacao + ' · ' + e.aluno_id +
+    (CEGUEIRA.has(e.tipo_evento) ? ' — o sistema NÃO está vendo esta sala' : '');
   el('alarme-ha').textContent = 'há ' + duracao(Math.max(0,
     Math.round((Date.now() - momentoDe(e)) / 1000))) + ' sem ninguém ciente';
   el('alarme-corpo').hidden = !e.tem_esqueleto;
@@ -1127,6 +1137,36 @@ async function vigiar(){
     if(maiorId && topo > maiorId) carregar();
     maiorId = Math.max(maiorId, topo);
   }catch(e){}
+  pintarCaixas();
+}
+
+/* UM SELO POR CÂMERA, sempre à vista. Sem ele, painel quieto porque nada
+   aconteceu e painel quieto porque a caixa morreu eram a mesma tela. Lê só a
+   memória do servidor (a última batida de cada caixa): responde mesmo com o
+   banco fora. */
+async function pintarCaixas(){
+  const alvo = el('s-caixas');
+  let d;
+  try{ d = await pegar('/api/saude'); }catch(e){ return; }
+  const TXT = { ok:'vendo', sem_sinal:'SEM SINAL', sem_imagem:'SEM IMAGEM',
+                tampada:'TAMPADA', parada:'parada' };
+  alvo.replaceChildren(...d.caixas.map(c => {
+    const s = document.createElement('span');
+    const mal = !['ok','parada'].includes(c.estado);
+    s.className = 'selo ' + (c.estado === 'ok' ? 'ok' : mal ? 'mal' : '');
+    s.style.marginRight = '6px';
+    let t = c.local + ' · ' + (TXT[c.estado] || c.estado);
+    /* Sem sinal conta da ÚLTIMA BATIDA, não da hora em que o servidor notou:
+       ele só nota depois de SEM_SINAL_S, e o relógio começaria 30 s atrasado. */
+    if(mal || c.estado === 'parada') t += ' há ' + duracao(Math.round(
+      c.estado === 'sem_sinal' ? c.visto_ha_s : c.ha_s));
+    else if(c.fps != null) t += ' · ' + c.fps.toFixed(1).replace('.', ',') + '/s';
+    s.textContent = t;
+    s.title = 'caixa ' + c.caixa + ' · última batida há ' + Math.round(c.visto_ha_s) +
+      ' s' + (c.detalhe != null ? ' · detalhe da imagem ' + Math.round(c.detalhe) : '') +
+      (c.pendentes ? ' · ' + c.pendentes + ' alerta(s) na fila da caixa' : '');
+    return s;
+  }));
 }
 
 /* ================================================== visor do corpo ======= */

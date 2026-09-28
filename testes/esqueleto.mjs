@@ -54,6 +54,15 @@ const nav = await chromium.launch({ executablePath: exe,
 const pg = await nav.newPage();
 const erros = [];
 pg.on('pageerror', e => erros.push(e.message));
+/* O alarme de tela cheia cobre a tabela enquanto houver alerta sem ciente —
+   é o trabalho dele. Aqui o assunto é o visor, então todo alerta pendente
+   (inclusive os deste teste) ganha ciente antes de abrir o painel. */
+const GRAVES_ALARME = ['queda','briga','pedido_ajuda','agitacao','objeto_perigoso',
+  'patrimonio_sumiu','sem_sinal','camera_sem_imagem','camera_tampada'];
+for(const e of await (await fetch(BASE + '/api/eventos?limite=100&completo=1')).json())
+  if(GRAVES_ALARME.includes(e.tipo_evento) && e.ciente_s == null)
+    await fetch(BASE + '/api/ciente', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ evento_id: e.id }) });
 await pg.goto(BASE + '/painel', { timeout:20000 });
 await pg.waitForSelector('#tabela table', { timeout:15000 });
 

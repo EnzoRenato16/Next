@@ -155,6 +155,27 @@ def main():
         print("      quebrou no evento " + str(v.get("quebrou_em")))
         problemas.append("cadeia de hash quebrada")
 
+    # ---- 3b. as caixas estao batendo? -------------------------------------
+    # So informa: com a sala.py parada, "nenhuma caixa" e o esperado.
+    cod, sd = pegar(base, "/api/saude")
+    if cod == 200 and isinstance(sd, dict):
+        print("\n-- as caixas (batimento) --")
+        cxs = sd.get("caixas") or []
+        if not cxs:
+            print("      nenhuma caixa bateu desde que o servidor subiu")
+            print("      (normal se a sala.py nao esta rodando)")
+        for c in cxs:
+            linha = (c.get("caixa", "?") + " em " + c.get("local", "?") + ": "
+                     + str(c.get("estado")) + ", ultima batida ha "
+                     + str(round(c.get("visto_ha_s") or 0)) + " s")
+            if c.get("estado") in ("ok", "parada"):
+                print(BOM + linha)
+            else:
+                print(AVISO + linha)
+                if c.get("estado") == "tampada":
+                    print("      detalhe da imagem " + str(c.get("detalhe"))
+                          + " (abaixo de TAMPADA_LIMIAR). Lente coberta ou sala escura.")
+
     # ---- 4. os paineis abrem? --------------------------------------------
     print("\n-- as telas --")
     for rota, nome in (("/painel", "painel de eventos"),

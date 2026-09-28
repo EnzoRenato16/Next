@@ -78,6 +78,7 @@ main{padding:20px;max-width:1100px;margin:0 auto}
     <div class="n"><b id="fila">--</b><span>na fila</span></div>
     <div class="n"><b id="perdidos">--</b><span>nao chegaram</span></div>
     <div class="n"><b id="latencia">--</b><span>quadro ao registro (ms)</span></div>
+    <div class="n"><b id="imagem">--</b><span>imagem (detalhe)</span></div>
   </div>
   <p class="nota">Os pontos e as linhas sao os 17 pontos do corpo que o modelo
   devolveu <b>e que a analise realmente usou</b> — nao uma ilustracao. Uma
@@ -111,6 +112,14 @@ setInterval(async () => {
     /* Do quadro chegar na analise ate o servidor confirmar a gravacao, medido
        num relogio so, o da caixa. Nao inclui o caminho da camera ate a caixa. */
     $('latencia').textContent = e.ultimo_ms == null ? '--' : Math.round(e.ultimo_ms);
+    /* O NUMERO DO "TAMPADA" fica visivel para o limiar ser ajustado NO LOCAL:
+       tampe a lente com a mao e veja quanto cai; a sala normal fica bem acima.
+       TAMPADA_LIMIAR no .env da caixa vai entre os dois. */
+    if(e.imagem){
+      $('imagem').textContent = e.imagem +
+        (e.detalhe == null ? '' : ' (' + Math.round(e.detalhe) + ')');
+      $('imagem').style.color = e.imagem === 'ok' ? '' : '#ff6b6b';
+    }
     /* Os atalhos apontam para o SERVIDOR, que roda noutra maquina — a caixa so
        enxerga e avisa. O endereco vem do .env pelo /estado, e nao escrito na
        pagina, porque numa outra instalacao o servidor tem outro IP. */
@@ -137,7 +146,7 @@ class Vivo:
         self.estado = dict(fps=0.0, rede=0.0, analise=0.0, cpu=0.0,
                            ram=0.0, corpos=0, enviados=0, falhas=0,
                            pendentes=0, ultimo_ms=None, video=0.0,
-                           servidor="")
+                           servidor="", imagem="", detalhe=None)
         self.clientes = 0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))

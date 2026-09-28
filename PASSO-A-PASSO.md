@@ -133,6 +133,28 @@ chegaram**. O segundo em vermelho é o banco não recebendo.
 Para a banca: *"a cadeia não prova só que o sistema viu a queda — prova que
 alguém reagiu, e em quanto tempo."*
 
+### 6b. Câmera tampada e caixa sem sinal (no painel)
+
+No topo do painel aparece um selo por câmera: **verde "vendo"** quando está tudo
+bem.
+
+1. **Tampe a lente com a mão por uns 15 s.** O selo fica vermelho, "TAMPADA", e o
+   alarme toca: *"câmera tampada ou no escuro — o sistema NÃO está vendo esta
+   sala"*. Tire a mão: volta a "vendo" e a cadeia ganha "sinal voltou".
+2. **Pare a `sala.py` com Ctrl+C.** Nada toca: a caixa avisou que parou de
+   propósito ("análise parada").
+3. **Tire o cabo de rede da caixa** (ou desligue-a). Em ~30 s: "SEM SINAL" e
+   sirene. A caixa morta não consegue avisar — quem percebe o silêncio é o PC.
+
+**Se o "tampada" não disparar com a mão:** na tela ao vivo da caixa, o número
+**"imagem (detalhe)"** mostra quanto a imagem varia. Anote o valor com a mão na
+lente e com a sala normal, e ponha `TAMPADA_LIMIAR=` entre os dois no `.env` da
+caixa. (A sala no escuro total também conta como "tampada", e isso é de
+propósito: no escuro o sistema também não enxerga.)
+
+Para a banca: *"se alguém tampar a câmera ou cortar o cabo, isso vira registro
+na cadeia. O sistema avisa quando ficou cego."*
+
 ## 7. Medir, antes de ligar qualquer coisa nova
 
 As duas coisas abaixo **vêm desligadas**, porque podem ajudar ou atrapalhar, e

@@ -44,11 +44,15 @@ RAIZ = os.path.dirname(AQUI)
 if RAIZ not in sys.path:
     sys.path.insert(0, RAIZ)
 
-from aibox import custo, olho as olho_mod, trilhas, vivo as vivo_mod  # noqa: E402
+from aibox import batimento, custo, olho as olho_mod, trilhas, vivo as vivo_mod  # noqa: E402
 
 LOTE_CALIB = 200           # o servidor recusa acima de 500
 ENVIA_CALIB_S = 15.0
 RECONECTA_S = 3.0
+# Camera que TRAVA sem cair: o gst-launch fica de pe, o cano fica mudo, e o
+# laco esperava quadro para sempre — sem reconectar e sem avisar ninguem.
+# Passado este tempo sem quadro novo, reabre como se tivesse caido.
+TRAVADA_S = float(os.environ.get("TRAVADA_S", "15"))
 
 
 def carregar_env():
@@ -226,6 +230,11 @@ def main():
         return 3
     t0 = time.monotonic()
     quadros, perdidos, ultima_linha = 0, 0, t0
+    # A caixa diz ao servidor que esta viva e se esta enxergando. Ver o porque
+    # em aibox/batimento.py — e o servidor, nao ela, quem percebe o silencio.
+    bat = batimento.Batimento(a.servidor, a.local)
+    print(f"[aibox] batimento: '{bat.caixa}' a cada {batimento.BATIDA_S:g}s")
+    desde_quadro = t0
     custo.cpu_pct()                      # primeira leitura, so para ancorar
 
     try:
@@ -239,6 +248,14 @@ def main():
                 # distincao importa — tratar isso como queda reabriria a camera
                 # varias vezes por segundo, e cada reabertura custa 1 a 2
                 # segundos de RTSP. O laco simplesmente espera um pouco.
+                if time.monotonic() - desde_quadro > TRAVADA_S:
+                    # ...a nao ser que o "um pouco" ja tenha virado TRAVADA_S.
+                    print(f"[aibox] {TRAVADA_S:g}s sem quadro: reabrindo a camera")
+                    perdidos += 1
+                    cap.release()
+                    cap = ligar(abrir_camera(fonte))
+                    desde_quadro = time.monotonic()
+                    continue
                 time.sleep(0.002)
                 continue
             if not ok:
@@ -248,12 +265,15 @@ def main():
                 cap.release()
                 time.sleep(RECONECTA_S)
                 cap = ligar(abrir_camera(fonte))
+                desde_quadro = time.monotonic()
                 continue
 
             # O relogio do alerta comeca AQUI, quando o quadro chegou a analise.
             # Nao inclui o caminho da camera ate a caixa (RTSP e buffer da
             # camera), que daqui nao da para medir — e a tela diz isso.
             t_quadro = time.monotonic()
+            desde_quadro = t_quadro
+            bat.quadro(img, t_quadro)
             alt, larg = img.shape[:2]
             asp = larg / max(alt, 1)
             agora = (time.monotonic() - t0) * 1000.0
@@ -265,6 +285,8 @@ def main():
             m2 = time.perf_counter()
             ms_rede, ms_analise = (m1 - m0) * 1000, (m2 - m1) * 1000
             quadros += 1
+            bat.fps = quadros / max(t_quadro - t0, 1e-6)
+            bat.pendentes = fala.pendentes
 
             if cara is not None:
                 # Entrega e segue: quem espera e a outra thread, nunca este
@@ -324,7 +346,8 @@ def main():
                     cpu=custo.cpu_pct(), ram=custo.memoria_mb(),
                     corpos=len(rebanho.trilhas), enviados=fala.enviados,
                     falhas=fala.falhas, pendentes=fala.pendentes,
-                    ultimo_ms=fala.ultimo_ms, servidor=fala.base)
+                    ultimo_ms=fala.ultimo_ms, servidor=fala.base,
+                    imagem=bat.estado(), detalhe=bat.valor)
                 if pintor is not None:
                     # Quem desenha e o pintor, no ritmo da camera. Aqui so vai
                     # a lista (NOVA, porque o dicionario muda de tamanho
@@ -354,7 +377,8 @@ def main():
                       f"ram {custo.memoria_mb():6.1f}MB | "
                       f"{len(rebanho.trilhas)} corpo(s) | "
                       f"{fala.enviados} enviados, {fala.pendentes} na fila, "
-                      f"{fala.falhas} falhas")
+                      f"{fala.falhas} falhas | imagem {bat.estado()}"
+                      + (f" ({bat.valor:.0f})" if bat.valor is not None else ""))
     except KeyboardInterrupt:
         print("\n[aibox] encerrando.")
     finally:
@@ -364,6 +388,8 @@ def main():
         if calib_ligada and fila:
             fala.calibracao(fila[:LOTE_CALIB])
         # Alerta que ficou na fila e dito em voz alta, nunca engolido.
+        # "Parada de proposito": o servidor registra e NAO toca sirene.
+        bat.fechar()
         sobrou = fala.fechar(prazo=8.0)
         if sobrou:
             print(f"[aibox] ATENCAO: {sobrou} alerta(s) NAO chegaram ao servidor "

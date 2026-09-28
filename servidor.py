@@ -29,6 +29,7 @@ ou se o Postgres não responder, cai para SQLite local sozinho. Isso é de
 propósito: demonstração que morre porque a nuvem caiu é demonstração perdida.
 """
 
+import asyncio
 import hashlib
 import json
 import math
@@ -36,6 +37,7 @@ import os
 import secrets
 import sqlite3
 import sys
+import threading
 import time
 from contextlib import asynccontextmanager, contextmanager
 from datetime import datetime, timedelta, timezone
@@ -99,6 +101,14 @@ GRAVES = {"queda", "briga", "pedido_ajuda", "agitacao", "objeto_perigoso",
 # Isto mora no servidor porque combinar com o navegador nao vale nada: qualquer
 # um com o endereco poderia mandar a foto assim mesmo.
 SEM_FOTO = {"pedido_ajuda"}
+
+# O SISTEMA FICOU CEGO. Nao e incidente na sala, e o proprio vigia que parou de
+# ver — e por isso tambem acorda alguem: um painel quieto porque a caixa morreu
+# e identico a um painel quieto porque nada aconteceu. Ficam FORA de GRAVES de
+# proposito: nao contam como ocorrencia na serie nem nos numeros do painel.
+CEGUEIRA = {"sem_sinal", "camera_sem_imagem", "camera_tampada"}
+# O que toca a sirene, pede "estou ciente" e manda e-mail.
+ALARMES = GRAVES | CEGUEIRA
 
 # O que o painel MOSTRA. A Sala mede tres coisas hoje: queda (rede treinada em
 # 4.509 clipes), corrida (regra geometrica) e briga (regra sobre as features do
@@ -704,7 +714,9 @@ async def ciclo(_app: FastAPI):
     migrar_cadastros()
     podar_calibracao()
     podar_cadastros()
+    vigia = asyncio.create_task(vigiar_silencio())
     yield
+    vigia.cancel()
 
 
 app = FastAPI(title="Auditix, sala auditada", lifespan=ciclo)
@@ -896,7 +908,7 @@ def deve_alertar(tipo: str, quem: str = "") -> bool:
     custa um incomodo; um que nao sai custa a queda de alguem."""
     if ALERTA_TIPOS == "todos":
         pass
-    elif tipo not in GRAVES:
+    elif tipo not in ALARMES:
         return False
     agora = time.monotonic()
     chave = (tipo, quem)
@@ -960,7 +972,7 @@ def marcar_ciente(c: Ciente, req: Request) -> dict:
         ev = cur.fetchone()
         if not ev:
             raise HTTPException(404, f"nao existe o evento {c.evento_id}")
-        if ev[2] not in GRAVES:
+        if ev[2] not in ALARMES:
             raise HTTPException(400, f"'{ev[2]}' nao e alerta grave; so alerta grave tem ciente")
 
         cur.execute(
@@ -989,6 +1001,166 @@ def marcar_ciente(c: Ciente, req: Request) -> dict:
     return {"evento_id": c.evento_id, "ciente_id": ciente_id, "momento": momento,
             "resposta_s": resposta, "repetido": repetido,
             "origem": req.client.host if req.client else None}
+
+
+# ------------------------------------------------- saude das cameras -------
+#
+# O SILENCIO NAO PODE PARECER PAZ. Sem isto, se a caixa travasse, o cabo da
+# camera soltasse ou alguem tampasse a lente, o painel ficava quieto — e quieto
+# e exatamente o que ele mostra quando nao acontece nada. Um sistema de
+# seguranca cego que nao avisa que esta cego e o pior tipo de falha.
+#
+# A caixa bate a cada poucos segundos (/api/batimento) dizendo como esta a
+# imagem. O servidor guarda so a ULTIMA batida, em memoria — batida nao e fato,
+# e mil linhas por hora de "estou viva" afogariam a cadeia. O que vira linha da
+# cadeia e a MUDANCA: "sem sinal", "camera tampada", "sinal voltou". Uma vez por
+# episodio, como um alarme de verdade: nao repete a cada batida enquanto dura.
+#
+# Ideia de "camera fora do ar" vista no Lot Vulture (estacionamento); o codigo
+# e nosso, reescrito do zero.
+
+# Sem batida por este tempo, a caixa e dada como muda. Tres batidas perdidas no
+# minimo: um soluco de rede nao pode tocar sirene.
+SEM_SINAL_S = float(os.environ.get("SEM_SINAL_S", "30"))
+
+# O que a caixa diz -> o tipo da linha na cadeia.
+_PROBLEMA = {"sem_imagem": "camera_sem_imagem", "tampada": "camera_tampada"}
+
+_caixas: dict[str, dict] = {}
+_trava_caixas = threading.Lock()
+
+
+class Batida(BaseModel):
+    caixa: str = Field(min_length=1, max_length=50)
+    local: str = Field(min_length=1, max_length=100)
+    # ok | sem_imagem | tampada | parada (encerrada de proposito, com Ctrl+C)
+    estado: str = Field(pattern=r"^(ok|sem_imagem|tampada|parada)$")
+    intervalo_s: float = Field(default=5.0, ge=1, le=120)
+    # Os numeros que ajudam a entender o estado, e a ajustar o limiar no local.
+    detalhe: float | None = None          # quanto a imagem varia (0 = lisa)
+    quadro_ha_s: float | None = None      # ultimo quadro que chegou da camera
+    fps: float | None = None
+    pendentes: int | None = None          # alertas na fila da caixa
+
+
+def _gravar_elo(tipo: str, quem: str, local: str) -> tuple[int, str, str]:
+    """Uma linha da cadeia, pelo mesmo caminho de todas: cadeado, ponta, hash."""
+    momento = agora_iso()
+    with cursor(escrita=True) as (cur, m):
+        travar(cur, m)
+        anterior = ponta(cur, m)
+        atual = hash_linha(momento, quem, tipo, local, anterior)
+        cur.execute(
+            f"""INSERT INTO logs_seguranca_escola
+                (timestamp, aluno_id, tipo_evento, localizacao, hash_anterior, hash_atual)
+                VALUES ({m}, {m}, {m}, {m}, {m}, {m})"""
+            + (" RETURNING id" if USANDO_PG else ""),
+            (momento, quem, tipo, local, anterior, atual),
+        )
+        novo_id = cur.fetchone()[0] if USANDO_PG else cur.lastrowid
+    print(f"[saude] {tipo} — {quem} em {local} (evento {novo_id})")
+    return novo_id, momento, atual
+
+
+def _mudou(cx: dict, tipo: str) -> None:
+    """Grava a mudanca e avisa por e-mail se for alarme. Chamado com a trava."""
+    try:
+        novo_id, momento, atual = _gravar_elo(tipo, cx["caixa"], cx["local"])
+    except Exception as erro:  # noqa: BLE001
+        # Banco fora: o estado em memoria NAO muda, e a proxima batida (ou a
+        # proxima volta da vigia) tenta de novo. Mudanca perdida nao se recupera.
+        print(f"[saude] nao consegui gravar '{tipo}': {erro}")
+        raise
+    cx["desde"] = time.monotonic()
+    if WEBHOOK and deve_alertar(tipo, cx["caixa"]):
+        ev = Evento(aluno_id=cx["caixa"], tipo_evento=tipo, localizacao=cx["local"])
+        threading.Thread(target=disparar_webhook, args=(novo_id, momento, ev, atual),
+                         daemon=True).start()
+
+
+@app.post("/api/batimento")
+def batimento(b: Batida) -> dict:
+    with _trava_caixas:
+        cx = _caixas.get(b.caixa)
+        if cx is None:
+            cx = _caixas[b.caixa] = {"caixa": b.caixa, "episodio": None,
+                                    "desde": time.monotonic()}
+        cx.update(local=b.local, estado=b.estado, intervalo=b.intervalo_s,
+                  detalhe=b.detalhe, quadro_ha_s=b.quadro_ha_s, fps=b.fps,
+                  pendentes=b.pendentes, visto=time.monotonic())
+        antes = cx["episodio"]
+        if b.estado == "parada":
+            # Parada DE PROPOSITO: vira registro (a cadeia diz quando o sistema
+            # foi desligado), mas nao toca sirene. Sem isto, cada Ctrl+C no
+            # laboratorio viraria "caixa sem sinal" trinta segundos depois.
+            if antes != "parada":
+                _mudou(cx, "caixa_parada")
+                cx["episodio"] = "parada"
+        else:
+            problema = _PROBLEMA.get(b.estado)
+            if problema and problema != antes:
+                _mudou(cx, problema)
+                cx["episodio"] = problema
+            elif not problema and antes in CEGUEIRA:
+                _mudou(cx, "sinal_voltou")
+                cx["episodio"] = None
+            elif not problema and antes == "parada":
+                cx["episodio"] = None      # religou: nao havia alarme a fechar
+        return {"ok": True, "episodio": cx["episodio"]}
+
+
+def conferir_silencio() -> list[str]:
+    """Quem parou de bater. Devolve as caixas que viraram "sem sinal" agora."""
+    mudas = []
+    with _trava_caixas:
+        agora = time.monotonic()
+        for cx in _caixas.values():
+            if cx["episodio"] in ("sem_sinal", "parada"):
+                continue
+            prazo = max(SEM_SINAL_S, 3 * cx.get("intervalo", 5.0))
+            if agora - cx["visto"] > prazo:
+                try:
+                    _mudou(cx, "sem_sinal")
+                except Exception:  # noqa: BLE001
+                    continue
+                cx["episodio"] = "sem_sinal"
+                mudas.append(cx["caixa"])
+    return mudas
+
+
+async def vigiar_silencio() -> None:
+    """A caixa muda nao manda nada — quem percebe o silencio e o servidor."""
+    passo = max(1.0, min(5.0, SEM_SINAL_S / 3))
+    while True:
+        await asyncio.sleep(passo)
+        try:
+            await asyncio.to_thread(conferir_silencio)
+        except Exception as erro:  # noqa: BLE001
+            print(f"[saude] vigia falhou: {erro}")
+
+
+@app.get("/api/saude")
+def saude() -> dict:
+    """Como esta cada caixa AGORA. So memoria: responde mesmo com o banco fora."""
+    agora = time.monotonic()
+    with _trava_caixas:
+        lista = []
+        for cx in _caixas.values():
+            visto = agora - cx["visto"]
+            ep = cx["episodio"]
+            estado = ep or cx["estado"]
+            lista.append({
+                "caixa": cx["caixa"], "local": cx["local"],
+                "estado": {"camera_sem_imagem": "sem_imagem",
+                           "camera_tampada": "tampada",
+                           "parada": "parada"}.get(estado, estado),
+                "visto_ha_s": round(visto, 1),
+                "ha_s": round(agora - cx["desde"]),
+                "detalhe": cx.get("detalhe"), "fps": cx.get("fps"),
+                "quadro_ha_s": cx.get("quadro_ha_s"),
+                "pendentes": cx.get("pendentes")})
+    return {"caixas": sorted(lista, key=lambda c: c["caixa"]),
+            "sem_sinal_s": SEM_SINAL_S}
 
 
 @app.get("/api/verificar")

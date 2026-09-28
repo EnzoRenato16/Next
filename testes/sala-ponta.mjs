@@ -31,9 +31,15 @@ ok('a sala.py roda inteira e termina sozinha, sem erro', py.status === 0 && fim.
 ok('a tela mostrou a queda no log', /\[QUEDA\]/.test(py.stdout));
 
 const evs = await (await fetch(BASE + '/api/eventos?limite=50&completo=1')).json();
-const meus = evs.filter(e => e.localizacao === fim.local);
+/* A caixa também registra a própria parada ("caixa_parada", pelo batimento):
+   ela terminou de propósito, com --segundos. Fica separada da conta da queda. */
+const daSala = evs.filter(e => e.localizacao === fim.local);
+const meus = daSala.filter(e => e.tipo_evento !== 'caixa_parada');
 ok('a queda chegou ao servidor, UMA vez', meus.length === 1 && meus[0].tipo_evento === 'queda',
    meus.map(e => e.tipo_evento).join(','));
+ok('e a caixa registrou que parou de propósito (sem virar "sem sinal")',
+   daSala.filter(e => e.tipo_evento === 'caixa_parada').length === 1 &&
+   !daSala.some(e => e.tipo_evento === 'sem_sinal'));
 ok('com o corpo junto', meus[0] && meus[0].tem_esqueleto === true);
 const esq = meus[0] ? await (await fetch(BASE + '/api/esqueleto/' + meus[0].id)).json() : {};
 ok('o corpo tem os últimos quadros, 17 pontos cada',

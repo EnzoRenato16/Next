@@ -172,6 +172,32 @@ de vitrine `PAINEL_TIPOS`.
 não existe (use `toggleAttribute`). Teste de tela confere `getComputedStyle`,
 não o atributo.
 
+## O sistema cego avisa (`aibox/batimento.py`, `/api/batimento`, `/api/saude`)
+
+Painel quieto porque nada aconteceu e painel quieto porque a caixa morreu eram a
+mesma tela. Agora a caixa bate a cada 5 s dizendo como está a imagem:
+
+| a caixa diz | quando | vira na cadeia |
+|---|---|---|
+| `ok` | chega quadro, com detalhe | nada (batida não é fato) |
+| `sem_imagem` | 10 s sem quadro | `camera_sem_imagem` |
+| `tampada` | 10 s de imagem lisa (desvio do brilho < `TAMPADA_LIMIAR`) | `camera_tampada` |
+| `parada` | Ctrl+C ou `--segundos` acabou | `caixa_parada` (sem sirene) |
+| — (silêncio) | `SEM_SINAL_S`=30 s sem batida, **notado pelo servidor** | `sem_sinal` |
+
+Uma linha **por episódio**, e `sinal_voltou` fecha. `sem_sinal`,
+`camera_sem_imagem` e `camera_tampada` formam `CEGUEIRA`: tocam a sirene, pedem
+ciente e mandam e-mail (`ALARMES = GRAVES | CEGUEIRA`), mas ficam **fora de
+`GRAVES`** para não contar como ocorrência na série. O estado de agora mora só na
+memória do servidor — `/api/saude` responde mesmo com o banco fora — e por isso
+uma caixa só é vigiada depois de bater uma vez desde que o servidor subiu.
+
+De carona, na `sala.py`: RTSP que **trava sem cair** deixava o laço esperando
+quadro para sempre. Agora, 15 s sem quadro (`TRAVADA_S`) = reabre a câmera.
+
+A ideia de "câmera fora do ar" veio do Lot Vulture (licença PolyForm Shield):
+**só a ideia**, o código foi escrito do zero.
+
 ## Três chaves que vêm DESLIGADAS de propósito
 
 | chave | onde | o que faz | por que desligada |
@@ -349,4 +375,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 27 arquivos em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 28 arquivos `.mjs` em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
