@@ -8,7 +8,10 @@
  *     node testes/alerta.mjs
  */
 import { spawn } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const PORTA_FALSA = 8799, PORTA = 8788;
 const recebidos = [];
@@ -33,6 +36,10 @@ await new Promise(r => falso.listen(PORTA_FALSA, r));
 
 const srv = spawn('uv', ['run', 'servidor.py'], { env: { ...process.env,
   PORTA: String(PORTA),
+  /* Banco temporário: sem isto o teste gravava quedas no auditix.db de quem
+     está usando o sistema. */
+  SQLITE_ARQUIVO: join(mkdtempSync(join(tmpdir(), 'auditix-alerta-')), 'a.db'),
+  DATABASE_URL: '',
   WEBHOOK_URL: `http://127.0.0.1:${PORTA_FALSA}/`,
   WEBHOOK_SEGREDO: 'senha-de-teste',
   ALERTA_TIPOS: 'graves',
@@ -48,6 +55,13 @@ const evento = async (tipo, quem = 'corpo-1') => {
   await dormir(300);
   return gasto;
 };
+/* Espera o e-mail CHEGAR, até 3 s, em vez de um tempo fixo. O primeiro envio
+   carrega a biblioteca HTTP na hora, e numa máquina ocupada isso passava dos
+   300 ms: o teste acusava "não chegou" num e-mail que só estava a caminho. */
+const chegaram = async n => {
+  for(let i = 0; i < 30 && recebidos.length < n; i++) await dormir(100);
+  return recebidos.length;
+};
 
 let pronto = false;
 for(let i = 0; i < 60 && !pronto; i++){
@@ -62,6 +76,7 @@ const dizer = (ok, msg) => { if(!ok) bem = false;
   console.log((ok ? '  ok    ' : '  FALHA ') + msg); };
 
 await evento('queda');
+await chegaram(1);
 dizer(recebidos.length === 1, 'queda vira alerta                        (' + recebidos.length + ')');
 dizer(recebidos[0]?.segredo === 'senha-de-teste',
       'vai com o segredo combinado             (' + recebidos[0]?.segredo + ')');
@@ -74,11 +89,13 @@ dizer(recebidos.length === 1, 'segunda queda em 2s não repete o e-mail (' + rec
 
 await dormir(2200);
 await evento('queda');
+await chegaram(2);
 dizer(recebidos.length === 2, 'passada a espera, alerta de novo        (' + recebidos.length + ')');
 
 /* A espera é por PESSOA. Era só por tipo: duas quedas de alunos diferentes em
    menos de um minuto davam UM e-mail — justamente no tumulto. */
 await evento('queda', 'corpo-2');
+await chegaram(3);
 dizer(recebidos.length === 3, 'OUTRA pessoa caindo na espera: alerta   (' + recebidos.length + ')');
 
 /* O registro não espera o e-mail. Antes o webhook rodava dentro do /api/evento

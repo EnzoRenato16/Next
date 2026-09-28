@@ -161,6 +161,10 @@ function pintar(linhas){
     + '</tr></thead><tbody>' + corpo + '</tbody></table>';
 }
 
+/* Os tipos que tocam a sirene no painel — a mesma lista do servidor. */
+const ALERTAS = new Set(['queda','briga','pedido_ajuda','agitacao','objeto_perigoso',
+  'patrimonio_sumiu','sem_sinal','camera_sem_imagem','camera_tampada']);
+
 async function mostrar(){
   const copia = eventos.map((e, i) => i === adulterado
     ? { ...e, tipo_evento: 'nada_aconteceu', mexido:'tipo_evento' }
@@ -170,14 +174,23 @@ async function mostrar(){
 
 $('adulterar').addEventListener('click', async () => {
   if(eventos.length < 2) return;
-  /* Mexe no MEIO da lista de propósito: adulterar a última não mostraria a
-     propagação, que é justamente o ponto. */
-  adulterado = Math.floor(eventos.length / 2);
+  /* Um ALERTA, e nunca o último: adulterar a última linha não mostraria a
+     propagação, que é justamente o ponto. Entre os alertas, o mais perto do
+     meio. Era sempre o meio, fosse o que fosse — e a tela dizia "esconder uma
+     queda" enquanto trocava uma linha de "caixa parada". */
+  const meio = Math.floor(eventos.length / 2);
+  const alertas = eventos.map((e, i) => i).slice(0, -1)
+    .filter(i => ALERTAS.has(eventos[i].tipo_evento))
+    .sort((x, y) => Math.abs(x - meio) - Math.abs(y - meio));
+  adulterado = alertas.length ? alertas[0] : meio;
+  const era = eventos[adulterado].tipo_evento;
   $('restaurar').disabled = false;
   $('adulterar').disabled = true;
   $('explica').innerHTML = 'Troquei o tipo do evento #' + eventos[adulterado].id
-    + ' por <b>nada_aconteceu</b> — é o que alguém faria para esconder que uma '
-    + 'queda aconteceu. Repare que não foi só aquela linha que ficou vermelha. '
+    + ' (<b>' + era.replace(/_/g, ' ') + '</b>) por <b>nada_aconteceu</b> — '
+    + (ALERTAS.has(era) ? 'é o que alguém faria para esconder o alerta. '
+                        : 'é o que alguém faria para reescrever o registro. ')
+    + 'Repare que não foi só aquela linha que ficou vermelha. '
     + '<b>O banco não foi tocado</b>: isto está acontecendo só na cópia deste navegador.';
   await mostrar();
 });
