@@ -287,7 +287,7 @@ td .hash{ font-family:var(--mono); font-size:11.5px; color:var(--ink-3); }
       <button class="btn" id="alarme-corpo" hidden>ver o corpo</button>
     </div>
     <p class="alarme-nota">"Estou ciente" vira uma linha na cadeia de hash, com o horário.
-      É o que prova que alguém reagiu — e em quanto tempo.</p>
+      É o que prova que alguém reagiu, e em quanto tempo.</p>
     <p class="alarme-nota" id="alarme-mais"></p>
   </div>
 </div>
@@ -1249,7 +1249,7 @@ async function abrirCorpo(id){
     el('visor-nota').textContent =
       'Os ' + poses.length + ' últimos quadros do corpo antes do alerta, em vermelho ' +
       'o último. São só os 17 pontos do corpo: nenhuma imagem da câmera, e nada ' +
-      'que diga de quem é o corpo. É evidência de apoio para a conferência humana — ' +
+      'que diga de quem é o corpo. É evidência de apoio para a conferência humana; ' +
       'o que a cadeia de hash protege é o fato de o alerta ter existido.';
   }catch(err){
     el('visor-nota').textContent = 'Sem esqueleto para este evento.';

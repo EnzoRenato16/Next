@@ -4,59 +4,59 @@
 <meta charset="utf-8">
 <title>Auditix IA: relatório de checkpoint (Grupo 11, 2ECR)</title>
 <style>
-/* Formato de trabalho academico comum: Arial 12, espaco 1,5, texto
-   justificado, margens de 3 cm (superior e esquerda) e 2 cm. Gerado em PDF
-   por relatorio/gerar.mjs. */
+/* Formato de trabalho academico simples, em cerca de 12 paginas. Gerado em
+   PDF por relatorio/gerar.mjs. */
 @page{
-  size:A4; margin:3cm 2cm 2cm 3cm;
+  size:A4; margin:2.5cm 2cm 2cm 2.5cm;
   @top-right{ content:counter(page); font:10pt Arial, 'Liberation Sans', sans-serif; }
 }
 @page capa{ @top-right{ content:none } }
 @page pre{ @top-right{ content:none } }
 html{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-body{ margin:0; font:12pt/1.5 Arial, 'Liberation Sans', sans-serif; color:#000; background:#fff; }
-p{ margin:0 0 6pt; text-align:justify; text-indent:1.25cm; }
-h1{ font-size:12pt; font-weight:bold; margin:0; }
-h2{ font-size:12pt; font-weight:bold; margin:18pt 0 10pt; break-after:avoid; }
-h3{ font-size:12pt; font-weight:bold; margin:14pt 0 8pt; break-after:avoid; }
+body{ margin:0; font:11pt/1.4 Arial, 'Liberation Sans', sans-serif; color:#000; background:#fff; }
+p{ margin:0 0 5pt; text-align:justify; text-indent:1.25cm; }
+h1{ font-size:11pt; font-weight:bold; margin:0; }
+h2{ font-size:11pt; font-weight:bold; margin:14pt 0 7pt; break-after:avoid; }
+h3{ font-size:11pt; font-weight:bold; margin:10pt 0 5pt; break-after:avoid; }
 h2 + *, h3 + *{ break-before:avoid; }
 .nova-pagina{ break-before:page; }
 .nova-pagina > h2:first-child{ margin-top:0; }
-ul, ol{ margin:0 0 8pt; padding-left:1.25cm; text-align:justify; }
-li{ margin-bottom:3pt; }
-code{ font-family:'Courier New', 'Liberation Mono', monospace; font-size:10.5pt; }
+ol{ margin:0 0 6pt; padding-left:1.25cm; text-align:justify; }
+li{ margin-bottom:2pt; }
+code{ font-family:'Courier New', 'Liberation Mono', monospace; font-size:9.5pt; }
 
-/* Tabelas e figuras: titulo em cima, fonte embaixo, bordas finas pretas. */
-.titulo-tab, .titulo-fig{ font-size:10pt; line-height:1.3; text-align:center; margin:10pt 0 4pt;
-  text-indent:0; break-after:avoid; }
-.fonte{ font-size:10pt; line-height:1.3; text-align:left; margin:3pt 0 12pt; text-indent:0; }
-table{ width:100%; border-collapse:collapse; font-size:10pt; line-height:1.3; break-inside:avoid; }
+table{ width:100%; border-collapse:collapse; font-size:9.5pt; line-height:1.25; margin:6pt 0 10pt;
+  break-inside:avoid; }
 table.longa{ break-inside:auto; }
-th, td{ border:0.5pt solid #000; padding:3pt 5pt; vertical-align:top; text-align:left; }
+th, td{ border:0.5pt solid #000; padding:2.5pt 4pt; vertical-align:top; text-align:left; }
 th{ font-weight:bold; }
 tr{ break-inside:avoid; }
 td.n, th.n{ text-align:right; }
-.bloco{ break-inside:avoid; }
-figure{ margin:0; text-align:center; break-inside:avoid; }
-figure img{ max-width:100%; border:0.5pt solid #000; }
+
+.imagens{ display:flex; gap:0.35cm; justify-content:center; align-items:flex-start; margin:6pt 0 10pt;
+  break-inside:avoid; }
+.imagens img{ display:block; border:0.5pt solid #000; min-width:0; }
+.uma{ text-align:center; margin:6pt 0 10pt; break-inside:avoid; }
+.uma img, .uma svg{ border:0.5pt solid #000; max-width:100%; }
+.uma svg{ border:none; }
 
 /* Capa no padrao ABNT. */
-.capa{ page:capa; height:24.6cm; display:flex; flex-direction:column; align-items:center;
-  text-align:center; break-after:page; font-weight:bold; }
+.capa{ page:capa; height:25.1cm; display:flex; flex-direction:column; align-items:center;
+  text-align:center; break-after:page; font-size:12pt; font-weight:bold; }
 .capa .inst{ text-transform:uppercase; }
 .capa .autores{ margin-top:2.2cm; font-weight:normal; line-height:1.6; }
 .capa .titulo{ margin-top:auto; font-size:14pt; text-transform:uppercase; }
-.capa .subtitulo{ font-weight:normal; margin-top:6pt; }
+.capa .subtitulo{ font-weight:normal; margin-top:6pt; line-height:1.5; }
 .capa .prof{ font-weight:normal; margin-top:1.4cm; }
 .capa .local{ margin-top:auto; text-transform:uppercase; }
 
 /* Sumario com o numero da pagina, preenchido pelo gerador. */
 .sumario{ list-style:none; padding:0; margin:0; }
-.sumario li{ display:flex; align-items:baseline; margin:0 0 4pt; }
+.sumario li{ display:flex; align-items:baseline; margin:0 0 5pt; }
 .sumario li.sub{ padding-left:0.8cm; }
 .sumario .pontos{ flex:1; border-bottom:1pt dotted #000; margin:0 4pt; position:relative; top:-3pt; }
 .sumario .pg{ min-width:0.8cm; text-align:right; }
-.referencias p{ text-indent:0; text-align:left; margin-bottom:10pt; }
+.referencias p{ text-indent:0; text-align:left; margin-bottom:6pt; }
 </style>
 </head>
 <body>
@@ -85,125 +85,86 @@ figure img{ max-width:100%; border:0.5pt solid #000; }
 
 <!-- ========================================================== SUMÁRIO -->
 <section style="page:pre">
-  <h1 style="text-align:center; margin-bottom:18pt">SUMÁRIO</h1>
+  <h1 style="text-align:center; margin-bottom:16pt">SUMÁRIO</h1>
   <ol class="sumario" id="sumario"></ol>
 </section>
 
 <!-- ======================================================= 1 INTRODUÇÃO -->
 <section class="nova-pagina">
 <h2 id="s1">1 INTRODUÇÃO</h2>
-<p>O Auditix IA é o projeto do Grupo 11 da turma 2ECR para o desafio proposto pela DATEN
-em parceria com a FIAP. A proposta é um sistema de segurança para escolas que usa visão
-computacional para identificar situações de risco em sala de aula (queda, corrida, briga e
-pedido de ajuda) e registrar cada ocorrência de um jeito que possa ser auditado depois.</p>
-<p>Todo o processamento de vídeo é feito na IABox. Ela recebe as imagens da câmera IP da
-sala, estima a posição do corpo de cada pessoa e decide se houve alguma ocorrência. O
-resultado é enviado ao servidor que roda no computador do grupo, que grava os eventos em um
-banco de dados encadeado por hash (SHA-256) e mostra tudo em um painel. Nenhuma imagem sai
-da IABox: quando existe um alerta, o que vai junto com ele são apenas as coordenadas dos
-pontos do corpo.</p>
-<p>Este relatório apresenta o estágio atual do projeto, a evolução em relação às etapas
-anteriores, a configuração usada na IABox, os testes realizados, as evidências de
-funcionamento, as dificuldades encontradas e o que ainda falta para a demonstração
-final.</p>
+<p>O Auditix IA é o projeto do Grupo 11 da turma 2ECR para o desafio DATEN e FIAP. É um
+sistema de segurança para escolas que usa visão computacional para identificar situações de
+risco em sala (queda, corrida, briga e pedido de ajuda) e registrar cada ocorrência de forma
+que possa ser auditada depois.</p>
+<p>Todo o processamento de vídeo acontece na IABox: ela recebe as imagens da câmera IP da
+sala, estima a posição do corpo de cada pessoa e decide se houve ocorrência. O resultado vai
+para o servidor no computador do grupo, que grava os eventos em um banco encadeado por hash
+(SHA-256) e mostra tudo em um painel. Nenhuma imagem sai da IABox; junto com o alerta vão
+apenas as coordenadas dos pontos do corpo.</p>
 
-<h3 id="s1-1">1.1 Situação atual em números</h3>
-<p class="titulo-tab">Tabela 1: Principais números deste checkpoint</p>
 <table>
-  <thead><tr><th>Indicador</th><th style="width:36%">Valor</th></tr></thead>
+  <thead><tr><th>Situação atual</th><th style="width:38%">Valor</th></tr></thead>
   <tr><td>Análises por segundo na IABox, com a câmera real e a tela ao vivo aberta</td><td>6,2 a 6,3</td></tr>
-  <tr><td>Análises por segundo medidas sem a tela ao vivo</td><td>8,7 (no início eram 1,5)</td></tr>
-  <tr><td>Tempo do modelo de pose por quadro</td><td>cerca de 150 ms</td></tr>
-  <tr><td>Tempo da nossa análise por quadro</td><td>0,1 a 0,4 ms</td></tr>
+  <tr><td>Análises por segundo sem a tela ao vivo</td><td>8,7 (no início eram 1,5)</td></tr>
+  <tr><td>Tempo do modelo de pose / da nossa análise, por quadro</td><td>cerca de 150 ms / 0,1 a 0,4 ms</td></tr>
   <tr><td>Testes automatizados</td><td>28 arquivos, 345 verificações, todas passando</td></tr>
 </table>
-<p class="fonte">Fonte: medições do grupo na IABox (21/09/2026) e no ambiente de desenvolvimento.</p>
 
-<p>A descoberta mais importante deste checkpoint veio das fotos tiradas no laboratório. A
-rede neural de queda só calcula a sua nota quando recebe pelo menos 8 quadros dentro de 1
-segundo, e a IABox está entregando cerca de 6. Por isso, na maior parte do tempo a rede não
-participa da decisão, e a detecção de queda fica dependendo só da regra geométrica. Medimos
-o efeito disso nos 1.020 vídeos de teste do dataset: a 6 quadros por segundo a rede ainda
-acerta 84% das quedas, enquanto a regra sozinha acerta 48%. Corrigir esse limite é a
-primeira das próximas etapas (seção 11).</p>
+<p>A descoberta mais importante deste checkpoint veio das fotos do laboratório. A rede neural
+de queda só calcula a nota quando recebe pelo menos 8 quadros em 1 segundo, e a IABox entrega
+cerca de 6. Assim, na maior parte do tempo a rede não participa da decisão e a queda depende
+só da regra geométrica. Nos 1.020 vídeos de teste do dataset, a 6 quadros por segundo a rede
+ainda acerta 84% das quedas, contra 48% da regra sozinha. Corrigir esse limite é a primeira
+das próximas etapas.</p>
 </section>
 
 <!-- ========================================================= 2 EVOLUÇÃO -->
 <section>
 <h2 id="s2">2 EVOLUÇÃO DO PROJETO</h2>
-<h3 id="s2-1">2.1 Etapas anteriores</h3>
-<p>O projeto começou como uma página que rodava no navegador e foi sendo levado para dentro
-da IABox. A Tabela 2 resume as etapas, montada a partir do histórico de commits do
-repositório (mais de 110 até esta entrega).</p>
-
-<p class="titulo-tab">Tabela 2: Etapas do desenvolvimento</p>
-<table class="longa">
-  <thead><tr><th style="width:23%">Etapa</th><th style="width:15%">Período</th><th>O que foi feito</th></tr></thead>
-  <tr><td>Protótipo no navegador</td><td>08/09 a 10/09</td>
-    <td>Detecção com MediaPipe no Chrome, servidor com a cadeia de hash, banco PostgreSQL na
-    AWS com SQLite como reserva e a primeira versão do painel.</td></tr>
-  <tr><td>Modelo de queda</td><td>11/09 a 14/09</td>
-    <td>Treinamento de uma rede neural própria com 4.509 vídeos do dataset Fall Vision. O
-    acerto em quedas subiu de 60% (regra geométrica) para 89%. Entraram também a câmera IP no
-    navegador, o registro de calibração, o alerta por e-mail (AWS Lambda e SES) e o mapa de
-    calor.</td></tr>
-  <tr><td>Novos comportamentos</td><td>17/09 a 18/09</td>
-    <td>Detecção de corrida e de briga por regras, usando as características propostas no
-    artigo DIFEM, e o botão de pedido de ajuda.</td></tr>
-  <tr><td>Migração para a IABox</td><td>21/09</td>
-    <td>O mesmo modelo passou a rodar em Python dentro da IABox, com o YOLO11 pose no ONNX
-    Runtime e a leitura da câmera pelo GStreamer. Nessa noite fizemos a primeira execução com
-    a câmera da sala (seção 9).</td></tr>
-  <tr><td>Do alerta até a resposta</td><td>22/09 a 23/09</td>
-    <td>Imagem ao vivo servida pela própria IABox, cadastro de rostos sem guardar imagem,
-    fila de envio com reenvio, pontos do corpo enviados junto com o alerta, alarme no painel
-    com confirmação de ciência e scripts para agilizar o trabalho no laboratório.</td></tr>
-  <tr><td>Foco e robustez</td><td>23/09 a 28/09</td>
-    <td>O escopo foi fechado em segurança (a ideia de uso em hospital saiu do projeto), foi
-    criado o aviso de câmera tampada ou sem sinal e a câmera passou a ser reaberta sozinha
-    quando trava.</td></tr>
-</table>
-<p class="fonte">Fonte: histórico do repositório do grupo.</p>
-
-<h3 id="s2-2">2.2 Comparação com as etapas anteriores</h3>
-<p class="titulo-tab">Tabela 3: Como o sistema era e como está agora</p>
+<p>O projeto começou como uma página que rodava no navegador e foi levado para dentro da
+IABox. As etapas abaixo foram montadas a partir do histórico de commits do repositório (mais
+de 110 até esta entrega).</p>
 <table>
-  <thead><tr><th style="width:46%">Antes</th><th>Agora</th></tr></thead>
-  <tr><td>Detecção só no navegador do computador, com webcam</td><td>Detecção na IABox, com a câmera IP da sala</td></tr>
-  <tr><td>Queda detectada por regra geométrica (60% das quedas)</td><td>Rede neural treinada (89%), com a regra mantida como segundo critério</td></tr>
-  <tr><td>1,5 quadro por segundo na IABox (PyTorch, entrada 640)</td><td>8,7 por segundo (ONNX Runtime, entrada 320) e 6,2 com a tela ao vivo aberta</td></tr>
-  <tr><td>Cada alerta parava a análise por até 4 s esperando a rede</td><td>Fila separada: a análise não espera e o reenvio não duplica o evento</td></tr>
-  <tr><td>Alerta da IABox chegava sem nenhuma evidência</td><td>O alerta leva os pontos do corpo dos últimos 2,5 s, sem imagem</td></tr>
-  <tr><td>O painel só listava os eventos</td><td>Alarme em tela cheia e registro de quem reagiu e em quanto tempo</td></tr>
-  <tr><td>Dados do rosto guardados como 128 números sem proteção</td><td>Os números são transformados com uma chave própria antes de gravar</td></tr>
-  <tr><td>Com a IABox desligada o painel ficava igual a um dia sem ocorrências</td><td>Câmera tampada, sem imagem ou sem sinal gera alarme e registro</td></tr>
+  <thead><tr><th style="width:21%">Etapa</th><th style="width:14%">Período</th><th>O que foi feito</th></tr></thead>
+  <tr><td>Protótipo no navegador</td><td>08/09 a 10/09</td>
+    <td>Detecção com MediaPipe no Chrome, servidor com cadeia de hash, PostgreSQL na AWS com SQLite de reserva e primeiro painel.</td></tr>
+  <tr><td>Modelo de queda</td><td>11/09 a 14/09</td>
+    <td>Rede neural própria treinada com 4.509 vídeos do dataset Fall Vision; o acerto em quedas subiu de 60% (regra) para 89%. Também entraram câmera IP, calibração, alerta por e-mail e mapa de calor.</td></tr>
+  <tr><td>Novos comportamentos</td><td>17/09 a 18/09</td>
+    <td>Corrida e briga por regras, com as características do artigo DIFEM, e botão de pedido de ajuda.</td></tr>
+  <tr><td>Migração para a IABox</td><td>21/09</td>
+    <td>O mesmo modelo em Python na IABox, com YOLO11 pose no ONNX Runtime e leitura da câmera pelo GStreamer. Primeira execução com a câmera da sala.</td></tr>
+  <tr><td>Do alerta até a resposta</td><td>22/09 a 23/09</td>
+    <td>Imagem ao vivo servida pela IABox, cadastro de rostos sem guardar imagem, fila de envio com reenvio, esqueleto junto com o alerta, alarme com confirmação de ciência e scripts de laboratório.</td></tr>
+  <tr><td>Foco e robustez</td><td>23/09 a 28/09</td>
+    <td>Escopo fechado em segurança, aviso de câmera tampada ou sem sinal e reabertura automática da câmera quando trava.</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
 
-<h3 id="s2-3">2.3 O que está pronto, em andamento e por fazer</h3>
-<p><b>Desenvolvido e visto funcionando na IABox:</b> leitura da câmera, estimativa de pose,
-rastreamento de várias pessoas, análise em tempo real, imagem ao vivo com o esqueleto
-desenhado, envio do alerta ao servidor, cadeia de hash e painel.</p>
-<p><b>Pronto e testado no computador, mas ainda não validado na IABox:</b> fila de envio com
-reenvio, esqueleto enviado junto com o alerta, alarme com confirmação de ciência,
-reconhecimento facial na IABox, aviso de câmera tampada ou sem sinal e controle de quais
-máquinas podem gravar no servidor.</p>
-<p><b>Em andamento:</b> aumentar a taxa de quadros (limite de amostras da rede e divisão dos
-núcleos do processador), fazer a sessão de calibração de 30 minutos e melhorar a detecção de
-pessoas longe da câmera.</p>
+<p>Em relação às etapas anteriores, as mudanças principais foram: a detecção saiu do
+navegador para a IABox com a câmera IP; a queda passou a ser detectada por uma rede treinada,
+com a regra mantida como segundo critério; a taxa na IABox foi de 1,5 para 8,7 quadros por
+segundo; o envio de alertas deixou de travar a análise; o alerta passou a trazer o esqueleto
+como evidência; o painel ganhou alarme e registro de quem reagiu; os dados de rosto passaram a
+ser protegidos por chave; e a IABox desligada deixou de passar despercebida.</p>
+
+<p><b>Pronto e visto funcionando na IABox:</b> leitura da câmera, estimativa de pose,
+rastreamento de várias pessoas, análise em tempo real, imagem ao vivo com esqueleto, envio do
+alerta, cadeia de hash e painel. <b>Pronto, mas ainda não validado na IABox:</b> fila de envio,
+esqueleto no alerta, alarme com confirmação de ciência, reconhecimento facial, aviso de câmera
+tampada e controle de quem grava no servidor. <b>Em andamento:</b> aumentar a taxa de quadros,
+calibração de 30 minutos e detecção de pessoas distantes.</p>
 </section>
 
 <!-- ====================================================== 3 ARQUITETURA -->
 <section>
 <h2 id="s3">3 ARQUITETURA DA SOLUÇÃO</h2>
-<p>A solução usa três equipamentos ligados na rede da IABox. A câmera filma a sala, a IABox
-faz toda a análise e o computador do grupo guarda os eventos e mostra o painel. A IABox não
-tem banco de dados, e o computador não recebe vídeo.</p>
+<p>São três equipamentos na rede da IABox: a câmera filma, a IABox faz toda a análise e o
+computador do grupo guarda os eventos e mostra o painel. A IABox não tem banco de dados e o
+computador não recebe vídeo. A linha tracejada no diagrama é a única parte que depende de
+internet.</p>
 
-<div class="bloco">
-<p class="titulo-fig">Figura 1: Arquitetura da solução</p>
-<figure>
-<svg viewBox="0 0 676 300" width="100%" role="img" aria-label="Arquitetura da solução" style="font-family:Arial, 'Liberation Sans', sans-serif">
+<div class="uma">
+<svg viewBox="0 0 676 300" width="100%" role="img" aria-label="Arquitetura da solução" style="font-family:Arial, 'Liberation Sans', sans-serif; max-height:7cm">
   <defs>
     <marker id="seta" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#000"/></marker>
@@ -224,7 +185,6 @@ tem banco de dados, e o computador não recebe vídeo.</p>
     <text x="12" y="60" font-weight="bold">Câmera IP</text>
     <text x="12" y="76">Intelbras</text>
     <text x="12" y="92">192.168.50.108</text>
-
     <text x="160" y="26" font-weight="bold">IABox (Qualcomm QCS6490)</text>
     <text x="320" y="26">192.168.50.10</text>
     <text x="172" y="55" font-weight="bold">GStreamer</text>
@@ -237,7 +197,6 @@ tem banco de dados, e o computador não recebe vídeo.</p>
     <text x="172" y="219">queda, corrida e briga</text>
     <text x="172" y="256" font-weight="bold">Fila de envio e batimento</text>
     <text x="172" y="271">reenvia se o servidor não responder</text>
-
     <text x="472" y="26" font-weight="bold">Computador do grupo</text>
     <text x="472" y="42">192.168.50.72</text>
     <text x="472" y="66">servidor.py (FastAPI)</text>
@@ -245,13 +204,10 @@ tem banco de dados, e o computador não recebe vídeo.</p>
     <text x="472" y="102">painel e alarme</text>
     <text x="472" y="120">conferência da cadeia</text>
     <text x="472" y="138">cadastro de rostos</text>
-
     <text x="472" y="200" font-weight="bold">PostgreSQL (AWS RDS)</text>
     <text x="472" y="218">ou SQLite local se o RDS cair</text>
-
     <text x="472" y="267" font-weight="bold">AWS Lambda e SES</text>
     <text x="472" y="284">e-mail, só com internet</text>
-
     <text x="119" y="68" font-size="9.5">RTSP</text>
     <text x="411" y="176" font-size="9.5">HTTP</text>
     <text x="411" y="188" font-size="9.5">sem</text>
@@ -268,414 +224,275 @@ tem banco de dados, e o computador não recebe vídeo.</p>
     <path d="M648 100 H664 V271 H650" stroke-dasharray="4 3" marker-end="url(#seta)"/>
   </g>
 </svg>
-</figure>
-<p class="fonte">Fonte: elaborado pelo grupo. A linha tracejada indica o que depende de internet, que não existe na rede do laboratório.</p>
 </div>
 
-<p>O caminho de um alerta, do começo ao fim, é o seguinte:</p>
-<ol>
-  <li>a câmera envia o vídeo para a IABox por RTSP, usando TCP;</li>
-  <li>o GStreamer decodifica o vídeo e entrega quadros de 640×360 pixels;</li>
-  <li>o YOLO11 pose encontra as pessoas e devolve 17 pontos do corpo de cada uma, e o
-  rastreador mantém o mesmo número para a mesma pessoa de um quadro para o outro;</li>
-  <li>com os pontos são calculadas 12 características, como a inclinação do tronco, a
-  velocidade de descida do quadril e a proporção entre largura e altura do corpo;</li>
-  <li>a rede neural e as regras decidem se houve queda, corrida ou briga;</li>
-  <li>o alerta entra numa fila e é enviado ao servidor por HTTP, junto com os pontos do corpo
-  dos últimos 2,5 segundos;</li>
-  <li>o servidor grava o evento na cadeia de hash e o painel mostra o alarme.</li>
-</ol>
+<p>O caminho de um alerta é: a câmera envia o vídeo por RTSP (sobre TCP); o GStreamer
+decodifica em quadros de 640×360; o YOLO11 pose encontra as pessoas e devolve 17 pontos do
+corpo de cada uma, e o rastreador mantém o mesmo número para a mesma pessoa; com os pontos são
+calculadas 12 características, como inclinação do tronco, velocidade de descida do quadril e
+proporção entre largura e altura do corpo; a rede neural e as regras decidem se houve queda,
+corrida ou briga; o alerta entra numa fila e vai para o servidor por HTTP; e o servidor grava
+na cadeia de hash e dispara o alarme no painel.</p>
 
-<h3 id="s3-1">3.1 Dados que saem da IABox</h3>
-<p class="titulo-tab">Tabela 4: Mensagens enviadas pela IABox ao servidor</p>
 <table>
-  <thead><tr><th style="width:18%">Mensagem</th><th>Conteúdo</th><th style="width:30%">Onde é guardada</th></tr></thead>
-  <tr><td>Evento</td><td>Tipo, local, número da pessoa (ou nome, se cadastrada), uma chave única e há quantos milissegundos aconteceu</td><td>Na cadeia de hash</td></tr>
-  <tr><td>Esqueleto</td><td>Até 24 quadros com 17 pontos cada (x, y e confiança), cerca de 8 KB</td><td>Em tabela separada, ligada ao evento</td></tr>
-  <tr><td>Batimento</td><td>Estado da imagem, taxa de quadros e alertas na fila, a cada 5 s</td><td>Só na memória do servidor; apenas as mudanças de estado viram registro</td></tr>
-  <tr><td>Rosto (opcional)</td><td>128 números calculados na IABox; ela recebe de volta só o nome</td><td>A comparação é feita no servidor</td></tr>
-  <tr><td>Imagem</td><td colspan="2">Não sai da IABox. A tela ao vivo é servida pela própria IABox e só gasta processamento quando alguém está com ela aberta.</td></tr>
+  <thead><tr><th style="width:17%">O que sai da IABox</th><th>Conteúdo</th><th style="width:28%">Onde fica</th></tr></thead>
+  <tr><td>Evento</td><td>Tipo, local, número da pessoa (ou nome, se cadastrada), chave única e há quantos ms aconteceu</td><td>Cadeia de hash</td></tr>
+  <tr><td>Esqueleto</td><td>Até 24 quadros de 17 pontos dos últimos 2,5 s (cerca de 8 KB)</td><td>Tabela separada, ligada ao evento</td></tr>
+  <tr><td>Batimento</td><td>Estado da imagem, taxa de quadros e alertas na fila, a cada 5 s</td><td>Memória do servidor; só mudanças viram registro</td></tr>
+  <tr><td>Rosto (opcional)</td><td>128 números; a IABox recebe de volta só o nome</td><td>Comparação feita no servidor</td></tr>
+  <tr><td>Imagem</td><td colspan="2">Não sai da IABox. A tela ao vivo é servida pela própria IABox e só gasta processamento quando alguém está olhando.</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
 
-<h3 id="s3-2">3.2 Cadeia de hash</h3>
-<p>Cada linha do banco guarda o hash SHA-256 de cinco campos: momento, pessoa, tipo, local e
-o hash da linha anterior. Se alguém alterar uma linha antiga, o hash dela muda, e todas as
-linhas seguintes deixam de fechar. O servidor tem uma rota que confere a cadeia, e também
-criamos uma página que baixa os eventos e refaz o cálculo no próprio navegador de quem está
-olhando, para que a conferência não dependa de confiar no servidor. Por esse motivo nenhuma
-linha do banco é apagada.</p>
-
-<h3 id="s3-3">3.3 Mesma lógica no navegador e na IABox</h3>
-<p>Mantivemos uma versão que roda no navegador com webcam, que serve como plano B na
-apresentação. As duas versões usam as mesmas 12 características e os mesmos 113 pesos da
-rede. Um dos testes automatizados roda o mesmo cenário nas duas e confere que os cálculos
-dão exatamente o mesmo resultado e que o alarme de queda dispara no mesmo quadro.</p>
+<p>Cada linha do banco guarda o SHA-256 de momento, pessoa, tipo, local e o hash da linha
+anterior. Alterar uma linha antiga muda o hash dela e faz todas as seguintes deixarem de
+fechar; por isso nenhuma linha é apagada. Além da conferência feita pelo servidor, criamos uma
+página que refaz o cálculo no navegador de quem está olhando. Também mantivemos a versão do
+navegador com webcam como plano B: ela usa as mesmas 12 características e os mesmos 113 pesos
+da rede, e um teste automatizado confere que as duas versões dão exatamente o mesmo
+resultado.</p>
 </section>
 
 <!-- ========================================================= 4 IABOX -->
 <section>
 <h2 id="s4">4 CONFIGURAÇÃO DA IABOX</h2>
-<p class="titulo-tab">Tabela 5: Hardware e software da IABox</p>
 <table>
-  <thead><tr><th style="width:26%">Item</th><th>Configuração</th></tr></thead>
-  <tr><td>Processador</td><td>Qualcomm QCS6490 (ARM64)</td></tr>
-  <tr><td>Núcleos</td><td>8 núcleos: 4 Cortex-A55 de 1,96 GHz e 4 Cortex-A78 (três de 2,4 GHz e um de 2,7 GHz)</td></tr>
-  <tr><td>Memória</td><td>7 GB</td></tr>
-  <tr><td>Sistema operacional</td><td>Ubuntu 20.04</td></tr>
-  <tr><td>Acelerador</td><td>Tem NPU Hexagon, mas não está sendo usada porque falta o provedor QNN do ONNX Runtime</td></tr>
-  <tr><td>Ambiente Python</td><td><code>/opt/eduvision/venv</code>, que já vem na IABox, com OpenCV 4.10, NumPy, Ultralytics e ONNX Runtime</td></tr>
-  <tr><td>Biblioteca extra</td><td><code>lap</code>, exigida pelo rastreador, instalada em <code>~/pylibs</code> porque o ambiente não pertence ao nosso usuário</td></tr>
+  <thead><tr><th style="width:22%">Item</th><th>Configuração</th></tr></thead>
+  <tr><td>Processador</td><td>Qualcomm QCS6490 (ARM64), 8 núcleos: 4 Cortex-A55 de 1,96 GHz e 4 Cortex-A78 (três de 2,4 GHz e um de 2,7 GHz)</td></tr>
+  <tr><td>Memória e sistema</td><td>7 GB, Ubuntu 20.04</td></tr>
+  <tr><td>Acelerador</td><td>NPU Hexagon, ainda não usada (falta o provedor QNN do ONNX Runtime)</td></tr>
+  <tr><td>Ambiente Python</td><td><code>/opt/eduvision/venv</code>, que já vem na IABox, com OpenCV 4.10, NumPy, Ultralytics e ONNX Runtime; a biblioteca <code>lap</code> do rastreador fica em <code>~/pylibs</code></td></tr>
   <tr><td>Vídeo</td><td>GStreamer (<code>gst-launch-1.0</code>), chamado fora do Python</td></tr>
+  <tr><td>Rede</td><td>Rede da própria IABox (192.168.50.0/24), sem internet e compartilhada com outros grupos. IABox em .10, câmera em .108 e computador do grupo com IP fixo em .72</td></tr>
 </table>
-<p class="fonte">Fonte: levantamento do grupo na IABox.</p>
 
-<h3 id="s4-1">4.1 Rede</h3>
-<p>No laboratório usamos a rede da própria IABox (192.168.50.0/24), que não tem acesso à
-internet e é compartilhada com os computadores de outros grupos. O computador do grupo fica
-com IP fixo 192.168.50.72 e roda o servidor aceitando conexões da rede. A IABox usa o
-endereço 192.168.50.10 e envia os eventos para o computador. Como outros grupos estão na
-mesma rede, o servidor tem uma lista de endereços que podem gravar; as demais máquinas só
-conseguem ler.</p>
-
-<h3 id="s4-2">4.2 Instalação e execução</h3>
-<p>Os comandos mais usados viraram scripts, porque digitar tudo a cada sessão no laboratório
-estava gerando erros.</p>
-<p class="titulo-tab">Tabela 6: Scripts usados no laboratório</p>
+<p>Como outros grupos estão na mesma rede, o servidor tem uma lista de endereços que podem
+gravar; os demais só leem. O endereço da câmera, usuário, senha e servidor ficam num arquivo
+<code>.env</code> em cada máquina, fora do GitHub. Os comandos repetitivos do laboratório
+viraram scripts:</p>
 <table>
-  <thead><tr><th style="width:28%">Comando</th><th>O que faz</th></tr></thead>
-  <tr><td><code>pc puxar</code></td><td>No computador: muda a rede para DHCP, baixa o código novo do GitHub e volta para o IP fixo</td></tr>
-  <tr><td><code>pc enviar</code></td><td>Copia o código para a IABox por SSH e corrige o fim de linha dos arquivos do Windows</td></tr>
-  <tr><td><code>pc modelos</code></td><td>Copia os modelos de reconhecimento facial (39 MB), uma única vez</td></tr>
+  <thead><tr><th style="width:24%">Comando</th><th>O que faz</th></tr></thead>
+  <tr><td><code>pc puxar</code> / <code>pc enviar</code></td><td>No computador: baixa o código novo do GitHub e copia para a IABox por SSH, corrigindo o fim de linha do Windows</td></tr>
   <tr><td><code>pc servidor</code></td><td>Sobe o servidor aceitando conexões da rede</td></tr>
   <tr><td><code>bash aibox/ir.sh</code></td><td>Na IABox: encontra o Python correto, confere o servidor e inicia a análise</td></tr>
-  <tr><td><code>aibox/conferir.py</code></td><td>Mostra se o servidor responde, qual banco está em uso, se a cadeia fecha e se as caixas estão enviando batimento</td></tr>
-  <tr><td><code>aibox/medir.py</code></td><td>Mede separadamente o limite da câmera e o limite do modelo</td></tr>
+  <tr><td><code>aibox/conferir.py</code></td><td>Mostra se o servidor responde, qual banco está em uso e se a cadeia fecha</td></tr>
+  <tr><td><code>aibox/medir.py</code></td><td>Mede separadamente o limite da câmera e o do modelo</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
-<p>O endereço da câmera, o usuário, a senha e o endereço do servidor ficam em um arquivo
-<code>.env</code> em cada máquina, que não é enviado ao GitHub. O usuário e a senha da câmera
-ficam em variáveis separadas do endereço porque a senha tem o caractere @, que quebra a URL
-quando colocado dentro dela.</p>
 </section>
 
 <!-- ======================================================== 5 CÂMERAS -->
 <section>
 <h2 id="s5">5 CÂMERAS UTILIZADAS</h2>
-<p>Usamos a câmera IP Intelbras instalada no laboratório, fixa no alto de um canto da sala e
-com lente grande angular, que cobre praticamente a sala inteira. A Tabela 7 mostra como ela
-foi configurada.</p>
-<p class="titulo-tab">Tabela 7: Configuração da câmera</p>
-<table>
-  <thead><tr><th style="width:26%">Item</th><th>Configuração</th></tr></thead>
-  <tr><td>Modelo</td><td>Câmera IP Intelbras (linha VIPC)</td></tr>
-  <tr><td>Protocolo</td><td>RTSP, pelo caminho <code>/cam/realmonitor?channel=1&amp;subtype=1</code></td></tr>
-  <tr><td>Fluxo</td><td>Fluxo secundário, de resolução menor. A análise não melhora com mais resolução, e usar o fluxo principal disputaria a câmera com outros sistemas</td></tr>
-  <tr><td>Transporte</td><td>TCP. Com UDP os pacotes perdidos deixam o quadro com falhas, e o detector interpreta isso como um corpo em posição estranha</td></tr>
-  <tr><td>Quadro analisado</td><td>640×360 pixels, sempre o mais recente. Quadros antigos são descartados para a análise não ficar atrasada</td></tr>
-  <tr><td>Alternativa</td><td>A versão do navegador aceita webcam, como plano B caso a rede falhe na apresentação</td></tr>
-</table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
-<p>Três pontos sobre a câmera real que não apareciam nos testes com webcam. Primeiro, com o
-caminho do fluxo errado a câmera responde com erro 401 (não autorizado), o que parece senha
-errada; só funcionou com o caminho específico da Intelbras. Segundo, o relógio interno da
-câmera está em 01/01/2000 (dá para ver nas fotos da seção 9), então o horário oficial de cada
-evento é sempre o do servidor. Terceiro, a câmera fica no alto e inclinada, enquanto os vídeos
-do dataset de treino foram gravados na altura das pessoas, o que afeta principalmente quem
-está muito perto da câmera (seção 10).</p>
+<p>Usamos a câmera IP Intelbras (linha VIPC) do laboratório, fixa no alto de um canto da sala,
+com lente grande angular. Ela é lida por RTSP no caminho
+<code>/cam/realmonitor?channel=1&amp;subtype=1</code>, que é o fluxo secundário, de resolução
+menor: a análise não melhora com mais resolução e o fluxo principal disputaria a câmera com
+outros sistemas. O transporte é TCP, porque com UDP os pacotes perdidos deixam o quadro com
+falhas que o detector interpreta como corpo em posição estranha. Cada quadro é reduzido para
+640×360 e a análise usa sempre o mais recente, descartando os antigos. A versão do navegador
+aceita webcam, como plano B para a apresentação.</p>
+<p>A câmera real trouxe três observações. Com o caminho errado ela responde erro 401 (não
+autorizado), o que parece senha errada. O relógio interno dela está em 01/01/2000, visível nas
+fotos da seção 9, por isso o horário oficial dos eventos é sempre o do servidor. E ela fica no
+alto e inclinada, enquanto os vídeos do dataset foram gravados na altura das pessoas, o que
+afeta principalmente quem está muito perto da câmera.</p>
 </section>
 
 <!-- ===================================================== 6 TECNOLOGIAS -->
 <section>
 <h2 id="s6">6 TECNOLOGIAS APLICADAS</h2>
-<p class="titulo-tab">Tabela 8: Tecnologias usadas no projeto</p>
 <table class="longa">
-  <thead><tr><th style="width:21%">Parte</th><th style="width:38%">Tecnologia</th><th>Uso</th></tr></thead>
-  <tr><td>Pose na IABox</td><td>YOLO11n pose (Ultralytics) exportado para ONNX e executado no ONNX Runtime, entrada de 320 pixels</td><td>17 pontos do corpo no formato COCO, o mesmo do dataset de treino</td></tr>
-  <tr><td>Pose no navegador</td><td>MediaPipe Pose</td><td>Versão com webcam; usamos os mesmos 17 pontos</td></tr>
-  <tr><td>Rastreamento</td><td>BoT-SORT (padrão do Ultralytics) e controle próprio das trilhas</td><td>Manter a identificação de cada pessoa entre quadros</td></tr>
-  <tr><td>Queda</td><td>Rede neural própria com 12 entradas, 8 neurônios ocultos e 1 saída (113 pesos), treinada com NumPy, mais uma regra geométrica</td><td>Detectar queda; treinada no Fall Vision (Harvard Dataverse, domínio público)</td></tr>
-  <tr><td>Corrida e briga</td><td>Regras sobre as características do DIFEM</td><td>São regras escritas pelo grupo, não modelos treinados</td></tr>
-  <tr><td>Rosto (opcional)</td><td>YuNet e SFace (OpenCV Zoo, ONNX) na IABox; face-api no navegador</td><td>Reconhecer pessoas cadastradas sem guardar imagem</td></tr>
-  <tr><td>Vídeo</td><td>GStreamer</td><td>Ler o RTSP, que o OpenCV da IABox não consegue abrir</td></tr>
-  <tr><td>Servidor</td><td>Python com FastAPI, Uvicorn e Pydantic</td><td>API, cadeia de hash e monitoramento das caixas</td></tr>
-  <tr><td>Banco de dados</td><td>PostgreSQL na AWS (RDS) e SQLite local</td><td>O SQLite assume automaticamente se o RDS não responder</td></tr>
-  <tr><td>Integridade</td><td>SHA-256 encadeado; Web Crypto no navegador</td><td>Permitir que qualquer pessoa confira se algo foi alterado</td></tr>
-  <tr><td>Alerta externo</td><td>AWS Lambda e Amazon SES</td><td>E-mail em ocorrência grave, com segredo compartilhado</td></tr>
-  <tr><td>Telas</td><td>HTML, CSS e JavaScript sem framework; MJPEG para o vídeo ao vivo</td><td>Painel, alarme, conferência da cadeia, cadastro e imagem ao vivo</td></tr>
-  <tr><td>BI</td><td>Views SQL para Power BI</td><td>Somente dados agregados, sem expor cada aluno</td></tr>
-  <tr><td>Testes</td><td>Node.js, Playwright (Chromium) e Python</td><td>28 arquivos de teste que sobem o sistema de verdade</td></tr>
+  <thead><tr><th style="width:19%">Parte</th><th style="width:41%">Tecnologia</th><th>Uso</th></tr></thead>
+  <tr><td>Pose</td><td>YOLO11n pose (Ultralytics) em ONNX Runtime, entrada 320, na IABox; MediaPipe no navegador</td><td>17 pontos do corpo no formato COCO, o mesmo do dataset</td></tr>
+  <tr><td>Rastreamento</td><td>BoT-SORT (padrão do Ultralytics) e controle próprio das trilhas</td><td>Manter a identificação de cada pessoa</td></tr>
+  <tr><td>Queda</td><td>Rede neural própria 12, 8 e 1 neurônios (113 pesos), treinada com NumPy, e regra geométrica</td><td>Treinada no Fall Vision (domínio público)</td></tr>
+  <tr><td>Corrida e briga</td><td>Regras sobre as características do DIFEM</td><td>Regras escritas pelo grupo, não modelos treinados</td></tr>
+  <tr><td>Rosto (opcional)</td><td>YuNet e SFace (OpenCV Zoo) na IABox; face-api no navegador</td><td>Reconhecer cadastrados sem guardar imagem</td></tr>
+  <tr><td>Vídeo</td><td>GStreamer</td><td>Ler o RTSP, que o OpenCV da IABox não abre</td></tr>
+  <tr><td>Servidor e banco</td><td>Python com FastAPI; PostgreSQL na AWS (RDS) e SQLite local</td><td>API e cadeia de hash; o SQLite assume se o RDS cair</td></tr>
+  <tr><td>Alerta externo</td><td>AWS Lambda e Amazon SES</td><td>E-mail em ocorrência grave</td></tr>
+  <tr><td>Telas</td><td>HTML, CSS e JavaScript sem framework; Web Crypto; MJPEG</td><td>Painel, alarme, conferência da cadeia e vídeo ao vivo</td></tr>
+  <tr><td>BI e testes</td><td>Views SQL para Power BI; Node.js, Playwright e Python</td><td>Dados só agregados; testes que sobem o sistema de verdade</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
 </section>
 
 <!-- ================================================= 7 FUNCIONALIDADES -->
 <section>
 <h2 id="s7">7 FUNCIONALIDADES IMPLEMENTADAS</h2>
-<p>A Tabela 9 lista as funcionalidades e a situação de cada uma. Chamamos de "validada na
-IABox" o que vimos funcionar com a câmera real, e de "roda na IABox" o que está no laço de
-análise da caixa mas ainda não teve um teste dirigido no laboratório.</p>
-<p class="titulo-tab">Tabela 9: Funcionalidades e situação atual</p>
+<p>Chamamos de "validada na IABox" o que vimos funcionar com a câmera real, e de "roda na
+IABox" o que está no laço de análise mas ainda não teve teste dirigido.</p>
 <table class="longa">
-  <thead><tr><th style="width:22%">Funcionalidade</th><th>Descrição</th><th style="width:21%">Situação</th></tr></thead>
-  <tr><td>Leitura da câmera</td><td>RTSP pelo GStreamer, sempre o quadro mais recente, com reconexão quando a câmera cai</td><td>Validada na IABox</td></tr>
-  <tr><td>Pose e rastreamento</td><td>17 pontos por pessoa, várias pessoas ao mesmo tempo, cada uma com seu número</td><td>Validada na IABox</td></tr>
-  <tr><td>Detecção de queda</td><td>Rede neural e regra geométrica; o alerta sai quando a pessoa fica 1,2 s no chão</td><td>Roda na IABox (ver seção 10)</td></tr>
+  <thead><tr><th style="width:24%">Funcionalidade</th><th>Descrição</th><th style="width:20%">Situação</th></tr></thead>
+  <tr><td>Leitura da câmera, pose e rastreamento</td><td>Quadro mais recente, várias pessoas, cada uma com seu número, reconexão se a câmera cair</td><td>Validada na IABox</td></tr>
+  <tr><td>Imagem ao vivo</td><td>Câmera com o esqueleto desenhado e os números de desempenho</td><td>Validada na IABox</td></tr>
+  <tr><td>Envio ao servidor</td><td>Alerta com chave única para não duplicar</td><td>Validada na IABox</td></tr>
+  <tr><td>Detecção de queda</td><td>Rede e regra; alerta após 1,2 s no chão</td><td>Roda na IABox (ver seção 10)</td></tr>
   <tr><td>Corrida e briga</td><td>Regras de velocidade e de golpes entre duas pessoas</td><td>Roda na IABox</td></tr>
-  <tr><td>Envio ao servidor</td><td>Alerta enviado ao computador com chave única</td><td>Validada na IABox</td></tr>
-  <tr><td>Imagem ao vivo</td><td>A IABox mostra a câmera com o esqueleto desenhado e os números de desempenho</td><td>Validada na IABox</td></tr>
-  <tr><td>Cadeia de hash</td><td>Todos os registros encadeados, com página de conferência no navegador</td><td>Validada</td></tr>
-  <tr><td>Painel</td><td>Situação da cadeia, eventos por dia, horário de pico, tipos, locais e tabela com hash</td><td>Validada</td></tr>
-  <tr><td>Fila de envio</td><td>Se o servidor cair, o alerta fica guardado e é reenviado sem duplicar</td><td>Falta validar na IABox</td></tr>
-  <tr><td>Esqueleto no alerta</td><td>O alerta leva 2,5 s de pontos do corpo e o painel mostra o movimento</td><td>Falta validar na IABox</td></tr>
-  <tr><td>Alarme e confirmação de ciência</td><td>Ocorrência grave ocupa a tela com som; o clique em "Estou ciente" vira registro com o tempo de reação</td><td>Falta validar na IABox</td></tr>
-  <tr><td>Aviso de sistema sem visão</td><td>Câmera tampada, sem imagem ou IABox sem sinal viram alarme e registro; câmera travada por 15 s é reaberta</td><td>Falta validar na IABox</td></tr>
-  <tr><td>Reconhecimento facial</td><td>A IABox envia 128 números e recebe um nome; o cadastro é protegido por chave e não guarda imagem</td><td>Falta validar na IABox</td></tr>
-  <tr><td>Alerta por e-mail</td><td>AWS Lambda e SES; o registro nunca espera o e-mail</td><td>Depende de internet</td></tr>
-  <tr><td>Calibração</td><td>Uma amostra por pessoa por segundo com os valores da análise, mesmo sem ocorrência</td><td>Falta a medição de 30 min</td></tr>
-  <tr><td>Pedido de ajuda</td><td>Botão pressionado por uma pessoa; é o único alerta sem nenhuma inferência</td><td>Só no navegador</td></tr>
-  <tr><td>Mapa de calor</td><td>Regiões da sala onde as pessoas mais ficam, de forma agregada</td><td>Só no navegador</td></tr>
-  <tr><td>Divisão de núcleos e vídeo fluido</td><td>Modelo nos núcleos mais rápidos; vídeo ao vivo no ritmo da câmera</td><td>Desligado até medir</td></tr>
-  <tr><td>Controle de escrita</td><td>Só os endereços autorizados gravam no servidor</td><td>Desligado por padrão</td></tr>
+  <tr><td>Cadeia de hash e painel</td><td>Registros encadeados, conferência no navegador, eventos por dia, horário de pico e tabela com hash</td><td>Validada</td></tr>
+  <tr><td>Fila de envio</td><td>Com o servidor fora do ar, o alerta fica guardado e é reenviado</td><td>Falta validar na IABox</td></tr>
+  <tr><td>Esqueleto no alerta</td><td>2,5 s de pontos do corpo como evidência, sem imagem</td><td>Falta validar na IABox</td></tr>
+  <tr><td>Alarme e "Estou ciente"</td><td>Tela cheia com som; o clique vira registro com o tempo de reação</td><td>Falta validar na IABox</td></tr>
+  <tr><td>Aviso de sistema sem visão</td><td>Câmera tampada, sem imagem ou IABox sem sinal viram alarme e registro</td><td>Falta validar na IABox</td></tr>
+  <tr><td>Reconhecimento facial</td><td>A IABox envia 128 números e recebe um nome</td><td>Falta validar na IABox</td></tr>
+  <tr><td>Alerta por e-mail</td><td>AWS Lambda e SES; o registro não espera o e-mail</td><td>Depende de internet</td></tr>
+  <tr><td>Calibração</td><td>Uma amostra por pessoa por segundo, mesmo sem ocorrência</td><td>Falta a medição de 30 min</td></tr>
+  <tr><td>Pedido de ajuda e mapa de calor</td><td>Botão de socorro e regiões mais ocupadas da sala</td><td>Só no navegador</td></tr>
+  <tr><td>Divisão de núcleos e controle de escrita</td><td>Modelo nos núcleos rápidos; só endereços autorizados gravam</td><td>Desligados até medir</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
-
-<h3 id="s7-1">7.1 Privacidade</h3>
-<p>Como o sistema é pensado para escolas, a LGPD pesou em várias decisões. Nenhuma imagem sai
-da IABox. No reconhecimento facial, os 128 números que descrevem o rosto passam por uma
-transformação baseada em uma chave antes de serem gravados. Essa transformação não altera as
-distâncias entre os vetores, então o reconhecimento continua funcionando igual (medimos uma
-diferença da ordem de 10<sup>-14</sup>), mas quem copiar só o banco de dados não consegue
-comparar esses números com outra base. Se for preciso, trocar a chave invalida todos os
-cadastros de uma vez. Essa proteção vale para um vazamento do banco; quem tiver acesso ao
-servidor inteiro também tem acesso à chave.</p>
+<p>Por ser um sistema para escolas, a LGPD pesou nas decisões. Nenhuma imagem sai da IABox, e
+os 128 números do rosto passam por uma transformação com chave antes de serem gravados. A
+transformação não altera as distâncias, então o reconhecimento funciona igual (diferença
+medida da ordem de 10<sup>-14</sup>), mas quem copiar só o banco não consegue comparar esses
+dados com outra base. Trocar a chave invalida todos os cadastros de uma vez.</p>
 </section>
 
 <!-- ========================================================== 8 TESTES -->
 <section>
 <h2 id="s8">8 TESTES REALIZADOS</h2>
 <h3 id="s8-1">8.1 Desempenho na IABox</h3>
-<p class="titulo-tab">Tabela 10: Desempenho medido na IABox</p>
 <table>
   <thead><tr><th>Configuração</th><th class="n">Análises/s</th><th class="n">Modelo</th><th class="n">Nossa análise</th><th class="n">CPU</th><th class="n">RAM</th></tr></thead>
-  <tr><td>PyTorch, entrada 640 (ponto de partida)</td><td class="n">1,5</td><td class="n">600 ms</td><td class="n">0,2 ms</td><td class="n">não medido</td><td class="n">não medido</td></tr>
-  <tr><td>PyTorch, entrada 320</td><td class="n">3,1</td><td class="n">300 ms</td><td class="n">0,0 ms</td><td class="n">não medido</td><td class="n">não medido</td></tr>
-  <tr><td>ONNX Runtime, entrada 320, sem a tela ao vivo</td><td class="n">8,7</td><td class="n">110 ms</td><td class="n">0,5 ms</td><td class="n">não medido</td><td class="n">não medido</td></tr>
-  <tr><td>ONNX Runtime, entrada 320, câmera real e tela ao vivo aberta</td><td class="n">6,2 a 6,3</td><td class="n">144 a 157 ms</td><td class="n">0,1 a 0,4 ms</td><td class="n">429% a 746%</td><td class="n">333 MB</td></tr>
+  <tr><td>PyTorch, entrada 640 (início)</td><td class="n">1,5</td><td class="n">600 ms</td><td class="n">0,2 ms</td><td class="n"></td><td class="n"></td></tr>
+  <tr><td>PyTorch, entrada 320</td><td class="n">3,1</td><td class="n">300 ms</td><td class="n">0,0 ms</td><td class="n"></td><td class="n"></td></tr>
+  <tr><td>ONNX Runtime, entrada 320, sem tela ao vivo</td><td class="n">8,7</td><td class="n">110 ms</td><td class="n">0,5 ms</td><td class="n"></td><td class="n"></td></tr>
+  <tr><td>ONNX Runtime, câmera real e tela ao vivo aberta</td><td class="n">6,2 a 6,3</td><td class="n">144 a 157 ms</td><td class="n">0,1 a 0,4 ms</td><td class="n">429% a 746%</td><td class="n">333 MB</td></tr>
 </table>
-<p class="fonte">Fonte: medições do grupo na IABox. CPU em porcentagem de um núcleo (800% seriam os 8 núcleos).</p>
-<p>Só mudando a forma de executar o mesmo modelo, a taxa foi de 1,5 para 8,7 análises por
-segundo, quase seis vezes mais. A parte de análise que nós escrevemos gasta menos de meio
-milissegundo por quadro; quase todo o tempo é do modelo de pose. Com a tela ao vivo aberta, o
-processador chegou a 746% (cerca de 7,5 dos 8 núcleos) e o modelo passou de 110 para uns 150
-ms, porque ele passa a disputar o processador com a decodificação do vídeo e com a geração da
-imagem para o navegador. A divisão de núcleos citada na seção 11 foi feita para medir e
-reduzir essa disputa.</p>
+<p>Só trocando a forma de executar o mesmo modelo, a taxa subiu quase seis vezes. A análise que
+escrevemos gasta menos de meio milissegundo; quase todo o tempo é do modelo de pose. Com a tela
+ao vivo aberta, a CPU chegou a 746% (cerca de 7,5 dos 8 núcleos) e o modelo passou de 110 para
+uns 150 ms, porque disputa o processador com a decodificação do vídeo e com a imagem enviada ao
+navegador. A CPU e a RAM só foram medidas na última configuração.</p>
 
 <h3 id="s8-2">8.2 Qualidade do modelo de queda</h3>
-<p>Testamos o modelo nos 1.020 vídeos de teste do Fall Vision, que ficaram separados e não
-foram usados no treinamento. As linhas de 7,5 e 6 quadros por segundo foram medidas para este
-relatório, jogando fora quadros dos mesmos vídeos para simular uma câmera mais lenta, sem
-treinar o modelo de novo.</p>
-<p class="titulo-tab">Tabela 11: Desempenho do modelo de queda por taxa de quadros</p>
+<p>Testamos nos 1.020 vídeos de teste do Fall Vision, que não foram usados no treinamento. As
+linhas de 7,5 e 6 quadros/s foram medidas para este relatório, descartando quadros dos mesmos
+vídeos para simular uma câmera mais lenta.</p>
 <table>
-  <thead><tr><th>Quadros/s</th><th class="n">AUC</th><th class="n">Precisão</th><th class="n">Acerto da rede (revocação)</th><th class="n">Quedas perdidas</th><th class="n">Acerto só da regra</th></tr></thead>
+  <thead><tr><th>Quadros/s</th><th class="n">AUC</th><th class="n">Precisão</th><th class="n">Acerto da rede</th><th class="n">Quedas perdidas</th><th class="n">Acerto só da regra</th></tr></thead>
   <tr><td>30 (taxa do treino)</td><td class="n">0,977</td><td class="n">98%</td><td class="n">89%</td><td class="n">55</td><td class="n">60%</td></tr>
   <tr><td>15</td><td class="n">0,972</td><td class="n">99%</td><td class="n">86%</td><td class="n">71</td><td class="n">57%</td></tr>
   <tr><td>10</td><td class="n">0,959</td><td class="n">98%</td><td class="n">86%</td><td class="n">75</td><td class="n">51%</td></tr>
   <tr><td>7,5</td><td class="n">0,955</td><td class="n">98%</td><td class="n">84%</td><td class="n">84</td><td class="n">52%</td></tr>
   <tr><td>6 (o que a IABox entrega hoje)</td><td class="n">0,958</td><td class="n">98%</td><td class="n">84%</td><td class="n">82</td><td class="n">48%</td></tr>
 </table>
-<p class="fonte">Fonte: medições do grupo com o script <code>treino/taxa.py</code>, sobre o dataset Fall Vision.</p>
-<p>A rede perde pouco com menos quadros (de 89% para 84%), enquanto a regra perde bastante
-(de 60% para 48%). A regra, por outro lado, não gerou nenhum alarme falso nesses vídeos, com
-precisão de 100% em todas as taxas. Por isso mantemos as duas funcionando juntas.</p>
+<p>A rede perde pouco com menos quadros (89% para 84%) e a regra perde bastante (60% para 48%).
+Em compensação, a regra não gerou nenhum alarme falso nesses vídeos, por isso as duas
+funcionam juntas.</p>
 
 <h3 id="s8-3">8.3 Testes automatizados</h3>
-<p>O projeto tem 28 arquivos de teste, com 345 verificações, e todos passaram na rodada feita
-para este relatório. Os testes sobem o servidor de verdade com um banco temporário e abrem as
-telas em um navegador Chromium, em vez de testar funções isoladas. A Tabela 12 resume o que
-eles cobrem.</p>
-<p class="titulo-tab">Tabela 12: O que os testes automatizados verificam</p>
-<table>
-  <thead><tr><th style="width:26%">Grupo</th><th>O que é verificado</th></tr></thead>
-  <tr><td>Navegador e IABox</td><td>O mesmo cenário roda nas duas versões, os cálculos batem exatamente e a queda é detectada no mesmo quadro</td></tr>
-  <tr><td>Ponta a ponta</td><td>O programa da IABox completo, com câmera simulada: detecta a queda, a rede reconhece, a fila entrega com o esqueleto e o servidor grava uma única vez</td></tr>
-  <tr><td>Regras de visão</td><td>Queda, corrida, briga, linha do chão, várias pessoas e objetos que não devem contar como pessoa (casaco na cadeira, por exemplo)</td></tr>
-  <tr><td>Envio</td><td>Servidor fora do ar, lento ou recusando; a análise não espera (0,05 ms) e cinco cópias do mesmo alerta viram um único registro</td></tr>
-  <tr><td>Cadeia e alarme</td><td>Alterar uma linha quebra ela e as seguintes; "Estou ciente" grava uma vez só, mesmo com cinco cliques; só endereços autorizados gravam</td></tr>
-  <tr><td>Sistema sem visão</td><td>Câmera tampada gera um registro por ocorrência; IABox parada vira "sem sinal" sozinha; encerrar a IABox de propósito não toca o alarme</td></tr>
-  <tr><td>Biometria</td><td>A proteção por chave não muda o reconhecimento; bancos de versões antigas continuam reconhecendo quem já estava cadastrado</td></tr>
-  <tr><td>Telas</td><td>Elementos realmente visíveis na tela e nenhum erro de JavaScript</td></tr>
-</table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
-<p>Durante a preparação do relatório, o teste do e-mail falhou em duas rodadas completas e
-passou em todas as rodadas isoladas. O problema estava no próprio teste: ele esperava 300 ms
-fixos pelo e-mail, e o primeiro envio demora mais porque carrega a biblioteca HTTP na hora.
-Mudamos o teste para esperar o e-mail chegar (até 3 s) e usar um banco temporário.</p>
+<p>São 28 arquivos de teste com 345 verificações, todas passando na rodada feita para este
+relatório. Eles sobem o servidor de verdade com banco temporário e abrem as telas no Chromium.
+Cobrem: a equivalência entre navegador e IABox (mesmo resultado e alarme no mesmo quadro); o
+programa da IABox de ponta a ponta com câmera simulada; as regras de queda, corrida e briga; a
+fila de envio com servidor fora do ar, lento ou recusando (cinco cópias do mesmo alerta viram
+um registro); a quebra da cadeia ao alterar uma linha; o "Estou ciente" gravado uma vez só
+mesmo com vários cliques; o aviso de câmera tampada ou sem sinal; e a proteção dos dados de
+rosto. Na preparação do relatório, o teste do e-mail falhou duas vezes por esperar só 300 ms
+fixos; corrigimos o teste para esperar o e-mail chegar.</p>
 </section>
 
 <!-- ====================================================== 9 EVIDÊNCIAS -->
 <section>
 <h2 id="s9">9 EVIDÊNCIAS DE FUNCIONAMENTO</h2>
-<h3 id="s9-1">9.1 Execução na IABox com a câmera da sala</h3>
-<p>As fotos abaixo foram tiradas no laboratório em 21/09/2026, entre 22h15 e 22h19, e mostram
-a tela ao vivo servida pela IABox no endereço 192.168.50.10:8080. Cada pessoa detectada
-aparece com o esqueleto de 17 pontos, o número da trilha e a nota da rede de queda. A pessoa
-fica vermelha enquanto o sistema está contando o tempo para confirmar uma queda.</p>
+<p>As fotos abaixo foram tiradas no laboratório em 21/09/2026, às 22h15, 22h17 e 22h19, e
+mostram a tela ao vivo servida pela IABox (192.168.50.10:8080). Cada pessoa detectada aparece
+com o esqueleto de 17 pontos, o número da trilha e a nota da rede de queda, e fica vermelha
+enquanto o sistema conta o tempo para confirmar uma queda.</p>
 
-<div class="bloco">
-<p class="titulo-fig">Figura 2: Tela ao vivo às 22h15, uma pessoa detectada</p>
-<figure><img src="img/lab-1.jpg" alt="Tela ao vivo da IABox com uma pessoa detectada" style="width:13cm"></figure>
-<p class="fonte">Fonte: foto do grupo. Valores na tela: 6,2 análises/s, modelo 144 ms, análise 0,1 ms, CPU 429%, RAM 333 MB.</p>
+<div class="imagens">
+  <img src="img/lab-1.jpg" alt="Tela ao vivo às 22h15" style="width:5.3cm">
+  <img src="img/lab-2.jpg" alt="Tela ao vivo às 22h17" style="width:5.3cm">
+  <img src="img/lab-3.jpg" alt="Tela ao vivo às 22h19" style="width:5.3cm">
 </div>
-<p>Na Figura 2 o sistema detectou a pessoa em primeiro plano, mas só a cabeça e os ombros,
-porque o resto do corpo está escondido pela mesa. O homem sentado à direita, ao fundo, não foi
-detectado.</p>
 
-<div class="bloco">
-<p class="titulo-fig">Figura 3: Tela ao vivo às 22h17, duas pessoas detectadas</p>
-<figure><img src="img/lab-2.jpg" alt="Tela ao vivo da IABox com duas pessoas e o esqueleto desenhado" style="width:13cm"></figure>
-<p class="fonte">Fonte: foto do grupo. Valores na tela: 6,3 análises/s, modelo 150 ms, análise 0,4 ms, CPU 724%, RAM 333 MB.</p>
+<p>Na primeira foto (6,2 análises/s, modelo 144 ms, CPU 429%) a pessoa em primeiro plano
+aparece só com cabeça e ombros, porque o corpo está atrás da mesa, e o homem sentado ao fundo
+não é detectado. Na segunda (6,3 análises/s, modelo 150 ms, CPU 724%) a pessoa em pé aparece
+com o esqueleto completo, que é o caso em que a detecção funciona melhor. Na terceira (6,2
+análises/s, modelo 157 ms, CPU 746%) a pessoa debruçada sobre a mesa, perto da câmera e
+cortada pela borda, ficou vermelha; como a nota da rede está em 0,00, quem acionou foi a regra
+geométrica. As duas pessoas ao fundo não foram detectadas, e o contador mostra 1 alerta enviado
+ao servidor. As fotos confirmam o funcionamento na IABox e deixaram claros três problemas: a
+rede quase sem participar, pessoas distantes não detectadas e corpo cortado perto da câmera
+acionando o relógio de queda.</p>
+
+<p>As telas do servidor a seguir foram capturadas no ambiente de desenvolvimento com o código
+atual. A queda foi gerada pelo próprio programa da IABox, com uma câmera simulada que reproduz
+uma queda real do dataset; o resto do caminho (fila, servidor, cadeia e painel) é o mesmo do
+laboratório. À esquerda, o alarme que ocupa a tela em 1 a 2 segundos e toca até alguém clicar
+em "Estou ciente"; à direita, o esqueleto enviado no lugar de uma foto, com o último quadro em
+vermelho, que mostra a descida sem identificar a pessoa.</p>
+
+<div class="imagens">
+  <img src="img/painel-alarme.jpg" alt="Alarme de queda no painel" style="width:9.6cm">
+  <img src="img/painel-corpo.jpg" alt="Esqueleto enviado junto com o alerta" style="width:5.2cm">
 </div>
-<p>Na Figura 3 a pessoa em pé aparece com o esqueleto completo (ombros, cotovelos, quadril,
-joelhos e tornozelos). É o caso em que a detecção funciona melhor: corpo inteiro visível e a
-uma distância média da câmera.</p>
 
-<div class="bloco">
-<p class="titulo-fig">Figura 4: Tela ao vivo às 22h19, relógio de queda acionado</p>
-<figure><img src="img/lab-3.jpg" alt="Tela ao vivo com uma pessoa em vermelho" style="width:13cm"></figure>
-<p class="fonte">Fonte: foto do grupo. Valores na tela: 6,2 análises/s, modelo 157 ms, CPU 746%, 1 alerta enviado.</p>
-</div>
-<p>Na Figura 4 a pessoa debruçada sobre a mesa, bem perto da câmera e cortada pela borda da
-imagem, ficou vermelha. Como a nota da rede está em 0,00, quem acionou foi a regra geométrica.
-As duas pessoas ao fundo (a que está perto da porta e a que está sentada à direita) não foram
-detectadas, e o contador mostra 1 alerta enviado ao servidor nessa sessão.</p>
-<p>Além de mostrar que o sistema funciona na IABox, as fotos deixaram claros três problemas.
-A nota da rede aparece 0,00 em quase todas as pessoas e 0,03 em uma só, o que é efeito do
-limite de 8 amostras por segundo com a IABox entregando cerca de 6. Pessoas pequenas,
-distantes ou sentadas ao fundo não são detectadas com a entrada de 320 pixels. E um corpo muito
-perto da câmera e cortado pela borda aciona o relógio de queda. Os três estão nas seções 10 e
-11.</p>
+<p>Abaixo, a tabela de eventos mostra o tempo entre o alerta e a confirmação de ciência (31
+segundos no exemplo), que também entra na cadeia. Em seguida, a página de conferência depois de
+simular uma adulteração, trocando o tipo da queda por "nada_aconteceu": a linha alterada e todas
+as seguintes deixam de fechar. A simulação acontece só no navegador; o banco não é
+modificado.</p>
 
-<h3 id="s9-2">9.2 Telas do servidor</h3>
-<p>As imagens desta seção foram capturadas no ambiente de desenvolvimento com o código atual.
-A queda foi gerada pelo próprio programa da IABox, com uma câmera simulada que reproduz uma
-queda real do dataset; o restante do caminho (fila, servidor, cadeia e painel) é o mesmo usado
-no laboratório.</p>
-
-<div class="bloco">
-<p class="titulo-fig">Figura 5: Alarme de queda no painel</p>
-<figure><img src="img/painel-alarme.jpg" alt="Painel com alarme de queda em tela cheia" style="width:15cm"></figure>
-<p class="fonte">Fonte: captura de tela do sistema.</p>
-</div>
-<p>Quando uma ocorrência grave chega, o painel mostra o alarme em tela cheia em 1 a 2
-segundos e toca um som até alguém clicar em "Estou ciente". No topo aparece o estado da câmera
-e o resultado da conferência da cadeia.</p>
-
-<div class="bloco">
-<p class="titulo-fig">Figura 6: Esqueleto enviado junto com o alerta</p>
-<figure><img src="img/painel-corpo.jpg" alt="Visor do corpo com o esqueleto nos segundos do alerta" style="width:8.5cm"></figure>
-<p class="fonte">Fonte: captura de tela do sistema.</p>
-</div>
-<p>Em vez de uma foto, o alerta traz os últimos 24 quadros do corpo antes da ocorrência. O
-último quadro aparece em vermelho. Dá para ver o movimento de descida sem identificar quem é a
-pessoa.</p>
-
-<div class="bloco">
-<p class="titulo-fig">Figura 7: Registro da confirmação de ciência</p>
-<figure><img src="img/painel-tabela.jpg" alt="Tabela de eventos com ciente em 31 segundos" style="width:16cm"></figure>
-<p class="fonte">Fonte: captura de tela do sistema.</p>
-</div>
-<p>O clique em "Estou ciente" também entra na cadeia de hash, e a tabela passa a mostrar o
-tempo entre o alerta e a reação (31 segundos no exemplo).</p>
-
-<div class="bloco">
-<p class="titulo-fig">Figura 8: Conferência da cadeia após uma alteração simulada</p>
-<figure><img src="img/cadeia-quebra.jpg" alt="Página da cadeia mostrando a quebra após adulteração" style="width:14cm"></figure>
-<p class="fonte">Fonte: captura de tela do sistema.</p>
-</div>
-<p>A página de conferência tem um botão que simula uma adulteração, trocando o tipo da queda
-por "nada_aconteceu". A linha alterada e todas as seguintes deixam de fechar. A alteração é
-feita só na cópia que está no navegador; o banco não é modificado.</p>
+<div class="uma"><img src="img/painel-tabela.jpg" alt="Tabela com ciente em 31 segundos" style="width:15cm"></div>
+<div class="uma"><img src="img/cadeia-quebra.jpg" alt="Conferência da cadeia após alteração" style="width:12cm"></div>
 </section>
 
 <!-- ==================================================== 10 DIFICULDADES -->
 <section>
 <h2 id="s10">10 DIFICULDADES ENCONTRADAS</h2>
-<p>A Tabela 13 reúne as principais dificuldades do período, o que causou cada uma e como
-foram resolvidas. As três primeiras ainda estão em aberto.</p>
-<p class="titulo-tab">Tabela 13: Dificuldades, causas e soluções</p>
 <table class="longa">
-  <thead><tr><th style="width:26%">Dificuldade</th><th style="width:32%">Causa</th><th>Solução</th></tr></thead>
-  <tr><td>Rede de queda sem participar na IABox</td><td>A rede exige 8 amostras em 1 s e a IABox entrega cerca de 6</td><td>Em aberto. Medimos que a 6 quadros/s a rede ainda acerta 84%; é a primeira próxima etapa</td></tr>
-  <tr><td>Pessoas distantes não detectadas</td><td>Com entrada de 320 pixels, pessoas pequenas na imagem somem</td><td>Em aberto. Vamos testar 416 e 480 pixels e medir o custo em quadros por segundo</td></tr>
-  <tr><td>Corpo perto da câmera aciona a queda</td><td>Câmera alta e corpo cortado, situação que não existe no dataset</td><td>Em aberto. A calibração de 30 minutos vai medir a frequência; o alerta ainda exige 1,2 s no chão</td></tr>
-  <tr><td>OpenCV da IABox não abre RTSP</td><td>O suporte a FFmpeg não carrega e o OpenCV não foi compilado com GStreamer</td><td>Chamamos o <code>gst-launch-1.0</code> por fora e lemos os quadros pela saída padrão</td></tr>
-  <tr><td>Só 1,5 quadro por segundo no começo</td><td>PyTorch rodando em CPU ARM com entrada de 640</td><td>ONNX Runtime com entrada de 320: 8,7 quadros por segundo</td></tr>
-  <tr><td>Câmera respondendo erro 401</td><td>Caminho do fluxo diferente para câmeras Intelbras</td><td>Uso do caminho <code>/cam/realmonitor</code>, documentado</td></tr>
-  <tr><td>URL da câmera quebrada</td><td>Senha com o caractere @ dentro da URL</td><td>Usuário e senha em variáveis separadas</td></tr>
-  <tr><td>Scripts falhando na IABox</td><td>O Git no Windows troca o fim de linha dos arquivos</td><td>Arquivo <code>.gitattributes</code> e correção automática no <code>pc enviar</code></td></tr>
-  <tr><td>Rede inacessível logo após fixar o IP</td><td>A placa de rede demora alguns segundos para ficar ativa</td><td>Repetir o comando; ficou documentado depois de perdermos tempo achando que era o cabo</td></tr>
-  <tr><td>Análise parando para esperar a rede</td><td>O envio acontecia dentro do laço, até 4 s por alerta</td><td>Fila separada com reenvio e chave única para não duplicar</td></tr>
-  <tr><td>Alerta gravado mas contado como perdido</td><td>O e-mail (5 s) era enviado antes da resposta, e a IABox desiste em 4 s</td><td>O e-mail passou a ser enviado depois da resposta</td></tr>
-  <tr><td>Versão Python sem detectar abaixo de 15 quadros/s</td><td>Limite mínimo diferente do navegador (15 contra 8)</td><td>Mesmo limite nas duas versões e teste de equivalência</td></tr>
-  <tr><td>Sem internet na rede da IABox</td><td>A rede do laboratório é isolada</td><td>Tudo funciona sem internet, menos o e-mail</td></tr>
-  <tr><td>Outros grupos na mesma rede</td><td>Qualquer máquina poderia gravar no servidor</td><td>Lista de endereços autorizados a gravar</td></tr>
-  <tr><td>Sistema parado sem ninguém perceber</td><td>IABox desligada deixava o painel igual a um dia sem ocorrências</td><td>Batimento a cada 5 s; o servidor percebe quando ele para</td></tr>
-  <tr><td>Modelos de rosto fora do GitHub</td><td>Uma regra do <code>.gitignore</code> bloqueou os arquivos sem aviso</td><td>Regra corrigida e arquivos conferidos no repositório</td></tr>
+  <thead><tr><th style="width:27%">Dificuldade</th><th style="width:31%">Causa</th><th>Solução</th></tr></thead>
+  <tr><td>Rede de queda sem participar na IABox</td><td>Exige 8 amostras em 1 s e a IABox entrega cerca de 6</td><td>Em aberto. A 6 quadros/s a rede ainda acerta 84%; é a primeira próxima etapa</td></tr>
+  <tr><td>Pessoas distantes não detectadas</td><td>Com entrada 320, pessoas pequenas na imagem somem</td><td>Em aberto. Testar 416 e 480 e medir o custo</td></tr>
+  <tr><td>Corpo perto da câmera aciona a queda</td><td>Câmera alta e corpo cortado, situação que não existe no dataset</td><td>Em aberto. A calibração vai medir a frequência; o alerta ainda exige 1,2 s no chão</td></tr>
+  <tr><td>OpenCV da IABox não abre RTSP</td><td>FFmpeg não carrega e não há GStreamer compilado no OpenCV</td><td>Chamamos o <code>gst-launch-1.0</code> por fora e lemos os quadros</td></tr>
+  <tr><td>Só 1,5 quadro/s no começo</td><td>PyTorch em CPU ARM com entrada 640</td><td>ONNX Runtime e entrada 320: 8,7 quadros/s</td></tr>
+  <tr><td>Câmera com erro 401 e URL quebrada</td><td>Caminho diferente na Intelbras e senha com @ dentro da URL</td><td>Caminho correto e usuário e senha em variáveis separadas</td></tr>
+  <tr><td>Scripts falhando e rede inacessível</td><td>Fim de linha do Windows; placa de rede demora a ativar após fixar o IP</td><td>Correção automática no <code>pc enviar</code>; repetir o comando de rede</td></tr>
+  <tr><td>Análise parando para esperar a rede</td><td>Envio dentro do laço, até 4 s por alerta</td><td>Fila separada com reenvio e chave única</td></tr>
+  <tr><td>Alerta gravado contado como perdido</td><td>E-mail de 5 s enviado antes da resposta; a IABox desiste em 4 s</td><td>E-mail enviado depois da resposta</td></tr>
+  <tr><td>Sem internet e rede compartilhada</td><td>Rede isolada, com outros grupos conectados</td><td>Tudo funciona offline menos o e-mail; lista de quem pode gravar</td></tr>
+  <tr><td>Sistema parado sem ninguém perceber</td><td>IABox desligada deixava o painel igual a um dia calmo</td><td>Batimento a cada 5 s; o servidor percebe quando para</td></tr>
 </table>
-<p class="fonte">Fonte: elaborado pelo grupo.</p>
 </section>
 
 <!-- ======================================================= 11 PRÓXIMAS -->
 <section>
 <h2 id="s11">11 PRÓXIMAS ETAPAS</h2>
-<p>Estas são as etapas planejadas até a demonstração final, em ordem de prioridade:</p>
 <ol>
-  <li><b>Fazer a rede de queda funcionar a cerca de 6 quadros por segundo.</b> Ajustar o limite
-  mínimo de amostras ao que a IABox entrega e aumentar a taxa de quadros (itens 3 e 4). Vamos
-  considerar resolvido quando a nota da rede deixar de ficar em zero na tela ao vivo e uma
-  queda de teste for detectada pela rede, e não só pela regra.</li>
-  <li><b>Validar na IABox o que já está pronto.</b> Fazer uma queda de teste e conferir o
-  alarme, o esqueleto e o "Estou ciente"; tampar a lente da câmera; desligar o cabo da IABox;
-  desligar o servidor e ver a fila reenviar os alertas.</li>
-  <li><b>Medir a divisão de núcleos.</b> Rodar <code>medir.py --nucleos</code>, que coloca o
-  modelo nos núcleos A78 e o vídeo nos A55, e só manter a mudança se o ganho passar de 5%.</li>
-  <li><b>Deixar a tela ao vivo mais leve.</b> Comparar as análises por segundo com a tela aberta
-  e fechada, para a análise não perder desempenho por causa da visualização.</li>
-  <li><b>Calibração de 30 minutos.</b> Gravar só os números da análise durante uma aula comum,
-  para saber o quanto os valores chegam perto do limite de alerta num dia sem queda e medir a
-  taxa real de alarme falso, incluindo o caso da Figura 4.</li>
-  <li><b>Pessoas distantes.</b> Testar entradas de 416 e 480 pixels e a quantização INT8,
-  medindo quadros por segundo e pessoas detectadas em cada opção.</li>
-  <li><b>Reconhecimento facial na IABox.</b> Cadastrar os integrantes e verificar se a IABox
-  identifica cada um sem reduzir a taxa de quadros.</li>
-  <li><b>Roteiro da demonstração.</b> Queda, câmera tampada e conferência da cadeia ao vivo,
-  com a versão do navegador e o SQLite local como plano B.</li>
+  <li><b>Rede de queda funcionando a cerca de 6 quadros/s:</b> ajustar o limite mínimo de
+  amostras e aumentar a taxa de quadros. Consideramos resolvido quando a nota da rede deixar de
+  ficar em zero e uma queda de teste for detectada pela rede.</li>
+  <li><b>Validar na IABox o que já está pronto:</b> queda de teste com alarme, esqueleto e
+  "Estou ciente", lente tampada, cabo desligado e servidor fora do ar.</li>
+  <li><b>Medir a divisão de núcleos e a tela ao vivo:</b> modelo nos núcleos A78 e vídeo nos
+  A55, mantendo só se ganhar mais de 5%; comparar a taxa com a tela aberta e fechada.</li>
+  <li><b>Calibração de 30 minutos</b> numa aula comum, para medir a taxa real de alarme falso,
+  incluindo o caso da pessoa debruçada.</li>
+  <li><b>Pessoas distantes:</b> testar entradas de 416 e 480 pixels e quantização INT8.</li>
+  <li><b>Reconhecimento facial na IABox</b> com os integrantes cadastrados.</li>
+  <li><b>Roteiro da demonstração</b> com queda, câmera tampada e conferência da cadeia ao vivo,
+  tendo o navegador e o SQLite local como plano B.</li>
 </ol>
-<p>Depois da demonstração, os próximos passos seriam usar a NPU Hexagon da IABox (o caminho
-mais realista para chegar a 15 ou 30 quadros por segundo, mas que depende do provedor QNN do
-ONNX Runtime), treinar um modelo de briga com o dataset RWF-2000, levar o mapa de calor e o
-botão de ajuda para a IABox e trocar as credenciais da nuvem e da câmera usadas durante o
-desenvolvimento.</p>
+<p>Depois da demonstração, os passos seguintes seriam usar a NPU Hexagon (o caminho realista
+para 15 a 30 quadros/s), treinar um modelo de briga com o dataset RWF-2000, levar o mapa de
+calor e o botão de ajuda para a IABox e trocar as credenciais usadas no desenvolvimento.</p>
 </section>
 
 <!-- ======================================================== 12 CONCLUSÃO -->
 <section>
 <h2 id="s12">12 CONCLUSÃO</h2>
-<p>Neste período o Auditix IA deixou de ser uma página no navegador e passou a rodar na IABox
-com a câmera da sala, usando um modelo treinado e medido, e registrando cada ocorrência de
-forma que qualquer pessoa possa conferir. A maior parte do trabalho deste checkpoint foi
-tornar o alerta confiável do começo ao fim: ele não se perde quando a rede falha, chega com
-evidência sem expor ninguém, registra quem reagiu e avisa quando o próprio sistema deixa de
-enxergar.</p>
-<p>Os testes no laboratório também mostraram o que ainda precisa melhorar. Com cerca de 6
-quadros por segundo a rede de queda quase não participa, pessoas distantes não são detectadas
-e um corpo cortado perto da câmera aciona o alarme. O primeiro problema já foi medido (84% de
-acerto da rede contra 48% da regra sozinha) e os outros dois já têm forma de medição definida.
-Para a demonstração final, a meta é ter a rede funcionando na IABox, as funções novas
-validadas com a câmera real e a taxa de alarme falso medida em uma aula de verdade.</p>
+<p>Neste período o Auditix IA saiu do navegador e passou a rodar na IABox com a câmera da sala,
+usando um modelo treinado e medido e registrando cada ocorrência de forma que qualquer pessoa
+possa conferir. Boa parte do trabalho foi tornar o alerta confiável do começo ao fim: ele não se
+perde quando a rede falha, chega com evidência sem expor ninguém, registra quem reagiu e avisa
+quando o sistema deixa de enxergar.</p>
+<p>Os testes no laboratório também mostraram o que falta. A cerca de 6 quadros/s a rede de
+queda quase não participa, pessoas distantes não são detectadas e um corpo cortado perto da
+câmera aciona o alarme. O primeiro problema já foi medido (84% contra 48%) e os outros dois já
+têm forma de medição definida. Para a demonstração final, a meta é ter a rede funcionando na
+IABox, as funções novas validadas com a câmera real e a taxa de alarme falso medida em uma aula
+de verdade.</p>
 </section>
 
 <!-- ======================================================= REFERÊNCIAS -->
@@ -686,7 +503,7 @@ Dataverse. DOI: 10.7910/DVN/75QPKK. Licença CC0 1.0.</p>
 <p>DIFEM. arXiv:2412.05386, 2024. Disponível em: https://arxiv.org/abs/2412.05386.</p>
 <p>RWF-2000: an open large scale video database for violence detection. arXiv:1911.05913,
 2019. Disponível em: https://arxiv.org/abs/1911.05913.</p>
-<p>ULTRALYTICS. YOLO11. Documentação. Disponível em: https://docs.ultralytics.com.</p>
+<p>ULTRALYTICS. YOLO11. Disponível em: https://docs.ultralytics.com.</p>
 <p>MICROSOFT. ONNX Runtime. Disponível em: https://onnxruntime.ai.</p>
 <p>OPENCV. OpenCV Zoo: modelos YuNet e SFace. Disponível em: https://github.com/opencv/opencv_zoo.</p>
 </section>
