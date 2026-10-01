@@ -98,6 +98,20 @@ cabeça:
 $P aibox/cadastrar.py --nome "Enzo Renato"
 ```
 
+**No laboratório, cadastre pela câmera de baixo (.109), não pela da sala
+(.108).** A de cima pega a sala inteira: o rosto sai pequeno e qualquer um que
+passe atrás trava o cadastro com "mais de um rosto no quadro". Uma vez só, no
+`.env` da caixa (com `echo >>`, nunca com `sed`, por causa do `&`):
+
+```bash
+echo 'CAMERA_CADASTRO=rtsp://192.168.50.109:554/cam/realmonitor?channel=1&subtype=1' >> ~/auditix/.env
+```
+
+**Sem usuário e senha no endereço:** a caixa usa o `CAM_USER` e o `CAM_PW` do
+`.env` para as duas câmeras. A tela `/cadastro` do PC não serve aqui: ela usa a
+webcam do próprio PC (que o do laboratório não tem) e grava o outro motor, o do
+navegador, que a caixa não lê.
+
 E rode com o reconhecimento ligado:
 
 ```bash

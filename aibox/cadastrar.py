@@ -50,7 +50,12 @@ def main():
     carregar_env()
     p = argparse.ArgumentParser(description="Cadastrar um rosto pela camera da AIBOX")
     p.add_argument("--nome", required=True)
-    p.add_argument("--camera", default=os.environ.get("CAMERA_RTSP"))
+    # UMA CAMERA PARA CADASTRAR, OUTRA PARA VIGIAR. No laboratorio a .108 fica
+    # no alto e pega a sala inteira: rosto pequeno, e qualquer um que passe
+    # atras vira "mais de um rosto no quadro". A .109 fica na altura do rosto.
+    # Usuario e senha continuam vindo de CAM_USER/CAM_PW, para as duas.
+    p.add_argument("--camera", default=os.environ.get("CAMERA_CADASTRO")
+                   or os.environ.get("CAMERA_RTSP"))
     p.add_argument("--servidor",
                    default=os.environ.get("SERVIDOR", "http://127.0.0.1:8000"))
     p.add_argument("--amostras", type=int, default=6)
@@ -63,6 +68,7 @@ def main():
     print(f"[cadastro] motor: {motor.backend}")
 
     fonte = int(a.camera) if str(a.camera).isdigit() else a.camera
+    print(f"[cadastro] camera: {fonte}")
     cap = abrir_camera(fonte)
     if not cap.isOpened():
         print("[cadastro] nao consegui abrir a camera.")

@@ -314,8 +314,15 @@ E na caixa:
 
 ```bash
 $P aibox/cadastrar.py --nome "Enzo Renato"   # colhe 6 amostras pela câmera
+                                             # (CAMERA_CADASTRO, ou a da sala)
 bash aibox/ir.sh --rosto                     # e a caixa passa a chamar pelo nome
 ```
+
+**Duas câmeras no laboratório:** a `.108` no alto vigia a sala, a `.109` na
+altura do rosto serve para cadastrar (`CAMERA_CADASTRO` no `.env` da caixa).
+Pela de cima o rosto sai pequeno e todo mundo da sala entra no quadro, e o
+cadastro para em "mais de um rosto". As duas usam o mesmo `CAM_USER`/`CAM_PW`.
+A tela `/cadastro` do PC usa a webcam do PC, que o laboratório não tem.
 
 **Desligado por padrão, de propósito:** custa CPU numa caixa que já está
 apertada de quadros por segundo, e a análise de queda não pode piorar porque um
