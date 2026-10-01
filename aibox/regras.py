@@ -32,6 +32,7 @@ QUEDA_PROP = 1.2
 QUEDA_PROP_SO = 1.4
 QUEDA_BAIXO = 0.40
 QUEDA_AMOSTRAS = 8
+QUEDA_PISO = 4        # piso duro do piso: ver _piso_rede
 
 # ---- corrida ---------------------------------------------------------------
 CORRE_VEL = 1.20      # alturas de corpo por segundo
@@ -79,6 +80,7 @@ class Trilha:
         self.analisavel = False
         self.parado = False
         self.fps = 0
+        self.pisoRede = QUEDA_AMOSTRAS
         self.regua = None
         self.visto = nasceu
 
@@ -145,6 +147,43 @@ class Trilha:
             self.parado = amp < PARADO_MIN
 
     # -- queda --------------------------------------------------------------
+    def _piso_rede(self):
+        """Quantas amostras exigir na janela de 1s antes de chamar a rede.
+
+        ISTO JA DEIXOU A REDE MUDA NA CAIXA. O piso era 8 fixo, copiado do
+        navegador, e 8 e o numero certo para quem roda perto de 30 quadros por
+        segundo: e "um terco do segundo presente". A AIBOX entrega 6,7 analises
+        por segundo, e 6,7 amostras NUNCA chegam a 8 dentro de 1 segundo. A
+        rede nao errava: ela nao era chamada. A tela mostrava 0.00 em cima de
+        toda pessoa, o tempo todo, e 0.00 e exatamente o que a rede diz quando
+        a pessoa esta em pe — o defeito era indistinguivel do funcionamento.
+        Visto no laboratorio, com a caixa ligada na camera da sala.
+
+        Entao o piso acompanha a MAQUINA, e nao o navegador: metade do que ela
+        entrega num segundo, nunca abaixo de QUEDA_PISO nem acima de
+        QUEDA_AMOSTRAS. Perto de 30/s a conta da 15, o teto corta em 8, e tudo
+        continua bit a bit igual ao navegador — e por isso que `testes/aibox.mjs`
+        (cenario a 33 ms por quadro) continua passando.
+
+        O 4 nao e chute: e o mesmo piso do treino quando ele reamostra
+        (`treino/taxa.py`, `max(4, ...)`), e a conta a 6 quadros por segundo foi
+        medida no conjunto de teste: a rede pega 84% das quedas com 98% de
+        precisao, contra 48% da regra geometrica sozinha. Era essa diferenca que
+        estava sendo jogada fora.
+        """
+        # A taxa sai do VAO da memoria (HIST_MS = 2,5 s), e nao do tamanho da
+        # janela de 1 s: tirar o piso de dentro da propria janela que ele filtra
+        # e circular. Trilha recem-nascida ainda nao tem vao para medir, e ai
+        # vale o piso do navegador — conservador, e ela nem tem idade para
+        # alertar (ANOM_IDADE).
+        if len(self.hist) < 2:
+            return QUEDA_AMOSTRAS
+        vao = (self.hist[-1]["t"] - self.hist[0]["t"]) / 1000.0
+        if vao < 0.3:
+            return QUEDA_AMOSTRAS
+        taxa = (len(self.hist) - 1) / vao
+        return max(QUEDA_PISO, min(QUEDA_AMOSTRAS, int(taxa / 2 + 0.5)))
+
     def _queda(self, agora):
         jan_rede = self._janela(agora, 1000)
         # A taxa de quadros e MEDIDA, nao presumida: a janela e de 1s, entao o
@@ -152,12 +191,13 @@ class Trilha:
         # e duas das 12 entradas dividem por tempo.
         self.fps = len(jan_rede)
         car = None
-        if len(jan_rede) >= QUEDA_AMOSTRAS:
+        self.pisoRede = self._piso_rede()
+        if len(jan_rede) >= self.pisoRede:
             # `minimo` igual ao piso do navegador, e nao ao do treino: ver o
             # porque em treino/extrair.py. Sem ele a rede ficaria muda abaixo
             # de 15 quadros por segundo, e muda sem avisar.
             car = medidas.caracteristicas(jan_rede, 0, len(jan_rede),
-                                          fps=self.fps, minimo=QUEDA_AMOSTRAS)
+                                          fps=self.fps, minimo=self.pisoRede)
         self.foraDoTreino = rede.distancia_do_treino(car) if car is not None else 0.0
         # Fora do mundo do modelo a nota dele nao vale. A geometria continua.
         self.notaQueda = (rede.nota(car)
