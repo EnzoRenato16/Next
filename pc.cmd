@@ -19,6 +19,7 @@ set PLACA=Ethernet
 
 if "%1"=="" goto menu
 if /i "%1"=="puxar"    goto puxar
+if /i "%1"=="internet" goto internet
 if /i "%1"=="rede"     goto rede
 if /i "%1"=="enviar"   goto enviar
 if /i "%1"=="modelos"  goto modelos
@@ -29,6 +30,7 @@ goto menu
 :menu
 echo.
 echo   pc puxar      internet, git pull, e volta para o IP fixo
+echo   pc internet   so volta para o DHCP e FICA la (para navegar, baixar)
 echo   pc rede       so volta para o IP fixo (192.168.50.72)
 echo   pc enviar     copia o codigo (aibox e daten\app) para a caixa
 echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
@@ -51,6 +53,27 @@ if errorlevel 1 (
   exit /b 1
 )
 exit /b 0
+
+:internet
+REM O PC NAO VOLTA A NAVEGAR SOZINHO depois de mudar o cabo de lugar. A placa
+REM continua cravada no 192.168.50.72, que na rede da FIAP nao existe, e ela
+REM nem pede endereco porque acha que ja tem um. O sintoma e "a internet nao
+REM volta" com o cabo certo na parede - e nada aponta para o IP.
+REM
+REM O `puxar` tambem faz isto, mas ele volta para o IP fixo no fim. Este aqui
+REM FICA no DHCP, que e o que voce quer quando o assunto e navegar.
+call :admin || goto fim
+echo.
+echo -- voltando para o DHCP --
+echo    O cabo tem que estar na tomada da PAREDE. No switch da caixa nao ha
+echo    internet: a AIBOX nao e roteador, e o DHCP de la nao responde.
+netsh interface ip set address name="%PLACA%" dhcp
+netsh interface ip set dns     name="%PLACA%" dhcp
+ipconfig /renew
+echo.
+echo    Se ainda nao navegar, espere uns 10 segundos e rode  ipconfig  para
+echo    ver se chegou um endereco que NAO comeca com 192.168.50.
+goto fim
 
 :puxar
 call :admin || goto fim

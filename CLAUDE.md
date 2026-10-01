@@ -73,6 +73,7 @@ python servidor.py
 
 ```cmd
 pc puxar      DHCP, git pull, e volta para o IP fixo
+pc internet   so volta para o DHCP e FICA la (para navegar)
 pc enviar     copia aibox\*.py, *.sh e daten\app, e ja limpa o \r do lado de la
 pc modelos    copia os modelos de rosto (39 MB, uma vez so)
 pc servidor   sobe o servidor com HOST=0.0.0.0
@@ -88,6 +89,12 @@ bash aibox/ir.sh --segundos 30
 
 `ir.sh` também escreve `$P` e `$PYTHONPATH` no `~/.bashrc` na primeira vez, e
 a partir da sessão seguinte eles já vêm prontos.
+
+**A internet não volta sozinha quando você muda o cabo de lugar.** A placa
+continua cravada no `192.168.50.72`, que na rede da FIAP não existe, e ela nem
+pede endereço porque acha que já tem um. O sintoma é "o cabo está na parede e
+não navega", e nada nele aponta para o IP. `pc internet` resolve. O cabo no
+switch da caixa também nunca dá internet: a AIBOX não é roteador.
 
 **No PowerShell é `.\pc`, não `pc`.** O PowerShell não procura programa na
 pasta de agora, e responde "não é reconhecido como nome de cmdlet" — que soa
