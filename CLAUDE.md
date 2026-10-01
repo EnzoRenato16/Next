@@ -262,8 +262,14 @@ quadro novo é o da última análise, e a tela mostra `análise/s` e `vídeo/s`.
 4. **No `sed`, `&` na substituição significa "todo o texto que casou".** A URL
    tem `&subtype=1`, e isso embaralhou o `.env`. Use apagar-e-acrescentar:
    `sed -i '/^CAMERA_RTSP/d'` e depois `echo "CAMERA_RTSP=..." >>`.
-5. **`~pylibs` não é `~/pylibs`.** Sem a barra o bash não expande.
-6. `$P` e `$PYTHONPATH` se perdem a cada nova sessão de SSH.
+5. **A câmera bloqueia o IP depois de tentativas seguidas (403 Forbidden).**
+   Uma rodada de testes de `gst-launch` mais a sala reconectando a cada 15 s
+   fez a `.108` responder **403** para a caixa por uns 30 min, com a senha
+   CERTA: a página web da câmera abria normal pelo PC (outro IP). 403 é
+   bloqueio, 401 é senha ou caminho. Remédio: Ctrl+C e **não tentar nada** até
+   passar. Teste de câmera, um de cada vez.
+6. **`~pylibs` não é `~/pylibs`.** Sem a barra o bash não expande.
+7. `$P` e `$PYTHONPATH` se perdem a cada nova sessão de SSH.
 
 ## Os números medidos na caixa (Qualcomm QCS6490, ARM, 8 núcleos, 7 GB)
 
@@ -292,7 +298,11 @@ Achado no laboratório, com `gst-inspect-1.0` e `ls /root/lib`:
 
 - **`qtivdec`**: decodificador H.264 por hardware. A câmera manda 30/s, a
   análise usa ~6, e os outros eram decodificados na CPU para nada (744% de
-  800%). `GST_DECODIFICADOR=qtivdec` no `.env` liga; desligado até medir.
+  800%). `GST_DECODIFICADOR=qtivdec` no `.env` liga; desligado até medir. **Testado
+  no laboratório: sem imagem** (`sem_imagem` e reabrindo). Provável causa: o
+  `qtivdec` entrega em memória do hardware que o `videoconvert` não lê; o
+  candidato é `qtivdec ! qtivtransform`. Não confirmado (a câmera bloqueou no
+  meio dos testes).
 - **NPU Hexagon V68** (`/dev/adsprpc-smd`, `libSnpeHtpV68Skel.so`) e os plugins
   `qtimltflite` + `qtimlvpose` do Qualcomm IM SDK: pose rodando na NPU, fora
   da CPU. O ONNX Runtime da caixa (1.16.3) NÃO tem o provedor da NPU, então o
