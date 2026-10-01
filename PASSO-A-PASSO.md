@@ -49,6 +49,20 @@ responde aqui dentro e **o painel nunca enche**.
 pc entrar
 ```
 
+**Se der `Connection timed out`, entre direto, na mesma janela:**
+
+```powershell
+ssh grupo11@192.168.50.10
+```
+
+É o mesmo comando que o `pc entrar` faz por dentro: o timeout é a rede ainda
+acordando depois do `netsh`, não o script. Repita até entrar. Errar a senha
+três vezes fecha a conexão com `Connection closed by 192.168.50.10 port 22`,
+que parece rede e é senha; chame o `ssh` de novo.
+
+No PowerShell todo comando do script precisa do `.\` na frente: `.\pc rede`,
+`.\pc enviar`, `.\pc entrar`.
+
 E, lá dentro:
 
 ```bash

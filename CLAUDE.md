@@ -89,6 +89,26 @@ bash aibox/ir.sh --segundos 30
 `ir.sh` também escreve `$P` e `$PYTHONPATH` no `~/.bashrc` na primeira vez, e
 a partir da sessão seguinte eles já vêm prontos.
 
+**No PowerShell é `.\pc`, não `pc`.** O PowerShell não procura programa na
+pasta de agora, e responde "não é reconhecido como nome de cmdlet" — que soa
+como arquivo faltando e não é.
+
+**`pc entrar` dando *Connection timed out*: entre direto.**
+
+```powershell
+ssh grupo11@192.168.50.10
+```
+
+É exatamente o que o `pc entrar` faz por dentro, então o timeout é da rede
+acordando depois do `netsh`, nunca do script. Testado no laboratório: o `pc
+entrar` deu timeout e o `ssh` na linha seguinte entrou. **Repita até entrar**
+antes de procurar defeito em cabo, em IP ou no script. Vale o mesmo para o `pc
+enviar`, que começa com um ssh.
+
+> A senha erra fácil (três erros seguidos e o servidor fecha a conexão com
+> *Connection closed by 192.168.50.10 port 22*, que parece rede e é senha).
+> Depois disso é só chamar o `ssh` de novo.
+
 O passo a passo para ler offline no laboratório está em `PASSO-A-PASSO.md`.
 
 **O porquê do `\r`:** o Git converte para fim de linha do Windows no checkout,
