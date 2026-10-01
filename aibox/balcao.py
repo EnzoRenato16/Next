@@ -239,7 +239,12 @@ class Balcao:
                     time.sleep(0.01)
                     continue
                 if not ok:
-                    self._por(fase="erro", mensagem="A câmera de cadastro caiu.")
+                    # O ENDERECO VAI NA MENSAGEM. No laboratorio a primeira
+                    # tentativa foi 192.168.109 (sem o "50."), e "caiu" sozinho
+                    # nao deixava ver isso da tela. Credencial nunca vem na URL.
+                    self._por(fase="erro", mensagem=(
+                        f"A câmera de cadastro caiu ({self.camera}). Confira o "
+                        "endereço em CAMERA_CADASTRO e o terminal da caixa."))
                     return
                 if agora - ultima_previa < self.passo_previa:
                     continue
