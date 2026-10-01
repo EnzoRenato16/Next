@@ -160,11 +160,17 @@ bem.
 3. **Tire o cabo de rede da caixa** (ou desligue-a). Em ~30 s: "SEM SINAL" e
    sirene. A caixa morta não consegue avisar — quem percebe o silêncio é o PC.
 
-**Se o "tampada" não disparar com a mão:** na tela ao vivo da caixa, o número
-**"imagem (detalhe)"** mostra quanto a imagem varia. Anote o valor com a mão na
-lente e com a sala normal, e ponha `TAMPADA_LIMIAR=` entre os dois no `.env` da
-caixa. (A sala no escuro total também conta como "tampada", e isso é de
-propósito: no escuro o sistema também não enxerga.)
+**Tampe de verdade:** palma **colada** na lente, ou um caderno, ou um casaco.
+Mão na frente com luz vazando pelos dedos NÃO conta: a imagem fica borrada, mas
+ainda tem claro e escuro, e no laboratório isso deu 40 a 42 contra 59 a 61 da
+sala. O sistema mede variação de brilho, e borrado não é liso.
+
+**Se o "tampada" não disparar com a lente coberta:** na tela ao vivo da caixa, o
+número **"imagem (detalhe)"** mostra quanto a imagem varia. Anote o valor com a
+lente coberta e com a sala normal, e ponha `TAMPADA_LIMIAR=` entre os dois no
+`.env` da caixa (o padrão é 15; a sala do laboratório mede 59 a 61). (A sala no
+escuro total também conta como "tampada", e isso é de propósito: no escuro o
+sistema também não enxerga.)
 
 Para a banca: *"se alguém tampar a câmera ou cortar o cabo, isso vira registro
 na cadeia. O sistema avisa quando ficou cego."*

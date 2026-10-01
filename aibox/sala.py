@@ -45,6 +45,7 @@ if RAIZ not in sys.path:
     sys.path.insert(0, RAIZ)
 
 from aibox import batimento, custo, olho as olho_mod, trilhas, vivo as vivo_mod  # noqa: E402
+from aibox import rede as rede_queda, regras  # noqa: E402
 
 LOTE_CALIB = 200           # o servidor recusa acima de 500
 ENVIA_CALIB_S = 15.0
@@ -106,6 +107,38 @@ def amostra_de(t, alertou, ms_rede, ms_analise):
         alertou=alertou,
         ms_rede=round(ms_rede, 2), ms_analise=round(ms_analise, 2),
         heap=custo.memoria_mb(), cpu=custo.cpu_pct())
+
+
+def linha_da_trilha(t, agora):
+    """Uma pessoa numa linha, com os numeros que decidem a queda.
+
+    POR QUE ISTO EXISTE. No laboratorio duas quedas filmadas nao viraram
+    alerta, e o video da tela so deixava ler a nota. Daqui se le o resto, cada
+    numero ao lado do limiar dele:
+
+      - a pessoa SUMIU para o detector: a linha dela diz "sem ver ha X s" e
+        depois desaparece. Na primeira queda do video foi isso: a pessoa
+        desceu atras da caixa de papelao e o detector so voltou a ve-la
+        quando ela ja estava levantando.
+      - o rastreador TROCOU o numero dela no meio da descida: aparece um #novo
+        com idade de 0,x s. A trilha nova nasce ja embaixo, sem o "antes", e
+        queda e uma afirmacao sobre o antes.
+      - qual trava segurou: tronco (graus fora da vertical), altura (fracao da
+        altura em pe da propria pessoa), caixa (largura sobre altura) e nota.
+    """
+    idade = (agora - t.nasceu) / 1000.0
+    sem_ver = (agora - t.visto) / 1000.0
+    cab = f"     #{t.id:<3} {idade:5.1f}s "
+    if sem_ver > 0.3:
+        return cab + f" sem ver ha {sem_ver:.1f} s (o detector perdeu a pessoa)"
+    if not t.analisavel:
+        return cab + " sem tronco: ombro ou quadril fora de vista"
+    marca = ("  << QUEDA ARMADA" if t.quedaDesde
+             else "" if t.firme else "  (nova, menos de 2 s: ainda nao acusa)")
+    return (cab + f" nota {t.notaQueda:.2f}/{rede_queda.LIMIAR:.2f}"
+            f"  tronco {t.ang:3.0f}/{regras.QUEDA_ANG}"
+            f"  altura {t.baixo:.2f}/{regras.QUEDA_BAIXO:.2f}"
+            f"  caixa {t.prop:.2f}/{regras.QUEDA_PROP_SO}" + marca)
 
 
 def main():
@@ -379,6 +412,8 @@ def main():
                       f"{fala.enviados} enviados, {fala.pendentes} na fila, "
                       f"{fala.falhas} falhas | imagem {bat.estado()}"
                       + (f" ({bat.valor:.0f})" if bat.valor is not None else ""))
+                for t in sorted(rebanho.trilhas.values(), key=lambda x: x.id):
+                    print(linha_da_trilha(t, agora))
     except KeyboardInterrupt:
         print("\n[aibox] encerrando.")
     finally:

@@ -208,7 +208,7 @@ mesma tela. Agora a caixa bate a cada 5 s dizendo como está a imagem:
 |---|---|---|
 | `ok` | chega quadro, com detalhe | nada (batida não é fato) |
 | `sem_imagem` | 10 s sem quadro | `camera_sem_imagem` |
-| `tampada` | 10 s de imagem lisa (desvio do brilho < `TAMPADA_LIMIAR`) | `camera_tampada` |
+| `tampada` | 10 s de imagem lisa (desvio do brilho < `TAMPADA_LIMIAR`=15) | `camera_tampada` |
 | `parada` | Ctrl+C ou `--segundos` acabou | `caixa_parada` (sem sirene) |
 | — (silêncio) | `SEM_SINAL_S`=30 s sem batida, **notado pelo servidor** | `sem_sinal` |
 
@@ -218,6 +218,14 @@ ciente e mandam e-mail (`ALARMES = GRAVES | CEGUEIRA`), mas ficam **fora de
 `GRAVES`** para não contar como ocorrência na série. O estado de agora mora só na
 memória do servidor — `/api/saude` responde mesmo com o banco fora — e por isso
 uma caixa só é vigiada depois de bater uma vez desde que o servidor subiu.
+
+**A câmera escreve na própria imagem.** A Intelbras grava o relógio no alto e
+"VIPC Intelbras" embaixo, em branco, dentro do vídeo. Com a lente tapada o resto
+fica preto e só esse texto já dá desvio de ~20: no laboratório a lente coberta
+nunca desceu de 22, com limiar 10, e o alarme não tinha como tocar. A conta
+agora ignora as faixas de cima e de baixo (`FAIXA_TOPO`, `FAIXA_BASE`). Mão na
+frente com luz vazando continua **não** contando (40 a 42 contra 59 a 61 da
+sala): borrado não é liso.
 
 De carona, na `sala.py`: RTSP que **trava sem cair** deixava o laço esperando
 quadro para sempre. Agora, 15 s sem quadro (`TRAVADA_S`) = reabre a câmera.

@@ -114,7 +114,8 @@ setInterval(async () => {
     $('latencia').textContent = e.ultimo_ms == null ? '--' : Math.round(e.ultimo_ms);
     /* O NUMERO DO "TAMPADA" fica visivel para o limiar ser ajustado NO LOCAL:
        tampe a lente com a mao e veja quanto cai; a sala normal fica bem acima.
-       TAMPADA_LIMIAR no .env da caixa vai entre os dois. */
+       TAMPADA_LIMIAR no .env da caixa vai entre os dois. O relogio que a
+       camera escreve na imagem fica fora da conta (ver batimento.py). */
     if(e.imagem){
       $('imagem').textContent = e.imagem +
         (e.detalhe == null ? '' : ' (' + Math.round(e.detalhe) + ')');

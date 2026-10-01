@@ -19,6 +19,21 @@ alto); uma mao na lente e uma mancha so (numero baixo). O limiar vem do .env
 (TAMPADA_LIMIAR) e o numero aparece na tela ao vivo e no painel — ajuste no
 local, olhando o valor da sala de verdade, e nao com um chute daqui.
 
+A CAMERA ESCREVE NA PROPRIA IMAGEM, e isso ja deixou o "tampada" impossivel. A
+Intelbras grava o relogio no alto e "VIPC Intelbras" embaixo, em branco, DENTRO
+do video. Com a lente tapada o resto fica preto, e esse texto vira ~1% de pixels
+a ~220 de distancia do fundo: so ele ja da desvio de ~20. No laboratorio a mao
+colada na lente nunca desceu de 22, com limiar 10 — o alarme nao tinha como
+tocar. Por isso a conta ignora as faixas de cima e de baixo (FAIXA_TOPO,
+FAIXA_BASE), onde a camera escreve. A conta refeita aqui deu 23,8 com o texto e
+1,8 sem, para a mesma lente preta (testes/batimento_lado.py cobra isso).
+
+O que isto NAO pega, dito na cara: mao na frente da lente com luz vazando pelos
+dedos. A imagem fica borrada mas tem claro e escuro de verdade (no laboratorio,
+40 a 42), e desvio de brilho nao separa borrado de nitido. Tampar e cobrir a
+lente com algo opaco — mao colada, caderno, fita, tinta — ou virar a camera
+para a parede.
+
 CUSTO. A conta roda UMA vez por segundo, sobre ~3.600 pixels: microssegundos,
 dentro do laco, sem copia. O envio roda numa thread propria e nunca espera a
 analise, nem a analise espera ele.
@@ -34,12 +49,22 @@ import time
 BATIDA_S = float(os.environ.get("BATIDA_S", "5"))
 SEM_IMAGEM_S = float(os.environ.get("SEM_IMAGEM_S", "10"))
 TAMPADA_S = float(os.environ.get("TAMPADA_S", "10"))
-TAMPADA_LIMIAR = float(os.environ.get("TAMPADA_LIMIAR", "10"))
+# 15, e nao mais 10: a sala do laboratorio mediu 59 a 61, e com o texto da camera
+# fora da conta a lente preta cai para perto de 2. 15 fica quatro vezes abaixo da
+# sala e longe do ruido do sensor com ganho alto.
+TAMPADA_LIMIAR = float(os.environ.get("TAMPADA_LIMIAR", "15"))
+# Onde a camera escreve: relogio no alto (2% a 8% da altura nas imagens do
+# laboratorio) e o nome embaixo (85% a 92%). A faixa do meio ainda tem mesa,
+# monitor, parede e chao, que e o que interessa.
+FAIXA_TOPO = 0.15
+FAIXA_BASE = 0.80
 
 
 def detalhe(img):
-    """Quanto o brilho varia na imagem. 0 = uma cor so."""
-    amostra = img[::8, ::8]
+    """Quanto o brilho varia na imagem, fora das faixas onde a camera escreve.
+    0 = uma cor so."""
+    alt = img.shape[0]
+    amostra = img[int(alt * FAIXA_TOPO):int(alt * FAIXA_BASE):8, ::8]
     if amostra.ndim == 3:
         amostra = amostra.mean(axis=2)
     return float(amostra.std())

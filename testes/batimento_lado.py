@@ -40,8 +40,12 @@ mao = np.full((360, 640, 3), 22, np.uint8) + rng.integers(0, 3, (360, 640, 3),
 t = 1000.0
 b.quadro(sala, t)
 ok("sala com detalhe: imagem ok", b.estado(t) == "ok", f"detalhe {b.valor:.0f}")
+# A sala daqui e ruido sorteado, que da sempre ~42. A sala DE VERDADE do
+# laboratorio mediu 59 a 61, quatro vezes o limiar de 15. Esta checagem so
+# garante que a de mentira tambem fica longe dele.
 ok("e o detalhe da sala fica bem acima do limiar",
-   b.valor > 3 * batimento.TAMPADA_LIMIAR, f"{b.valor:.0f}")
+   b.valor > 2 * batimento.TAMPADA_LIMIAR,
+   f"{b.valor:.0f}, limiar {batimento.TAMPADA_LIMIAR:g}")
 
 for k in range(1, 6):
     b.quadro(mao, t + k)
@@ -54,6 +58,34 @@ b.quadro(sala, t + 17)
 ok("tirou a mao: volta a ok no mesmo segundo", b.estado(t + 17) == "ok")
 ok("sem quadro por mais de SEM_IMAGEM_S: sem_imagem",
    b.estado(t + 17 + batimento.SEM_IMAGEM_S + 1) == "sem_imagem")
+
+# A LENTE TAPADA DE VERDADE, como a Intelbras entrega: preto com ruido de
+# sensor, e o relogio e o nome da camera escritos em branco DENTRO da imagem.
+# No laboratorio isso nunca desceu de 22 com limiar 10, e o alarme nao tinha
+# como tocar. O texto e desenhado em tracos finos, na mesma posicao dos videos:
+# relogio no alto a direita, nome embaixo a esquerda.
+def lente_tapada_intelbras():
+    img = np.clip(rng.normal(18, 3, (480, 640, 3)), 0, 255).astype(np.uint8)
+    img[int(480 * .03):int(480 * .08), int(640 * .55):int(640 * .95):3] = 255
+    img[int(480 * .86):int(480 * .91), int(640 * .04):int(640 * .40):3] = 255
+    return img
+
+
+preta = lente_tapada_intelbras()
+amostra_inteira = preta[::8, ::8].mean(axis=2)
+ok("so o texto da camera ja passava do limiar na conta antiga (o defeito)",
+   amostra_inteira.std() > batimento.TAMPADA_LIMIAR,
+   f"conta antiga {amostra_inteira.std():.1f}, limiar {batimento.TAMPADA_LIMIAR:g}")
+ok("fora das faixas do texto, a lente preta fica bem abaixo do limiar",
+   batimento.detalhe(preta) < batimento.TAMPADA_LIMIAR / 3,
+   f"detalhe {batimento.detalhe(preta):.1f}")
+b2 = batimento.Batimento("http://x", "sala-teste", caixa="caixa-t2",
+                         post=lambda alvo, corpo, espera: 200)
+for k in range(0, 12):
+    b2.quadro(preta, t + 100 + k)
+ok("e a lente tapada COM o texto vira tampada depois de TAMPADA_S",
+   b2.estado(t + 111) == "tampada", f"detalhe {b2.valor:.1f}")
+b2._parar.set()
 
 # A conta so roda uma vez por segundo: 100 quadros no mesmo segundo = 1 conta.
 chamadas = []
