@@ -395,6 +395,13 @@ estoura, a comparação roda, e o resultado é ruído. Cada cadastro carrega o
 `tipo`, e a comparação só acontece dentro do mesmo tipo. A mesma pessoa pode —
 e deve — estar cadastrada nos dois.
 
+**Reconhecido vira linha da cadeia, como no navegador.** O quadro "Pessoas" do
+painel é feito das linhas `reconhecido`. A caixa só colava o nome na etiqueta e
+nunca mandava a linha: no laboratório o nome aparecia na tela ao vivo e o painel
+dizia "ninguém foi reconhecido ainda". Agora `rosto.novos()` entrega, e a
+`sala.py` manda pela fila dos alertas, com o nome. Uma linha por pessoa a cada
+`ROSTO_REGISTRO_S` (300 s), por mais que o rastreador troque o número dela.
+
 A caixa **nunca tem o cadastro na mão**: ela manda os 128 números e recebe um
 nome. Quem levar a caixa embora não leva rosto de ninguém.
 

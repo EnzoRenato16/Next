@@ -56,6 +56,7 @@ def montar(rostos, resposta="Enzo"):
     r.base, r.espera = "http://x", 0.0
     r.nomes, r.vistos, r.reconhecidos, r.erro = {}, 0, 0, None
     r._trava, r._pendente, r.vivo = threading.Lock(), None, True
+    r._novos, r._registrado = [], {}
     r.motor = MotorFalso(rostos)
     r._perguntar = lambda vetor: resposta
     return r
@@ -119,6 +120,29 @@ r = montar([])
 sem = Trilha(4, None)
 r.ver(img, [sem])
 ok("trilha ainda sem caixa nao derruba o modulo", r._pendente is not None)
+
+# ---- 8. reconhecido vira evento, uma vez por pessoa ---------------------
+# O quadro "Pessoas" do painel e feito das linhas "reconhecido" da cadeia. No
+# laboratorio a caixa colava o nome na etiqueta e NUNCA mandava a linha: o nome
+# aparecia na tela ao vivo e o painel dizia "ninguem foi reconhecido".
+r = montar([[20.0, 10.0, 20.0, 20.0, 0.9]])
+r.ver(img, [Trilha(5, (0.0, 0.0, 0.5, 1.0))])
+r._trabalhar(*r._pendente)
+ok("o primeiro reconhecimento vira um evento para a cadeia",
+   r.novos() == [(5, "Enzo")])
+ok("e a lista esvazia depois de lida", r.novos() == [])
+# O rastreador perde a pessoa e devolve com outro numero: continua sendo ela.
+r._pendente = None
+r.ver(img, [Trilha(6, (0.0, 0.0, 0.5, 1.0))])
+r._trabalhar(*r._pendente)
+ok("a mesma pessoa com outro numero de trilha NAO vira outra linha",
+   r.novos() == [] and r.nome_de(6) == "Enzo", str(r.nomes))
+r._registrado["Enzo"] -= rosto_mod.REGISTRO_S + 1
+r._pendente = None
+r.ver(img, [Trilha(7, (0.0, 0.0, 0.5, 1.0))])
+r._trabalhar(*r._pendente)
+ok("passado o intervalo, a volta dela vira linha de novo",
+   r.novos() == [(7, "Enzo")])
 
 print(f"\n{'FALHOU' if falhas else 'a cola do rosto passou'}")
 sys.exit(1 if falhas else 0)

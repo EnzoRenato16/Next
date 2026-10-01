@@ -347,6 +347,12 @@ def main():
                 cara.ver(img, list(rebanho.trilhas.values()))
                 for t in rebanho.trilhas.values():
                     t.nome = cara.nome_de(t.id)
+                # Reconhecido vira linha da cadeia, como no navegador: e dela que
+                # sai o quadro "Pessoas" do painel. Vai o NOME, porque a pessoa
+                # se cadastrou de proprio punho; pela mesma fila dos alertas.
+                for corpo, nome in cara.novos():
+                    fala.evento("reconhecido", corpo, nome)
+                    print(f"[aibox] reconhecido: {nome} (corpo #{corpo})")
 
             for al in alertas:
                 # O NOME VAI NO EVENTO quando existe. "Enzo caiu" e uma frase

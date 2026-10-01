@@ -36,6 +36,11 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # trilha, e um nome errado que nunca se corrige e pior que nenhum nome.
 ESPERA = float(os.environ.get("ROSTO_ESPERA", "2.0"))
 RECONFERIR = float(os.environ.get("ROSTO_RECONFERIR", "10.0"))
+# Uma mesma pessoa vira UMA linha "reconhecido" na cadeia por este intervalo,
+# por mais que o rastreador troque o numero dela. Sem isso, cada troca de
+# trilha (gente se cruzando, alguem sumindo atras da mesa) viraria uma linha, e
+# a cadeia nunca apaga linha.
+REGISTRO_S = float(os.environ.get("ROSTO_REGISTRO_S", "300"))
 
 
 class Rosto:
@@ -45,6 +50,10 @@ class Rosto:
         self.base = base.rstrip("/")
         self.espera = espera
         self.nomes = {}           # id da trilha -> (nome, quando)
+        # Quem foi reconhecido e ainda nao virou evento: [(id da trilha, nome)].
+        # O laco principal tira daqui e manda pela mesma fila dos alertas.
+        self._novos = []
+        self._registrado = {}     # nome -> quando virou evento pela ultima vez
         self.vistos = 0
         self.reconhecidos = 0
         self.erro = None
@@ -79,6 +88,18 @@ class Rosto:
                 caixas.append((t.id, c[0] * larg, c[1] * alt,
                                (c[2] - c[0]) * larg, (c[3] - c[1]) * alt))
             self._pendente = (img.copy(), caixas)
+
+    def novos(self):
+        """Os reconhecimentos que ainda nao viraram evento, e esvazia a lista.
+
+        POR QUE ISTO EXISTE. O quadro "Pessoas" do painel e feito das linhas
+        "reconhecido" da cadeia. O navegador sempre mandou essa linha; a caixa
+        so colava o nome na etiqueta, e ninguem reconhecido pela caixa chegava
+        ao painel. Visto no laboratorio: o nome aparecia na tela ao vivo e o
+        painel dizia "ninguem foi reconhecido ainda"."""
+        with self._trava:
+            saida, self._novos = self._novos, []
+        return saida
 
     def nome_de(self, ident):
         n = self.nomes.get(ident)
@@ -139,6 +160,10 @@ class Rosto:
             if nome:
                 if not tinha or tinha[0] != nome:
                     self.reconhecidos += 1
+                    if agora - self._registrado.get(nome, -1e9) >= REGISTRO_S:
+                        self._registrado[nome] = agora
+                        with self._trava:
+                            self._novos.append((alvo, nome))
                 self.nomes[alvo] = (nome, agora)
 
     def _perguntar(self, vetor):
