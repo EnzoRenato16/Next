@@ -154,6 +154,19 @@ As três causas de "não responde", em ordem de frequência:
 2. o firewall do Windows barrando a porta
 3. o PC voltou para DHCP e perdeu o `192.168.50.72`
 
+## Demonstrar para a banca (funcionalidades mínimas A e B)
+
+- **B, câmera:** `bash aibox/camera_teste.sh` (ou `... cadastro` para a
+  `.109`) abre o RTSP pelo mesmo cano da `sala.py`, lê 5 s e diz quantos
+  quadros chegaram. UMA tentativa, nunca em laço (armadilha 5).
+- **A, partida automática:** `bash aibox/servico.sh instalar`. O `grupo11` não
+  é root, então não há `/etc/systemd`: é o `@reboot` do cron do usuário. O
+  `rodar` espera o PC responder, roda a `sala.py` direto (o `ir.sh` pergunta
+  "rodar assim mesmo?" e serviço não responde), religa em 60 s se cair, 10 min
+  se a câmera deu 403, e para com INT para o servidor registrar "parada" sem
+  sirene. `SERVICO_ARGS=--rosto` no `.env` passa argumentos. **Com o serviço
+  rodando, não rode o `ir.sh` junto:** a porta 8080 já está ocupada.
+
 ## A entrega dos alertas (`aibox/entrega.py`)
 
 O laço da análise **nunca espera a rede**: entrega o alerta numa fila e segue

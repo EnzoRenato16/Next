@@ -53,3 +53,9 @@ chave-bio.txt
 # Relatorio: fotos do laboratorio e o PDF tem o rosto dos integrantes
 relatorio/img/lab-*
 relatorio/*.pdf
+
+# servico da caixa (aibox/servico.sh)
+auditix.log
+auditix.log.tmp
+.servico.pid
+.servico.trava
