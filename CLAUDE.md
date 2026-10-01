@@ -286,6 +286,19 @@ $P aibox/medir.py
 Ele separa o teto da câmera do teto do modelo — e isso importa, porque otimizar
 o modelo contra um teto que é da câmera é trabalho jogado fora.
 
+## O hardware que a caixa tem e o Auditix ainda não usa
+
+Achado no laboratório, com `gst-inspect-1.0` e `ls /root/lib`:
+
+- **`qtivdec`**: decodificador H.264 por hardware. A câmera manda 30/s, a
+  análise usa ~6, e os outros eram decodificados na CPU para nada (744% de
+  800%). `GST_DECODIFICADOR=qtivdec` no `.env` liga; desligado até medir.
+- **NPU Hexagon V68** (`/dev/adsprpc-smd`, `libSnpeHtpV68Skel.so`) e os plugins
+  `qtimltflite` + `qtimlvpose` do Qualcomm IM SDK: pose rodando na NPU, fora
+  da CPU. O ONNX Runtime da caixa (1.16.3) NÃO tem o provedor da NPU, então o
+  caminho é TFLite quantizado pelo GStreamer, não o ONNX de hoje.
+- **GPU Adreno** (`/dev/kgsl-3d0`).
+
 ## O que ainda NÃO existe na caixa
 
 - **Mapa de calor** e **botão de pedir ajuda**: só no navegador.

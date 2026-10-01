@@ -34,6 +34,13 @@ import numpy as np
 # resolucao de sobra para achar corpo, e a camera entrega bem mais que isso.
 LARG = int(os.environ.get("CAM_LARG", "640"))
 ALT = int(os.environ.get("CAM_ALT", "360"))
+# QUEM DECODIFICA O H.264. O padrao e o avdec_h264, no processador comum. A
+# caixa tem decodificador de video por HARDWARE (qtivdec, achado no laboratorio
+# com `gst-inspect-1.0 | grep qti`), e isso importa: a camera manda 30 quadros
+# por segundo, a analise usa uns 6, e os outros 24 eram decodificados na CPU so
+# para serem jogados fora (CPU medida em 744% de 800%). Vem desligado ate ser
+# medido: GST_DECODIFICADOR=qtivdec no .env, e compare fps e cpu no --mostrar.
+DECODIFICADOR = os.environ.get("GST_DECODIFICADOR", "avdec_h264").strip() or "avdec_h264"
 
 
 def _comando(url):
@@ -46,7 +53,7 @@ def _comando(url):
         # rasgado, o que o detector le como corpo torto — alarme falso com
         # causa na rede, que e o pior tipo para diagnosticar.
         "protocols=tcp", "latency=100",
-        "!", "rtph264depay", "!", "h264parse", "!", "avdec_h264",
+        "!", "rtph264depay", "!", "h264parse", "!", DECODIFICADOR,
         # A FILA VAZA DE PROPOSITO (leaky=downstream, 2 quadros). Sem ela, o
         # GStreamer BLOQUEIA quando o cano enche, e como a analise e mais lenta
         # que a camera o cano vive cheio: o que se analisa passa a ser o
