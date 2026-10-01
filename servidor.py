@@ -1041,6 +1041,11 @@ class Batida(BaseModel):
     quadro_ha_s: float | None = None      # ultimo quadro que chegou da camera
     fps: float | None = None
     pendentes: int | None = None          # alertas na fila da caixa
+    # A porta do balcao de cadastro da caixa, se ele estiver ligado. O IP NAO
+    # vem no corpo: e o de quem bateu, visto daqui — a caixa nao sabe com que
+    # endereco a rede a enxerga, e um IP digitado errado no .env dela faria a
+    # tela /cadastro procurar o balcao no lugar errado.
+    balcao: int | None = Field(default=None, ge=1, le=65535)
 
 
 def _gravar_elo(tipo: str, quem: str, local: str) -> tuple[int, str, str]:
@@ -1079,7 +1084,7 @@ def _mudou(cx: dict, tipo: str) -> None:
 
 
 @app.post("/api/batimento")
-def batimento(b: Batida) -> dict:
+def batimento(b: Batida, req: Request) -> dict:
     with _trava_caixas:
         cx = _caixas.get(b.caixa)
         if cx is None:
@@ -1087,7 +1092,8 @@ def batimento(b: Batida) -> dict:
                                     "desde": time.monotonic()}
         cx.update(local=b.local, estado=b.estado, intervalo=b.intervalo_s,
                   detalhe=b.detalhe, quadro_ha_s=b.quadro_ha_s, fps=b.fps,
-                  pendentes=b.pendentes, visto=time.monotonic())
+                  pendentes=b.pendentes, visto=time.monotonic(),
+                  ip=req.client.host if req.client else None, balcao=b.balcao)
         antes = cx["episodio"]
         if b.estado == "parada":
             # Parada DE PROPOSITO: vira registro (a cadeia diz quando o sistema
@@ -1139,6 +1145,14 @@ async def vigiar_silencio() -> None:
             print(f"[saude] vigia falhou: {erro}")
 
 
+def _endereco_balcao(cx: dict) -> str | None:
+    ip, porta = cx.get("ip"), cx.get("balcao")
+    if not ip or not porta:
+        return None
+    # IPv6 vai entre colchetes na URL; sem eles a porta se mistura ao endereco.
+    return f"http://[{ip}]:{porta}" if ":" in ip else f"http://{ip}:{porta}"
+
+
 @app.get("/api/saude")
 def saude() -> dict:
     """Como esta cada caixa AGORA. So memoria: responde mesmo com o banco fora."""
@@ -1158,7 +1172,9 @@ def saude() -> dict:
                 "ha_s": round(agora - cx["desde"]),
                 "detalhe": cx.get("detalhe"), "fps": cx.get("fps"),
                 "quadro_ha_s": cx.get("quadro_ha_s"),
-                "pendentes": cx.get("pendentes")})
+                "pendentes": cx.get("pendentes"),
+                # Onde a tela /cadastro acha a camera de cadastro desta caixa.
+                "balcao": _endereco_balcao(cx)})
     return {"caixas": sorted(lista, key=lambda c: c["caixa"]),
             "sem_sinal_s": SEM_SINAL_S}
 

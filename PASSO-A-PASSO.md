@@ -108,9 +108,18 @@ echo 'CAMERA_CADASTRO=rtsp://192.168.50.109:554/cam/realmonitor?channel=1&subtyp
 ```
 
 **Sem usuário e senha no endereço:** a caixa usa o `CAM_USER` e o `CAM_PW` do
-`.env` para as duas câmeras. A tela `/cadastro` do PC não serve aqui: ela usa a
-webcam do próprio PC (que o do laboratório não tem) e grava o outro motor, o do
-navegador, que a caixa não lê.
+`.env` para as duas câmeras.
+
+**Com isso no `.env`, dá para cadastrar pela tela do PC, sem terminal.** Rode a
+sala normalmente (`bash aibox/ir.sh`) e abra `http://127.0.0.1:8000/cadastro`
+no PC. A tela acha a caixa sozinha e mostra **"Câmera: câmera de cadastro da
+AIBOX"**. Clique em **Ligar a câmera** (a imagem da `.109` aparece, com o rosto
+marcado), escreva o nome e clique em **Cadastrar**. A caixa colhe 6 amostras em
+uns 10 segundos: fique de frente, sozinho, e mexa a cabeça devagar.
+
+Se a escolha de câmera não aparecer: a sala não está rodando, ou o `.env` da
+caixa não tem `CAMERA_CADASTRO`. Para forçar o endereço:
+`http://127.0.0.1:8000/cadastro?caixa=192.168.50.10:8081`.
 
 E rode com o reconhecimento ligado:
 

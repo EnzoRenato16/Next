@@ -171,6 +171,12 @@ def main():
                    help="imagem ao vivo no ritmo da camera (custa CPU; meca)")
     p.add_argument("--rosto", action="store_true",
                    help="reconhece quem esta cadastrado (usa o motor de daten/)")
+    # O BALCAO DE CADASTRO so liga se existir CAMERA_CADASTRO no .env: e a
+    # camera de baixo, operada pela tela /cadastro do PC. Ver aibox/balcao.py.
+    # A camera dele so abre quando a tela pede, entao ligado e parado nao custa.
+    p.add_argument("--balcao", type=int,
+                   default=int(os.environ.get("BALCAO_PORTA", "8081")),
+                   help="porta do balcao de cadastro (0 desliga)")
     a = p.parse_args()
 
     if not a.camera:
@@ -219,6 +225,19 @@ def main():
         except Exception as e:
             print(f"[aibox] rosto DESLIGADO: {e}")
 
+    balcao = None
+    cam_cadastro = os.environ.get("CAMERA_CADASTRO", "").strip()
+    if a.balcao and cam_cadastro:
+        try:
+            from aibox import balcao as balcao_mod
+            balcao = balcao_mod.Balcao(cam_cadastro, a.servidor, a.balcao)
+            print(f"[aibox] balcao de cadastro na porta {a.balcao}: a tela /cadastro "
+                  "do PC liga a camera de baixo quando precisar")
+        except OSError as e:
+            # Porta ocupada (um balcao.py sozinho ainda aberto, por exemplo).
+            # A analise da sala nao depende disto: segue sem ele, dizendo.
+            print(f"[aibox] balcao de cadastro DESLIGADO: {e}")
+
     janela = None
     if a.web:
         janela = vivo_mod.Vivo(a.web)
@@ -265,7 +284,8 @@ def main():
     quadros, perdidos, ultima_linha = 0, 0, t0
     # A caixa diz ao servidor que esta viva e se esta enxergando. Ver o porque
     # em aibox/batimento.py — e o servidor, nao ela, quem percebe o silencio.
-    bat = batimento.Batimento(a.servidor, a.local)
+    bat = batimento.Batimento(a.servidor, a.local,
+                              balcao=balcao.porta if balcao is not None else None)
     print(f"[aibox] batimento: '{bat.caixa}' a cada {batimento.BATIDA_S:g}s")
     desde_quadro = t0
     custo.cpu_pct()                      # primeira leitura, so para ancorar
@@ -431,6 +451,8 @@ def main():
                   f"(ultimo erro: {fala.ultimo_erro})")
         if cara is not None:
             cara.fechar()
+        if balcao is not None:
+            balcao.fechar()
         cap.release()
         getattr(vis, "fechar", lambda: None)()
         if pintor is not None:

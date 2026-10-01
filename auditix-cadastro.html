@@ -22,6 +22,14 @@ main{padding:20px;max-width:1080px;margin:0 auto;display:grid;gap:20px;
 h2{margin:0 0 12px;font-size:15px;letter-spacing:.04em;text-transform:uppercase;color:var(--fraco)}
 .palco{position:relative;background:#000;border-radius:10px;overflow:hidden;aspect-ratio:4/3}
 .palco video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+/* A camera da caixa NAO e espelhada: e uma camera de parede, nao um espelho. */
+.palco img{width:100%;height:100%;object-fit:contain}
+/* `hidden` perde para qualquer display escrito em CSS (ja custou uma tarde no
+   painel). Aqui ele ganha sempre. */
+[hidden]{display:none !important}
+.fonte{display:flex;gap:8px;align-items:center;margin:12px 0 0;font-size:13.5px;color:var(--fraco)}
+.fonte select{font:inherit;padding:6px 10px;border-radius:8px;border:1px solid var(--linha);
+  background:#0e1f1b;color:var(--texto)}
 .oval{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
 .oval div{width:46%;height:66%;border:3px dashed var(--fraco);border-radius:50%;transition:border-color .2s}
 .oval.ok div{border-color:var(--verde);border-style:solid}
@@ -64,8 +72,15 @@ button.remover{background:none;color:var(--rubi);border:1px solid var(--linha);
     <h2>Novo cadastro</h2>
     <div class="palco">
       <video id="cam" autoplay muted playsinline></video>
+      <img id="camip" alt="câmera de cadastro da AIBOX" hidden>
       <div class="oval" id="oval"><div></div></div>
     </div>
+    <label class="fonte" id="fonte" hidden>Câmera:
+      <select id="fonteSel">
+        <option value="caixa">câmera de cadastro da AIBOX</option>
+        <option value="pc">webcam deste computador</option>
+      </select>
+    </label>
     <div class="passos">
       <div class="passo" id="p1">1. enquadrar</div>
       <div class="passo" id="p2">2. abrir a boca</div>
@@ -78,11 +93,18 @@ button.remover{background:none;color:var(--rubi);border:1px solid var(--linha);
       <button id="salvar" class="claro" disabled>Salvar cadastro</button>
       <span id="conta" class="n"></span>
     </div>
-    <p class="nota">Abrir a boca e virar a cabeça são <b>prova de vida</b>: uma
+    <p class="nota" id="notaCaixa" hidden><b>Pela câmera da AIBOX:</b> a
+    imagem vai da câmera para a caixa e da caixa para esta tela, e não é
+    gravada em lugar nenhum. Quem mede o rosto é a própria caixa, com o mesmo
+    motor que reconhece as pessoas na sala, e só os 128 números vêm para o
+    servidor, girados com a chave. Por esta câmera <b>não há prova de vida</b>
+    (abrir a boca, virar a cabeça): ela precisa dos 68 pontos do rosto que só o
+    motor do navegador dá, e a caixa mede 5.</p>
+    <p class="nota" id="notaVida">Abrir a boca e virar a cabeça são <b>prova de vida</b>: uma
     foto impressa não faz nenhuma das duas. Os limiares são medidos no seu
     próprio rosto no começo, e não fixos — rosto grande e rosto pequeno não dão
     o mesmo número.</p>
-    <p class="nota"><b>A sua foto não é guardada.</b> A câmera só existe nesta
+    <p class="nota" id="notaFoto"><b>A sua foto não é guardada.</b> A câmera só existe nesta
     tela: dela saem 128 números medidos do seu rosto, e a imagem é descartada
     sem sair do navegador. Esses 128 números ainda identificariam você, então
     eles são <b>girados com uma chave que não fica no banco</b> — quem levasse o
@@ -127,17 +149,144 @@ function yaw(lm){
 
 let vivo = null, rodando = false, modelos = false;
 
+/* ---- A CAMERA DE CADASTRO DA CAIXA -----------------------------------------
+   Navegador nenhum le RTSP, e o motor daqui (face-api) mede o rosto num formato
+   que a caixa NAO le: quem reconhece na sala e o SFace, la dentro. Entao, com a
+   caixa, esta tela so PEDE: a caixa abre a camera de baixo, manda a imagem para
+   ca, colhe as amostras com o mesmo motor que vai reconhecer, e grava. Ver
+   aibox/balcao.py. O endereco vem do proprio servidor (a caixa avisa no
+   batimento) ou de ?caixa=ip:porta na barra de endereco. */
+let BALCAO = null, modo = 'pc', vigia = null, faseAntes = null;
+const lembrar = (k, v) => { try{ v === undefined ? localStorage.removeItem(k)
+                                                  : localStorage.setItem(k, v); }catch(e){} };
+const lembrado = k => { try{ return localStorage.getItem(k); }catch(e){ return null; } };
+const texto = t => String(t == null ? '' : t).replace(/[<>&]/g, '');
+
+async function acharBalcao(){
+  const candidatos = [];
+  const q = new URLSearchParams(location.search).get('caixa');
+  if(q) candidatos.push(/^https?:/.test(q) ? q : 'http://' + q);
+  try{
+    const j = await (await fetch('/api/saude')).json();
+    (j.caixas || []).forEach(c => { if(c.balcao) candidatos.push(c.balcao); });
+  }catch(e){}
+  for(const u of candidatos){
+    const base = u.replace(/\/+$/, '');
+    try{
+      const r = await fetch(base + '/estado', { signal: AbortSignal.timeout(2500) });
+      if(r.ok) return base;
+    }catch(e){}
+  }
+  return null;
+}
+
+function aplicarModo(m){
+  modo = (m === 'caixa' && BALCAO) ? 'caixa' : 'pc';
+  const cx = modo === 'caixa';
+  $('notaCaixa').hidden = !cx;
+  $('notaVida').hidden = cx;
+  $('notaFoto').hidden = cx;
+  $('p1').textContent = cx ? '1. um rosto, perto' : '1. enquadrar';
+  $('p2').textContent = cx ? '2. colher 6 amostras' : '2. abrir a boca';
+  $('p3').textContent = cx ? '3. gravar' : '3. virar a cabeça';
+  $('salvar').textContent = cx ? 'Cadastrar' : 'Salvar cadastro';
+  if(cx) $('dica').textContent = 'Clique em "Ligar a câmera": a caixa abre a câmera de cadastro.';
+  else if(modelos) $('dica').textContent = 'Pronto. Clique em "Ligar a câmera".';
+}
+
+function desligarTudo(){
+  rodando = false;
+  const s = $('cam').srcObject;
+  if(s) s.getTracks().forEach(t => t.stop());
+  $('cam').srcObject = null;
+  /* Tirar o src FECHA o MJPEG, e e isso que deixa a caixa desligar a camera
+     sozinha alguns segundos depois. */
+  $('camip').removeAttribute('src');
+  clearInterval(vigia); vigia = null;
+  vivo = null; faseAntes = null;
+  $('ligar').disabled = false;
+  $('salvar').disabled = true;
+  $('conta').textContent = '';
+  $('oval').classList.remove('ok');
+  pintarPassos();
+}
+
+function ligarCaixa(){
+  $('cam').hidden = true;
+  const img = $('camip');
+  img.hidden = false;
+  img.onerror = () => {
+    $('dica').innerHTML = '<span class="erro">A caixa não mandou imagem.</span> '
+      + 'Confira se a análise da sala está rodando na caixa.';
+    $('ligar').disabled = false;
+  };
+  img.src = BALCAO + '/video?t=' + Date.now();
+  $('ligar').disabled = true;
+  $('nome').disabled = false;
+  $('dica').textContent = 'Ligando a câmera de cadastro…';
+  clearInterval(vigia);
+  vigia = setInterval(vigiarCaixa, 600);
+  vigiarCaixa();
+}
+
+let ultimoEstado = null;
+async function vigiarCaixa(){
+  let e;
+  try{
+    e = await (await fetch(BALCAO + '/estado', { signal: AbortSignal.timeout(2500) })).json();
+  }catch(err){
+    $('dica').innerHTML = '<span class="erro">A caixa parou de responder.</span>';
+    return;
+  }
+  ultimoEstado = e;
+  const ordem = ['olhando', 'colhendo', 'gravando', 'pronto'];
+  const i = ordem.indexOf(e.fase);
+  [['p1', 0], ['p2', 1], ['p3', 2]].forEach(([id, k]) => {
+    $(id).className = 'passo' + (i === k ? ' agora' : '') + (i > k ? ' feito' : '');
+  });
+  $('oval').classList.toggle('ok', !!e.perto);
+  $('conta').textContent = e.fase === 'colhendo' || e.fase === 'gravando'
+    ? e.amostras + ' de ' + e.total + ' amostras' : '';
+  $('dica').innerHTML = e.fase === 'erro'
+    ? '<span class="erro">' + texto(e.mensagem) + '</span>'
+    : e.fase === 'pronto' ? '<b>' + texto(e.mensagem) + '</b>' : texto(e.mensagem);
+  if(e.fase === 'pronto' && faseAntes !== 'pronto'){
+    $('nome').value = '';
+    listar();
+  }
+  if(e.fase === 'desligado' && faseAntes && faseAntes !== 'desligado') $('ligar').disabled = false;
+  faseAntes = e.fase;
+  podeSalvar();
+}
+
+async function cadastrarCaixa(){
+  const nome = $('nome').value.trim();
+  $('salvar').disabled = true;
+  try{
+    const r = await fetch(BALCAO + '/cadastrar', { method:'POST',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nome }) });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.erro || ('HTTP ' + r.status));
+    faseAntes = j.fase;
+    vigiarCaixa();
+  }catch(e){
+    $('dica').innerHTML = '<span class="erro">Não começou:</span> ' + texto(e.message);
+    podeSalvar();
+  }
+}
+
 async function carregar(){
   try{
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODELOS);
     await faceapi.nets.faceLandmark68Net.loadFromUri(MODELOS);
     await faceapi.nets.faceRecognitionNet.loadFromUri(MODELOS);
     modelos = true;
-    $('dica').textContent = 'Pronto. Clique em "Ligar a câmera".';
+    if(modo !== 'caixa') $('dica').textContent = 'Pronto. Clique em "Ligar a câmera".';
   }catch(e){
-    $('dica').innerHTML = '<span class="erro">Não consegui carregar os modelos '
-      + 'de rosto.</span> Confira se a pasta <code>vendor/face-api/model</code> '
-      + 'foi para o servidor.';
+    if(modo !== 'caixa')
+      $('dica').innerHTML = '<span class="erro">Não consegui carregar os modelos '
+        + 'de rosto.</span> Confira se a pasta <code>vendor/face-api/model</code> '
+        + 'foi para o servidor.';
   }
 }
 
@@ -153,7 +302,10 @@ function pintarPassos(){
 }
 
 async function ligar(){
+  if(modo === 'caixa') return ligarCaixa();
   if(!modelos) return;
+  $('camip').hidden = true;
+  $('cam').hidden = false;
   try{
     const s = await navigator.mediaDevices.getUserMedia({ video:{ width:640, height:480 } });
     $('cam').srcObject = s;
@@ -238,6 +390,12 @@ function passo(r, v){
    apagava a dica da tela escrevendo "nao estou vendo nenhum rosto" no meio do
    cadastro. */
 function podeSalvar(){
+  if(modo === 'caixa'){
+    const e = ultimoEstado;
+    $('salvar').disabled = !(vigia && e && $('nome').value.trim().length > 0
+                             && ['olhando', 'pronto', 'erro'].includes(e.fase));
+    return;
+  }
   $('salvar').disabled = !(vivo && vivo.fase === 'pronto'
                            && vivo.amostras.length >= MINIMO
                            && $('nome').value.trim().length > 0);
@@ -247,6 +405,7 @@ $('nome').addEventListener('input', podeSalvar);
 $('ligar').addEventListener('click', ligar);
 
 $('salvar').addEventListener('click', async () => {
+  if(modo === 'caixa') return cadastrarCaixa();
   const nome = $('nome').value.trim();
   $('salvar').disabled = true;
   try{
@@ -279,11 +438,16 @@ async function listar(){
       return;
     }
     const hoje = Date.now();
-    $('lista').innerHTML = '<table><tr><th>nome</th><th>amostras</th>'
+    $('lista').innerHTML = '<table><tr><th>nome</th><th>vale em</th><th>amostras</th>'
       + '<th>vence em</th><th></th></tr>'
       + j.cadastros.map(c => {
           const dias = Math.round((new Date(c.vence.replace(' ', 'T')) - hoje) / 86400000);
+          /* A mesma pessoa pode aparecer duas vezes, e deve: um cadastro vale
+             na caixa (SFace), o outro no navegador (face-api). Os dois motores
+             nao se leem. */
+          const onde = c.tipo === 'sface' ? 'caixa' : 'navegador';
           return '<tr><td>' + c.nome.replace(/[<>&]/g, '') + '</td>'
+            + '<td class="n">' + onde + '</td>'
             + '<td class="n">' + c.amostras + '</td>'
             + '<td class="n' + (dias < 30 ? ' aviso' : '') + '">' + dias + ' dias</td>'
             + '<td style="text-align:right"><button class="remover" data-nome="'
@@ -308,6 +472,22 @@ async function remover(nome){
   }catch(e){ alert('Não removeu: ' + e.message); }
 }
 
+$('fonteSel').addEventListener('change', e => {
+  desligarTudo();
+  lembrar('auditix.cadastro.fonte', e.target.value);
+  aplicarModo(e.target.value);
+});
+
+(async () => {
+  BALCAO = await acharBalcao();
+  if(BALCAO){
+    $('fonte').hidden = false;
+    /* Com a caixa por perto, ela e o padrao: e o cadastro que a sala usa. */
+    const escolha = lembrado('auditix.cadastro.fonte') || 'caixa';
+    $('fonteSel').value = escolha;
+    aplicarModo(escolha);
+  }
+})();
 carregar();
 listar();
 </script>

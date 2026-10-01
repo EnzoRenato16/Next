@@ -322,7 +322,23 @@ bash aibox/ir.sh --rosto                     # e a caixa passa a chamar pelo nom
 altura do rosto serve para cadastrar (`CAMERA_CADASTRO` no `.env` da caixa).
 Pela de cima o rosto sai pequeno e todo mundo da sala entra no quadro, e o
 cadastro para em "mais de um rosto". As duas usam o mesmo `CAM_USER`/`CAM_PW`.
-A tela `/cadastro` do PC usa a webcam do PC, que o laboratório não tem.
+
+**O balcão de cadastro (`aibox/balcao.py`): a tela `/cadastro` do PC opera a
+câmera da caixa.** Navegador não lê RTSP, e o motor do navegador mede o rosto
+num formato que a caixa não lê. Então a tela PEDE e a caixa FAZ: com
+`CAMERA_CADASTRO` no `.env`, a `sala.py` sobe o balcão na porta 8081, e a tela
+acha o endereço sozinha (a caixa manda a porta no batimento; o servidor anota o
+IP de quem bateu e devolve em `/api/saude`). "Ligar a câmera" abre a `.109` e
+mostra em MJPEG; "Cadastrar" colhe 6 amostras com o SFace e grava como `sface`.
+A câmera só abre quando a tela pede, e fecha 20 s depois que ninguém olha.
+**Sem prova de vida nesse modo:** a da webcam usa os 68 pontos do face-api, e o
+YuNet dá 5. A tela diz isso. Rosto menor que `BALCAO_ROSTO_MIN` (15% da altura)
+não é colhido.
+
+> **Defeito pego no teste antes de chegar ao laboratório:** ligar a câmera
+> sobrescrevia a fase "colhendo" que o pedido de cadastro tinha acabado de
+> marcar. O primeiro pedido se perdia, e o segundo, de outra pessoa, era aceito
+> no lugar. `testes/balcao_lado.py` cobra isso.
 
 **Desligado por padrão, de propósito:** custa CPU numa caixa que já está
 apertada de quadros por segundo, e a análise de queda não pode piorar porque um
@@ -417,4 +433,4 @@ node testes/aibox.mjs      # o Python da caixa calcula igual ao navegador?
 node testes/rede-queda.mjs  # o JS calcula igual ao treino?
 ```
 
-Os 28 arquivos `.mjs` em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
+Os 30 arquivos `.mjs` em `testes/` rodam com o servidor no ar (`CALIBRACAO=1`).
