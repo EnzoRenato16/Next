@@ -175,6 +175,13 @@ trocam, `F` tela cheia, `N` roteiro de fala, `R` repete a queda (slide 4) ou
 desfaz a adulteração (slide 9). Abrir com `pc pitch` (serve em 127.0.0.1:8090):
 pelo duplo clique as fontes de `vendor/fontes` não carregam.
 
+**Modo 5 minutos, ligado por padrão** (o pitch tem 5 min): 10 slides na ordem
+`s1 s2 s3 s4 s10 s10b s7 s9 s8 s13`, com o vídeo real logo depois da sala em 3D.
+`M` alterna com o deck completo (lembrado no navegador); número + Enter abre
+qualquer slide para as perguntas, e → volta ao roteiro dali; cronômetro na
+barra, âmbar aos 4:20 e rubi aos 5:00, `T` zera. Para mudar o roteiro, edite
+`CURTO_IDS` no script.
+
 - Os dois dados de abertura têm fonte na tela: 15.759 episódios de violência
   em escolas em 2024 (Anuário Brasileiro de Segurança Pública 2025, SINAN) e
   mais de 55 mil internações de crianças por queda em 2025 (Criança Segura,

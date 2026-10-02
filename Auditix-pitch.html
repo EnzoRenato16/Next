@@ -301,6 +301,15 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   border:1px solid var(--linha);border-radius:8px;padding:8px 13px;cursor:pointer}
 #barra .conta{font-family:var(--f-dado);font-size:15px;color:var(--fraco);margin-right:6px;
   font-variant-numeric:tabular-nums}
+#barra .crono{font-family:var(--f-dado);font-size:15px;color:var(--fraco);margin-right:auto;
+  font-variant-numeric:tabular-nums;padding-left:4px}
+#barra .crono.perto{color:var(--ambar)}
+#barra .crono.estourou{color:var(--rubi)}
+#barra button[aria-pressed="true"]{border-color:var(--menta);color:var(--menta)}
+#ir{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:62;
+  font:500 64px var(--f-dado);color:var(--texto);background:rgba(6,16,14,.92);
+  border:1px solid var(--menta);border-radius:14px;padding:18px 34px}
+#ir small{display:block;font-size:16px;color:var(--fraco);letter-spacing:.12em;text-transform:uppercase}
 #notas{position:fixed;left:16px;right:16px;bottom:64px;z-index:61;max-width:980px;margin:0 auto;
   padding:18px 22px;border-radius:12px;background:rgba(6,16,14,.94);border:1px solid var(--linha);
   font-size:17px;line-height:1.55;color:var(--texto)}
@@ -572,13 +581,16 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 
 <div id="progresso"></div>
 <div id="barra">
-  <span class="conta" id="conta">01 / 14</span>
+  <span class="crono" id="crono" title="tempo desde o primeiro avanço · T zera">0:00</span>
+  <button type="button" id="b-modo" aria-pressed="true" title="M alterna">modo 5 min</button>
+  <span class="conta" id="conta">01 / 10</span>
   <button type="button" id="b-ant" aria-label="Slide anterior">←</button>
   <button type="button" id="b-prox" aria-label="Próximo slide">→</button>
   <button type="button" id="b-notas" aria-label="Mostrar o roteiro de fala">roteiro</button>
   <button type="button" id="b-tela" aria-label="Tela cheia">tela cheia</button>
 </div>
 <aside id="notas" hidden></aside>
+<div id="ir" hidden><small>ir para o slide</small><span id="ir-n"></span></div>
 
 <script src="vendor/three/three.min.js"></script>
 <script src="ppt/pitch-imagens.js"></script>
@@ -587,6 +599,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 /* ======================================================================
    Pitch Auditix IA. Setas, espaço ou clique nos botões para navegar.
    F tela cheia · N roteiro de fala · R repete a queda (slide 4) ou desfaz (slide 9)
+   M alterna modo 5 min / deck completo · número + Enter abre qualquer slide · T zera o tempo
    ====================================================================== */
 const $ = id => document.getElementById(id);
 const REDUZ = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1489,13 +1502,75 @@ function irPara(i){
   $("gl").classList.toggle("on", !!cenaAtual);
   for(const k in ANIM) if(ANIM[k].entrar && novo.contains(ANIM[k].c || $(k))) ANIM[k].entrar(relogio);
   atual = i;
-  $("conta").textContent = String(i + 1).padStart(2, "0") + " / " + slides.length;
-  $("progresso").style.width = ((i + 1) / slides.length * 100) + "%";
+  contar();
   if(!$("notas").hidden) mostrarNotas();
   try{ history.replaceState(null, "", "#" + (i + 1)); }catch(e){}
 }
+function contar(){
+  const i = atual, o = ordem(), k = o.indexOf(i);
+  $("conta").textContent = k >= 0
+    ? String(k + 1).padStart(2, "0") + " / " + String(o.length).padStart(2, "0")
+    : "slide " + (i + 1) + " · fora do roteiro";
+  $("progresso").style.width = ((k >= 0 ? k + 1 : 0) / o.length * 100) + "%";
+}
 function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
-const prox = () => irPara(atual + 1), ant = () => irPara(atual - 1);
+/* ---- MODO 5 MINUTOS ----------------------------------------------------
+   10 dos 14 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
+   quando ele pesa mais. Os outros 4 (como funciona, o que detecta, painel e
+   próximo passo) continuam no arquivo para as perguntas: número + Enter. */
+const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s7","s9","s8","s13"];
+const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
+let curto = true;
+try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}
+function ordem(){ return curto ? CURTO : slides.map((_, i) => i); }
+function passo(d){
+  const o = ordem(); let k = o.indexOf(atual);
+  if(k < 0){
+    // num slide fora do roteiro (aberto para uma pergunta): segue para o
+    // próximo, ou o anterior, do roteiro a partir dali
+    if(d > 0) k = o.findIndex(i => i > atual);
+    else { k = -1; o.forEach((i, n) => { if(i < atual) k = n; }); }
+    if(k >= 0) irPara(o[k]);
+    return;
+  }
+  const n = k + d;
+  if(n >= 0 && n < o.length){ if(d > 0) iniciarCrono(); irPara(o[n]); }
+}
+function aplicarModo(){
+  $("b-modo").setAttribute("aria-pressed", String(curto));
+  $("b-modo").textContent = curto ? "modo 5 min" : "deck completo";
+}
+function trocarModo(){
+  curto = !curto; aplicarModo(); contar();
+  try{ localStorage.setItem("auditix.pitch.modo", curto ? "curto" : "completo"); }catch(e){}
+}
+$("b-modo").onclick = trocarModo;
+aplicarModo();
+
+/* cronômetro: começa no primeiro avanço; T zera. Âmbar aos 4:20, rubi aos 5:00 */
+let cronoDesde = 0;
+function iniciarCrono(){ if(!cronoDesde) cronoDesde = performance.now(); }
+setInterval(() => {
+  const s = cronoDesde ? Math.floor((performance.now() - cronoDesde) / 1000) : 0;
+  const el = $("crono");
+  el.textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0") + (curto ? " / 5:00" : "");
+  el.classList.toggle("perto", curto && s >= 260 && s < 300);
+  el.classList.toggle("estourou", curto && s >= 300);
+}, 250);
+
+/* número + Enter abre qualquer slide (para as perguntas da banca) */
+let digitos = "", digitosTempo;
+function digitar(d){
+  digitos = (digitos + d).slice(-2);
+  $("ir-n").textContent = digitos; $("ir").hidden = false;
+  clearTimeout(digitosTempo); digitosTempo = setTimeout(confirmarDigitos, 1600);
+}
+function confirmarDigitos(){
+  clearTimeout(digitosTempo);
+  const n = parseInt(digitos, 10); digitos = ""; $("ir").hidden = true;
+  if(n >= 1 && n <= slides.length) irPara(n - 1);
+}
+const prox = () => passo(1), ant = () => passo(-1);
 $("b-prox").onclick = prox; $("b-ant").onclick = ant;
 $("b-notas").onclick = () => { $("notas").hidden = !$("notas").hidden; if(!$("notas").hidden) mostrarNotas(); };
 const telaCheia = () => { const d = document; (d.fullscreenElement ? d.exitFullscreen() : d.documentElement.requestFullscreen()).catch(() => {}); };
@@ -1505,8 +1580,13 @@ addEventListener("keydown", e => {
   const k = e.key;
   if(["ArrowRight","PageDown"," "].includes(k)){ e.preventDefault(); prox(); }
   else if(["ArrowLeft","PageUp"].includes(k)){ e.preventDefault(); ant(); }
-  else if(k === "Home") irPara(0);
-  else if(k === "End") irPara(slides.length - 1);
+  else if(k === "Home") irPara(ordem()[0]);
+  else if(k === "End") irPara(ordem()[ordem().length - 1]);
+  else if(/^[0-9]$/.test(k)) digitar(k);
+  else if(k === "Enter" && digitos) confirmarDigitos();
+  else if(k === "Escape" && digitos){ digitos = ""; $("ir").hidden = true; }
+  else if(k === "m" || k === "M") trocarModo();
+  else if(k === "t" || k === "T"){ cronoDesde = 0; }
   else if(k === "f" || k === "F") telaCheia();
   else if(k === "n" || k === "N") $("b-notas").click();
   else if(k === "r" || k === "R"){ if(slides[atual].id === "s4" && CENAS.sala) CENAS.sala.reiniciar(); if(slides[atual].id === "s9" && CENAS.cadeia) CENAS.cadeia.desfazer(); }
