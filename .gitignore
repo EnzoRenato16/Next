@@ -59,3 +59,7 @@ auditix.log
 auditix.log.tmp
 .servico.pid
 .servico.trava
+
+# fotos e videos do laboratorio para o pitch: tem rosto de gente e pesam
+ppt/midia/*
+!ppt/midia/LEIA.txt

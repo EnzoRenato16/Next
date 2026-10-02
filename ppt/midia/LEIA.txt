@@ -1,0 +1,11 @@
+Midia do pitch (Auditix-pitch.html). Fica FORA do Git: tem rosto de gente.
+
+Os nomes que o deck procura nesta pasta:
+  demo-cadastro-queda.mp4   slide 10, o video principal
+  tela-camera.jpg           slide 10, a imagem ao vivo da AIBOX
+  tela-eventos.jpg          slide 10, o painel com o heitor e a queda #79
+  demo-ab.mp4               slide 11, inicializacao e camera (itens A e B)
+  demo-sala.mp4             slide 11, varias pessoas rastreadas
+
+Arquivo que falta vira um espaco tracejado com o nome esperado, e o resto do
+deck funciona normal.

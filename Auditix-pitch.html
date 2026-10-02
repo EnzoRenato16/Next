@@ -1,0 +1,1578 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pitch Auditix IA</title>
+<link rel="stylesheet" href="vendor/fontes/fontes.css">
+<style>
+/* Layout: um palco 16:9 de 1920x1080 escalado para qualquer tela, como um monitor
+   de CFTV. Texto ancorado a esquerda, a sala em 3D por tras, alerta em rubi. */
+:root{
+  --noite:#06100E;
+  --painel:#0C1B17;
+  --linha:#1D3A32;
+  --texto:#E8F3EF;
+  --fraco:#88A89E;
+  --menta:#5FE0B5;
+  --rubi:#FF4D6A;
+  --ambar:#F4C26B;
+  --f-display:"Bricolage Grotesque","Arial Narrow",system-ui,sans-serif;
+  --f-corpo:"Public Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-dado:"DM Mono",ui-monospace,"Cascadia Mono",Consolas,monospace;
+  --s:1;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0;overflow:hidden;background:var(--noite);color:var(--texto)}
+body{font-family:var(--f-corpo);-webkit-font-smoothing:antialiased}
+
+#palco{position:fixed;left:50%;top:50%;width:1920px;height:1080px;
+  transform:translate(-50%,-50%) scale(var(--s));transform-origin:center;overflow:hidden;
+  background:
+    radial-gradient(1200px 700px at 78% 40%, rgba(95,224,181,.07), transparent 70%),
+    radial-gradient(900px 600px at 10% 100%, rgba(255,77,106,.05), transparent 70%),
+    var(--noite)}
+#palco::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:40;
+  background:
+    repeating-linear-gradient(0deg, rgba(232,243,239,.018) 0 1px, transparent 1px 4px),
+    radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%)}
+#gl{position:absolute;left:0;top:0;width:1920px;height:1080px;z-index:1;
+  transition:opacity .35s ease;opacity:0}
+#gl.on{opacity:1}
+#rotulos{position:absolute;inset:0;z-index:6;pointer-events:none}
+
+.slide{position:absolute;inset:0;z-index:5;isolation:isolate;padding:110px 128px 120px;
+  visibility:hidden;opacity:0;transition:opacity .45s ease, visibility 0s linear .45s;
+  display:flex;flex-direction:column;gap:28px}
+.slide.on{visibility:visible;opacity:1;transition:opacity .45s ease}
+.slide.on [data-r]{animation:subir .9s cubic-bezier(.16,.8,.2,1) both;
+  animation-delay:calc(var(--d,0) * 110ms + 120ms)}
+@keyframes subir{from{opacity:0;transform:translateY(34px);filter:blur(6px)}
+  to{opacity:1;transform:none;filter:none}}
+
+.olho{font-family:var(--f-dado);font-size:22px;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--menta);margin:0;display:flex;align-items:center;gap:14px}
+.olho::before{content:"";width:10px;height:10px;border-radius:50%;background:currentColor;
+  box-shadow:0 0 14px currentColor}
+.olho.rubi{color:var(--rubi)}
+h1,h2{font-family:var(--f-display);font-weight:700;margin:0;text-wrap:balance;letter-spacing:-.025em}
+h2{font-size:76px;line-height:1.02;max-width:1400px}
+.mega{font-family:var(--f-display);font-weight:700;font-size:290px;line-height:.86;
+  letter-spacing:-.05em;font-variant-numeric:tabular-nums;margin:0}
+.lead{font-size:38px;line-height:1.28;margin:0;max-width:820px;text-wrap:pretty}
+.corpo{font-size:27px;line-height:1.45;color:var(--fraco);margin:0;text-wrap:pretty}
+.corpo b,.lead b{color:var(--texto);font-weight:600}
+.fonte{font-family:var(--f-dado);font-size:18px;line-height:1.5;color:var(--fraco);
+  margin:0;max-width:820px;opacity:.85}
+.fonte::before{content:"FONTE  ";color:var(--menta);letter-spacing:.12em}
+.dado{font-family:var(--f-dado)}
+.vermelho{color:var(--rubi)}
+.menta{color:var(--menta)}
+.ambar{color:var(--ambar)}
+
+/* ---------- 1. o dado ---------- */
+#s1::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+  background:linear-gradient(90deg, var(--noite) 0%, rgba(6,16,14,.92) 38%, rgba(6,16,14,0) 62%)}
+#s1 .col{width:860px;display:flex;flex-direction:column;gap:30px;margin-top:20px}
+.trio{display:grid;grid-template-columns:repeat(3,auto);gap:46px;margin-top:6px}
+.trio div{display:flex;flex-direction:column;gap:6px}
+.trio b{font-family:var(--f-display);font-size:64px;line-height:1;letter-spacing:-.03em;
+  font-variant-numeric:tabular-nums}
+.trio span{font-size:21px;color:var(--fraco);max-width:220px;line-height:1.3}
+.trio .vermelho span{color:var(--rubi);opacity:.85}
+.legenda3d{position:absolute;right:128px;bottom:96px;font-family:var(--f-dado);font-size:19px;
+  color:var(--fraco);letter-spacing:.06em;text-align:right;margin:0}
+.legenda3d i{font-style:normal;color:var(--rubi)}
+
+/* ---------- 2. quedas + parede de monitores ---------- */
+#s2{flex-direction:row;gap:80px;align-items:center}
+#s2 .col{width:760px;flex:none;display:flex;flex-direction:column;gap:28px}
+#s2 .mega{font-size:230px}
+.parede{flex:1;display:flex;flex-direction:column;gap:22px;min-width:0}
+.monitores{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;
+  background:#030807;border:1px solid var(--linha);border-radius:10px;
+  box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.mon{position:relative;aspect-ratio:16/10;background:#0b1210;overflow:hidden;border-radius:3px}
+.mon canvas{width:100%;height:100%;display:block;image-rendering:pixelated}
+.mon .tag{position:absolute;left:8px;top:6px;font-family:var(--f-dado);font-size:13px;
+  color:rgba(232,243,239,.75);letter-spacing:.08em}
+.mon .rec{position:absolute;right:8px;top:6px;font-family:var(--f-dado);font-size:13px;color:var(--rubi)}
+.mon .rec::before{content:"● "}
+.slide.on .mon .rec{animation:piscar 1.2s steps(2,start) infinite}
+@keyframes piscar{50%{opacity:.2}}
+.mon .relogio{position:absolute;left:8px;bottom:6px;font-family:var(--f-dado);font-size:12px;
+  color:rgba(232,243,239,.55)}
+.mon.alvo .ninguem{position:absolute;right:8px;bottom:6px;font-family:var(--f-dado);font-size:13px;
+  color:var(--rubi);background:rgba(0,0,0,.6);padding:2px 6px;border-radius:3px}
+.soco{font-family:var(--f-display);font-size:52px;line-height:1.08;letter-spacing:-.02em;margin:0}
+.soco span{color:var(--rubi)}
+
+/* ---------- 3. abertura ---------- */
+#s3{justify-content:flex-end;padding-bottom:150px}
+#s3 h1{font-size:250px;line-height:.82;letter-spacing:-.055em}
+#s3 h1 i{font-style:normal;color:var(--menta)}
+#s3 .lead{font-size:46px;max-width:1100px}
+#s3 .corpo{max-width:980px}
+
+/* ---------- 4. 360 ---------- */
+#s4{pointer-events:none}
+#s4 > *{pointer-events:auto}
+#s4 .topo{max-width:760px;display:flex;flex-direction:column;gap:18px}
+#s4 h2{font-size:58px}
+.hud{position:absolute;left:128px;bottom:120px;width:560px;display:flex;flex-direction:column;gap:14px}
+.vivo{display:inline-flex;align-items:center;gap:10px;font-family:var(--f-dado);font-size:18px;
+  letter-spacing:.14em;color:var(--rubi);text-transform:uppercase}
+.vivo::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--rubi);
+  box-shadow:0 0 16px var(--rubi);animation:piscar 1.4s ease-in-out infinite}
+.leituras{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.leituras div{background:rgba(12,27,23,.78);border:1px solid var(--linha);border-radius:8px;
+  padding:12px 14px;backdrop-filter:blur(6px)}
+.leituras b{display:block;font-family:var(--f-dado);font-size:34px;font-weight:500;
+  font-variant-numeric:tabular-nums}
+.leituras span{font-size:15px;color:var(--fraco);letter-spacing:.04em}
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;
+  font-family:var(--f-dado);font-size:18px;min-height:190px}
+.feed li{display:flex;gap:14px;padding:8px 12px;border-radius:6px;background:rgba(12,27,23,.72);
+  border:1px solid var(--linha);animation:entra .5s cubic-bezier(.16,.8,.2,1)}
+.feed li time{color:var(--fraco);flex:none}
+.feed li.grave{border-color:rgba(255,77,106,.6);color:#FFD2DA;background:rgba(70,10,22,.65)}
+.feed li.ok{color:var(--menta)}
+@keyframes entra{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:none}}
+.dica{position:absolute;right:128px;bottom:120px;font-family:var(--f-dado);font-size:18px;
+  color:var(--fraco);text-align:right;line-height:1.6}
+.dica kbd{font-family:var(--f-dado);border:1px solid var(--linha);border-radius:4px;padding:1px 7px;color:var(--texto)}
+.rot{position:absolute;transform:translate(-50%,-100%);font-family:var(--f-dado);font-size:17px;
+  white-space:nowrap;padding:3px 9px;border-radius:4px;background:rgba(6,16,14,.78);
+  border:1px solid rgba(95,224,181,.45);color:var(--menta);transition:color .2s,border-color .2s}
+.rot.rubi{color:#FFD2DA;border-color:var(--rubi);background:rgba(90,10,26,.85)}
+.rot b{font-weight:500;color:var(--texto);margin-right:8px}
+.alerta{position:absolute;right:128px;top:110px;z-index:8;
+  display:flex;align-items:center;gap:18px;padding:16px 28px;border-radius:10px;
+  background:rgba(90,10,26,.92);border:1px solid var(--rubi);box-shadow:0 0 60px rgba(255,77,106,.35);
+  font-family:var(--f-dado);font-size:24px;color:#FFE2E7;letter-spacing:.04em}
+.alerta b{font-family:var(--f-display);font-size:40px;letter-spacing:-.01em;color:#fff}
+
+/* ---------- 5. pipeline ---------- */
+.fluxo{position:relative;flex:1;margin-top:10px}
+.fluxo svg{position:absolute;left:0;top:0;width:100%;height:40px;overflow:visible}
+.nos{position:relative;display:grid;grid-template-columns:repeat(4,1fr);gap:44px;height:100%}
+.no{display:flex;flex-direction:column;gap:14px;padding-top:40px}
+.no .icone{width:100%;height:190px;border:1px solid var(--linha);border-radius:14px;
+  background:linear-gradient(180deg, rgba(95,224,181,.06), rgba(12,27,23,.6));
+  display:grid;place-items:center;position:relative;overflow:hidden}
+.no .icone canvas{width:100%;height:100%}
+.no h3{font-family:var(--f-display);font-size:40px;margin:6px 0 0;letter-spacing:-.02em}
+.no .esp{font-family:var(--f-dado);font-size:18px;color:var(--fraco);line-height:1.55;margin:0}
+.no .sai{margin-top:auto;font-size:21px;line-height:1.35;padding:14px 16px;border-radius:10px;
+  background:rgba(95,224,181,.07);border:1px solid rgba(95,224,181,.25)}
+.no .sai small{display:block;font-family:var(--f-dado);font-size:14px;letter-spacing:.14em;
+  color:var(--menta);text-transform:uppercase;margin-bottom:4px}
+
+/* ---------- 6. detecta ---------- */
+.cartoes{display:grid;grid-template-columns:repeat(4,1fr);gap:22px;margin-top:8px}
+.cartao{background:var(--painel);border:1px solid var(--linha);border-radius:16px;overflow:hidden;
+  display:flex;flex-direction:column}
+.cartao canvas{width:100%;height:220px;display:block;background:#08130F;border-bottom:1px solid var(--linha)}
+.cartao .txt{padding:20px 22px 24px;display:flex;flex-direction:column;gap:10px}
+.cartao h3{font-family:var(--f-display);font-size:40px;margin:0;letter-spacing:-.02em}
+.cartao p{margin:0;font-size:20px;line-height:1.45;color:var(--fraco)}
+.selo{align-self:flex-start;font-family:var(--f-dado);font-size:14px;letter-spacing:.12em;
+  text-transform:uppercase;padding:4px 10px;border-radius:999px;border:1px solid currentColor}
+.cego{display:flex;align-items:center;gap:18px;flex-wrap:wrap;margin-top:6px;
+  padding:20px 24px;border-radius:14px;border:1px dashed rgba(244,194,107,.5);background:rgba(244,194,107,.05)}
+.cego p{margin:0;font-size:24px;flex:1 1 520px;line-height:1.35}
+.cego .chip{font-family:var(--f-dado);font-size:17px;padding:6px 12px;border-radius:6px;
+  background:rgba(244,194,107,.12);color:var(--ambar)}
+
+/* ---------- 7. medido ---------- */
+#s7 .grade{display:grid;grid-template-columns:1.25fr 1fr;gap:56px;flex:1;min-height:0}
+.grafico{position:relative;background:var(--painel);border:1px solid var(--linha);border-radius:16px;
+  padding:24px 28px 18px;display:flex;flex-direction:column;gap:6px}
+.grafico h3{font-family:var(--f-dado);font-weight:400;font-size:18px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--fraco);margin:0}
+.grafico svg{flex:1;width:100%}
+.grafico .leg{display:flex;gap:26px;font-size:18px;color:var(--fraco);flex-wrap:wrap}
+.grafico .leg span::before{content:"";display:inline-block;width:22px;height:3px;margin-right:8px;
+  vertical-align:middle;background:var(--menta)}
+.grafico .leg .antes::before{background:repeating-linear-gradient(90deg,var(--fraco) 0 5px,transparent 5px 9px)}
+.grafico .leg .lim::before{background:repeating-linear-gradient(90deg,var(--ambar) 0 8px,transparent 8px 13px)}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-content:start}
+.kpi{padding:22px 24px;border-radius:14px;border:1px solid var(--linha);background:rgba(12,27,23,.6);
+  display:flex;flex-direction:column;gap:8px}
+.kpi b{font-family:var(--f-display);font-size:70px;line-height:.95;letter-spacing:-.035em;
+  font-variant-numeric:tabular-nums}
+.kpi b small{font-size:30px;letter-spacing:0;margin-left:4px;color:var(--fraco);font-weight:600}
+.kpi span{font-size:19px;line-height:1.4;color:var(--fraco)}
+
+/* ---------- 8. privacidade ---------- */
+.tres{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;flex:1;min-height:0}
+.priv{display:flex;flex-direction:column;gap:14px}
+.priv .tela{height:380px;border:1px solid var(--linha);border-radius:16px;background:#07120F;
+  position:relative;overflow:hidden}
+.priv .tela canvas{width:100%;height:100%;display:block}
+.priv .tela .medida{position:absolute;left:16px;right:16px;bottom:14px;font-family:var(--f-dado);
+  font-size:17px;color:var(--fraco);display:flex;justify-content:space-between;gap:10px}
+.priv .tela .medida b{color:var(--menta);font-weight:500}
+.priv h3{font-family:var(--f-display);font-size:38px;margin:0;letter-spacing:-.02em}
+.priv p{margin:0;font-size:21px;line-height:1.45;color:var(--fraco)}
+.priv p b{color:var(--texto);font-weight:600}
+.faixa{font-family:var(--f-display);font-size:40px;letter-spacing:-.015em;margin:0}
+
+/* ---------- 9. cadeia ---------- */
+#s9 .rodape{position:absolute;left:128px;right:128px;bottom:110px;display:flex;align-items:flex-end;
+  justify-content:space-between;gap:40px}
+#s9 .veredito{font-family:var(--f-dado);font-size:24px;line-height:1.5;max-width:1100px;margin:0}
+#s9 .veredito b{font-weight:500}
+.botoes{display:flex;gap:12px}
+.botao{font:600 22px var(--f-corpo);padding:16px 26px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--menta);background:var(--menta);color:#04120D}
+.botao.claro{background:transparent;color:var(--texto);border-color:var(--linha)}
+.botao:focus-visible,#barra button:focus-visible{outline:3px solid var(--ambar);outline-offset:3px}
+
+/* ---------- 10. midia de voces ---------- */
+.midias{display:grid;grid-template-columns:1.65fr 1fr;gap:24px;flex:1;min-height:0}
+.midias.par{grid-template-columns:1fr 1fr}
+.midia video{object-fit:contain;background:#000}
+.midia img{object-fit:contain;background:#07120F}
+.midias .lado{display:grid;grid-template-rows:1fr 1fr;gap:24px;min-height:0}
+.midia{position:relative;margin:0;border-radius:16px;overflow:hidden;border:1px solid var(--linha);
+  background:#07120F;min-height:0;display:flex}
+.midia video,.midia img{width:100%;height:100%;object-fit:cover;display:block}
+.midia figcaption{position:absolute;left:0;right:0;bottom:0;padding:44px 22px 16px;font-size:21px;
+  background:linear-gradient(transparent, rgba(0,0,0,.78))}
+.vazio{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  text-align:center;padding:30px;border:2px dashed rgba(95,224,181,.3);border-radius:14px;margin:14px;
+  background:repeating-linear-gradient(135deg, rgba(95,224,181,.03) 0 18px, transparent 18px 36px)}
+.vazio b{font-family:var(--f-display);font-size:34px;letter-spacing:-.01em}
+.vazio code{font-family:var(--f-dado);font-size:19px;color:var(--menta);background:rgba(95,224,181,.08);
+  padding:4px 10px;border-radius:6px}
+.vazio span{font-size:18px;color:var(--fraco);max-width:520px}
+
+/* ---------- 11. carrossel ---------- */
+#s11 .legenda{position:absolute;left:128px;right:128px;bottom:110px;display:flex;gap:30px;align-items:baseline}
+#s11 .legenda b{font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:20px;
+  letter-spacing:.12em;text-transform:uppercase;flex:none}
+#s11 .legenda p{margin:0;font-size:32px;line-height:1.3}
+
+/* ---------- 12. chip ---------- */
+#s12 .grade{display:grid;grid-template-columns:1.05fr 1fr;gap:64px;flex:1;min-height:0}
+.chip{border:1px solid var(--linha);border-radius:20px;padding:28px;background:
+  linear-gradient(135deg, rgba(95,224,181,.05), rgba(6,16,14,.4)), var(--painel);
+  display:flex;flex-direction:column;gap:18px;position:relative}
+.chip .nome{font-family:var(--f-dado);font-size:19px;letter-spacing:.14em;color:var(--fraco);text-transform:uppercase}
+.bloco{display:grid;grid-template-columns:270px 1fr 92px;gap:20px;align-items:center;
+  padding:16px 18px;border-radius:12px;background:rgba(6,16,14,.6);border:1px solid var(--linha)}
+.bloco h4{margin:0;font-family:var(--f-display);font-size:30px;letter-spacing:-.01em}
+.bloco h4 small{display:block;font-family:var(--f-corpo);font-size:17px;color:var(--fraco);
+  font-weight:400;letter-spacing:0;margin-top:2px}
+.barra{height:16px;border-radius:999px;background:rgba(136,168,158,.15);overflow:hidden}
+.barra i{display:block;height:100%;width:var(--v);border-radius:999px;background:var(--cor,var(--menta));
+  box-shadow:0 0 18px var(--cor,var(--menta))}
+.slide.on .barra i{animation:encher 1.6s cubic-bezier(.16,.8,.2,1) both .5s}
+@keyframes encher{from{width:0}}
+.bloco .pct{font-family:var(--f-dado);font-size:24px;text-align:right;font-variant-numeric:tabular-nums}
+.listas{display:flex;flex-direction:column;gap:34px}
+.listas h3{font-family:var(--f-dado);font-weight:400;font-size:19px;letter-spacing:.14em;
+  text-transform:uppercase;margin:0 0 12px}
+.listas ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.listas li{font-size:25px;line-height:1.35;padding-left:30px;position:relative}
+.listas li::before{content:"";position:absolute;left:0;top:.5em;width:12px;height:12px;border-radius:3px;background:var(--menta)}
+.listas .depois li::before{background:transparent;border:2px solid var(--ambar)}
+.listas li span{color:var(--fraco)}
+
+/* ---------- 13. fim ---------- */
+#s13{justify-content:center;gap:40px}
+#s13 h1{font-size:220px;line-height:.85;letter-spacing:-.055em}
+#s13 h1 i{font-style:normal;color:var(--menta)}
+.equipe{display:grid;grid-template-columns:repeat(2,minmax(0,640px));gap:6px 64px}
+.equipe div{display:flex;justify-content:space-between;gap:16px;padding:14px 0;border-top:1px solid var(--linha);
+  font-size:27px}
+.equipe span{font-family:var(--f-dado);color:var(--fraco);font-size:22px}
+.assina{font-family:var(--f-dado);font-size:20px;color:var(--fraco);letter-spacing:.08em;margin:0}
+
+/* ---------- barra de navegacao (fora do palco) ---------- */
+#progresso{position:fixed;left:0;top:0;height:3px;background:var(--menta);z-index:60;
+  box-shadow:0 0 12px var(--menta);transition:width .5s cubic-bezier(.16,.8,.2,1);
+  top:env(safe-area-inset-top,0px)}
+#barra{position:fixed;left:0;right:0;bottom:0;z-index:60;display:flex;align-items:center;gap:10px;
+  justify-content:flex-end;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));
+  background:linear-gradient(transparent, rgba(0,0,0,.6));transition:opacity .4s}
+#barra.some{opacity:0}
+#barra button{font:500 15px var(--f-dado);color:var(--texto);background:rgba(12,27,23,.85);
+  border:1px solid var(--linha);border-radius:8px;padding:8px 13px;cursor:pointer}
+#barra .conta{font-family:var(--f-dado);font-size:15px;color:var(--fraco);margin-right:6px;
+  font-variant-numeric:tabular-nums}
+#notas{position:fixed;left:16px;right:16px;bottom:64px;z-index:61;max-width:980px;margin:0 auto;
+  padding:18px 22px;border-radius:12px;background:rgba(6,16,14,.94);border:1px solid var(--linha);
+  font-size:17px;line-height:1.55;color:var(--texto)}
+#notas b{font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:13px;letter-spacing:.14em;
+  text-transform:uppercase;display:block;margin-bottom:6px}
+
+@media (prefers-reduced-motion: reduce){
+  .slide.on [data-r]{animation:none}
+  .slide,.slide.on{transition:none}
+  .slide.on .barra i{animation:none}
+}
+</style>
+
+<div id="palco" aria-live="polite">
+  <canvas id="gl" aria-hidden="true"></canvas>
+  <div id="rotulos" aria-hidden="true"></div>
+
+  <!-- 1 -->
+  <section class="slide" id="s1" data-cena="pontos" aria-label="O dado">
+    <div class="col">
+      <p class="olho rubi" data-r>Brasil, 2024 · dentro da escola</p>
+      <p class="mega" data-r style="--d:1"><span id="n1">15.759</span></p>
+      <p class="lead" data-r style="--d:2">episódios de violência notificados <b>dentro de escolas</b> brasileiras em um único ano.</p>
+      <div class="trio" data-r style="--d:3">
+        <div><b>+23%</b><span>em relação a 2023</span></div>
+        <div><b>43</b><span>por dia, em média</span></div>
+        <div class="vermelho"><b id="n1b">7.786</b><span>agressões físicas, 49,4% do total</span></div>
+      </div>
+      <p class="fonte" data-r style="--d:4">Anuário Brasileiro de Segurança Pública 2025, Fórum Brasileiro de Segurança Pública, a partir das notificações do SINAN/DataSUS.</p>
+    </div>
+    <p class="legenda3d">cada ponto é um episódio de 2024 · <i>em vermelho, agressão física</i></p>
+  </section>
+
+  <!-- 2 -->
+  <section class="slide" id="s2" aria-label="Quedas">
+    <div class="col">
+      <p class="olho" data-r>E quando alguém cai?</p>
+      <p class="mega" data-r style="--d:1"><span id="n2">55</span>&nbsp;mil</p>
+      <p class="lead" data-r style="--d:2">internações de crianças e adolescentes por <b>queda</b> no Brasil em 2025. É a principal causa de internação por acidente até os 14 anos, <b>pelo décimo ano seguido</b>.</p>
+      <p class="fonte" data-r style="--d:3">Projeto Criança Segura (Aldeias Infantis SOS), a partir de dados do DataSUS, 2025.</p>
+    </div>
+    <div class="parede" data-r style="--d:2">
+      <div class="monitores" id="monitores"></div>
+      <p class="soco">Câmera comum grava tudo e não avisa ninguém.<br><span>O socorro precisa ser agora, não depois.</span></p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section class="slide" id="s3" data-cena="sala" aria-label="Auditix IA">
+    <p class="olho" data-r>Grupo 11 · 2ECR · Desafio DATEN × FIAP</p>
+    <h1 data-r style="--d:1">Auditix <i>IA</i></h1>
+    <p class="lead" data-r style="--d:2">A sala que pede socorro sozinha.</p>
+    <p class="corpo" data-r style="--d:3">Visão computacional rodando <b>dentro da AIBOX</b>, ao lado da câmera. Detecta queda, corrida e briga, avisa a coordenação em segundos e guarda cada alerta numa corrente que ninguém apaga sem deixar rastro.</p>
+  </section>
+
+  <!-- 4 -->
+  <section class="slide" id="s4" data-cena="sala" aria-label="A sala em 360 graus">
+    <div class="topo">
+      <p class="olho" data-r>Sala 12 · vista 360°</p>
+      <h2 data-r style="--d:1">Cada corpo vira 17 pontos. O Auditix olha todos, o tempo todo.</h2>
+    </div>
+    <div class="alerta" id="alerta4" hidden><span>▲ ALERTA GRAVE</span><b>queda</b><span id="alerta4t">sala-12 · corpo-4</span></div>
+    <div class="hud">
+      <span class="vivo">ao vivo · AIBOX</span>
+      <div class="leituras">
+        <div><b id="h-pessoas">5</b><span>pessoas</span></div>
+        <div><b>8,7</b><span>quadros/s</span></div>
+        <div><b id="h-nota">0,02</b><span>nota da queda</span></div>
+      </div>
+      <ul class="feed" id="feed"></ul>
+    </div>
+    <p class="dica">arraste para girar a sala<br><kbd>R</kbd> repete a queda</p>
+  </section>
+
+  <!-- 5 -->
+  <section class="slide" id="s5" aria-label="Como funciona">
+    <p class="olho" data-r>Como funciona</p>
+    <h2 data-r style="--d:1">Da câmera ao alerta, sem a imagem sair da sala.</h2>
+    <div class="fluxo" data-r style="--d:2">
+      <svg id="fluxo-svg" viewBox="0 0 1664 40" aria-hidden="true"></svg>
+      <div class="nos">
+        <div class="no">
+          <div class="icone"><canvas id="ic-cam" width="380" height="190"></canvas></div>
+          <h3>Câmera IP</h3>
+          <p class="esp">Intelbras · RTSP por TCP<br>30 quadros/s, H.264</p>
+          <p class="sai"><small>sai daqui</small>vídeo, que só vai até a caixa</p>
+        </div>
+        <div class="no">
+          <div class="icone"><canvas id="ic-caixa" width="380" height="190"></canvas></div>
+          <h3>AIBOX</h3>
+          <p class="esp">YOLO11-pose · 17 pontos<br>12 características · rede de 113 pesos</p>
+          <p class="sai"><small>sai daqui</small>1 alerta e a prova em pontos, ~8 KB</p>
+        </div>
+        <div class="no">
+          <div class="icone"><canvas id="ic-banco" width="380" height="190"></canvas></div>
+          <h3>Servidor</h3>
+          <p class="esp">cadeia SHA-256<br>Postgres na AWS, ou SQLite local</p>
+          <p class="sai"><small>sai daqui</small>1 elo que fecha com o anterior</p>
+        </div>
+        <div class="no">
+          <div class="icone"><canvas id="ic-painel" width="380" height="190"></canvas></div>
+          <h3>Painel</h3>
+          <p class="esp">alerta em ~1 s · sirene<br>e-mail · botão Estou ciente</p>
+          <p class="sai"><small>sai daqui</small>quem reagiu, e em quanto tempo</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section class="slide" id="s6" aria-label="O que detecta">
+    <p class="olho" data-r>O que o Auditix detecta</p>
+    <h2 data-r style="--d:1">Quatro situações de risco, e um sistema que avisa quando fica cego.</h2>
+    <div class="cartoes" data-r style="--d:2">
+      <div class="cartao"><canvas id="m-queda" width="420" height="220"></canvas>
+        <div class="txt"><span class="selo menta">modelo treinado</span><h3>Queda</h3>
+        <p>Rede neural treinada em 4.509 clipes, somada à geometria do corpo. Alerta depois de 1,2 s no chão.</p></div></div>
+      <div class="cartao"><canvas id="m-corrida" width="420" height="220"></canvas>
+        <div class="txt"><span class="selo ambar">regra</span><h3>Corrida</h3>
+        <p>Mais de 1,2 altura de corpo por segundo, sustentado por 0,6 s. Medido na régua da própria pessoa.</p></div></div>
+      <div class="cartao"><canvas id="m-briga" width="420" height="220"></canvas>
+        <div class="txt"><span class="selo ambar">regra</span><h3>Briga</h3>
+        <p>Dois corpos próximos e impulsos de punho em direção ao tronco do outro, dentro de 2,5 s.</p></div></div>
+      <div class="cartao"><canvas id="m-ajuda" width="420" height="220"></canvas>
+        <div class="txt"><span class="selo menta">botão</span><h3>Pedido de ajuda</h3>
+        <p>Segurar o botão por 0,9 s. Funciona até com a câmera fechada, porque existe para quando ela não ajuda.</p></div></div>
+    </div>
+    <div class="cego" data-r style="--d:3">
+      <p><b>E se a câmera parar?</b> A caixa bate a cada 5 s. Silêncio vira alarme, com sirene e registro.</p>
+      <span class="chip">lente tampada</span><span class="chip">sem imagem</span><span class="chip">sem sinal</span><span class="chip">sinal voltou</span>
+    </div>
+  </section>
+
+  <!-- 7 -->
+  <section class="slide" id="s7" aria-label="Medido no laboratório">
+    <p class="olho" data-r>Medido no laboratório da FIAP</p>
+    <h2 data-r style="--d:1">Uma queda real, quadro a quadro.</h2>
+    <div class="grade">
+      <div class="grafico" data-r style="--d:2">
+        <h3>nota da rede de queda · AIBOX · 01/10/2026</h3>
+        <svg id="graf" viewBox="0 0 900 470" aria-label="Gráfico: a nota da rede sobe de 0,01 a 0,98 em 1,2 segundo durante a queda, passando do limiar de 0,50 em 0,70 s"></svg>
+        <div class="leg"><span>depois da correção</span><span class="antes">antes: a rede ficava muda a 6 quadros/s</span><span class="lim">limiar 0,50</span></div>
+      </div>
+      <div class="kpis" data-r style="--d:3">
+        <div class="kpi"><b>8,7<small>/s</small></b><span>quadros analisados na AIBOX, só CPU, sem placa de vídeo</span></div>
+        <div class="kpi"><b>0,5<small>ms</small></b><span>custo da nossa análise por quadro. O resto é o modelo de pose</span></div>
+        <div class="kpi"><b class="menta">84%</b><span>das quedas pegas pela rede a 6 quadros/s, com 98% de precisão. A regra sozinha pega 48%</span></div>
+        <div class="kpi"><b class="vermelho">12<small>s</small></b><span>da queda #79 até alguém apertar Estou ciente, registrado na cadeia</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 -->
+  <section class="slide" id="s8" data-cena="giro" aria-label="Privacidade">
+    <p class="olho" data-r>Privacidade desde o projeto</p>
+    <h2 data-r style="--d:1">Vê o corpo. Não guarda o rosto.</h2>
+    <div class="tres" data-r style="--d:2">
+      <div class="priv">
+        <div class="tela"><canvas id="p-prova" width="560" height="380"></canvas>
+          <div class="medida"><span>24 quadros × 17 pontos</span><b>~8 KB</b></div></div>
+        <h3>A caixa não manda foto</h3>
+        <p>O alerta leva os últimos <b>2,5 s do corpo em pontos</b>. Dá para conferir a queda. Não dá para saber quem era.</p>
+      </div>
+      <div class="priv">
+        <div class="tela" id="tela-giro" style="background:transparent"><div class="medida"><span>distância entre as amostras</span><b id="dist">0,0000</b></div></div>
+        <h3>Rosto vira números girados</h3>
+        <p>O cadastro guarda 128 números, <b>girados com uma chave que não mora no banco</b>. Girar não muda distância: o reconhecimento sai idêntico.</p>
+      </div>
+      <div class="priv">
+        <div class="tela"><canvas id="p-mosaico" width="560" height="380"></canvas>
+          <div class="medida"><span>blocos de 4, não desfoque</span><b>cabeça</b></div></div>
+        <h3>Foto só com mosaico</h3>
+        <p>Quando o navegador manda foto, a cabeça sobe em <b>mosaico</b>. Desfoque ainda deixa reconhecer. Mosaico não.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 -->
+  <section class="slide" id="s9" data-cena="cadeia" aria-label="Cadeia de hash">
+    <p class="olho" data-r>Auditável</p>
+    <h2 data-r style="--d:1">Cada alerta vira um elo. Apagar um deixa rastro em todos os seguintes.</h2>
+    <div class="rodape">
+      <p class="veredito" id="veredito">SHA-256(momento | aluno | tipo | local | hash anterior), calculado agora neste navegador.<br><b class="menta">A cadeia fecha: 6 de 6 elos conferidos.</b></p>
+      <div class="botoes"><button class="botao" id="adulterar" type="button">Adulterar a queda #61</button>
+        <button class="botao claro" id="desfazer" type="button">Desfazer</button></div>
+    </div>
+  </section>
+
+  <!-- 10 -->
+  <section class="slide" id="s10" aria-label="Funcionando de verdade">
+    <p class="olho" data-r>Funcionando de verdade · laboratório FIAP, 01/10/2026</p>
+    <h2 data-r style="--d:1">Do cadastro à queda, na AIBOX de verdade.</h2>
+    <div class="midias" data-r style="--d:2">
+      <figure class="midia" data-tipo="video" data-arquivo="ppt/midia/demo-cadastro-queda.mp4"
+        data-titulo="O vídeo principal" data-legenda="O heitor se cadastra pela câmera da AIBOX, é reconhecido na sala, cai, e o painel registra a queda #79."></figure>
+      <div class="lado">
+        <figure class="midia" data-tipo="foto" data-arquivo="ppt/midia/tela-camera.jpg"
+          data-titulo="A imagem ao vivo" data-legenda="Direto da AIBOX: 7,6 análises por segundo, nenhum alerta perdido."></figure>
+        <figure class="midia" data-tipo="foto" data-arquivo="ppt/midia/tela-eventos.jpg"
+          data-titulo="O painel" data-legenda="heitor reconhecido, e a queda #79 com ciente em 12 s."></figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 -->
+  <section class="slide" id="s10b" aria-label="Inicialização e câmera">
+    <p class="olho" data-r>Funcionalidades mínimas A e B</p>
+    <h2 data-r style="--d:1">A aplicação sobe na AIBOX e abre a câmera IP sozinha.</h2>
+    <div class="midias par" data-r style="--d:2">
+      <figure class="midia" data-tipo="video" data-arquivo="ppt/midia/demo-ab.mp4"
+        data-titulo="A e B pelo terminal" data-legenda="A: a aplicação inicia na AIBOX. B: a caixa abre o RTSP da câmera e recebe 138 quadros em 5 s."></figure>
+      <figure class="midia" data-tipo="video" data-arquivo="ppt/midia/demo-sala.mp4"
+        data-titulo="A sala ao vivo" data-legenda="Várias pessoas rastreadas ao mesmo tempo, cada uma com seu número e sua nota de queda."></figure>
+    </div>
+  </section>
+
+  <!-- 12 -->
+  <section class="slide" id="s11" data-cena="carrossel" aria-label="O painel">
+    <p class="olho" data-r>O que a coordenação vê</p>
+    <h2 data-r style="--d:1">O painel, como ele está hoje.</h2>
+    <div class="legenda"><b id="leg-n">1 / 5</b><p id="leg-t">O painel no laboratório: 80 elos recalculados desde a gênese, todos fechando.</p></div>
+  </section>
+
+  <!-- 12 -->
+  <section class="slide" id="s12" aria-label="AIBOX e próximos passos">
+    <p class="olho" data-r>Na AIBOX, e o próximo salto</p>
+    <h2 data-r style="--d:1">Hoje tudo roda nos 8 núcleos. A parte do chip feita para IA ainda está livre.</h2>
+    <div class="grade">
+      <div class="chip" data-r style="--d:2">
+        <span class="nome">Qualcomm QCS6490 · medido na caixa</span>
+        <div class="bloco"><h4>CPU<small>8 núcleos ARM</small></h4><div class="barra"><i style="--v:93%;--cor:var(--rubi)"></i></div><span class="pct vermelho">93%</span></div>
+        <div class="bloco"><h4>NPU Hexagon<small>acelerador de IA</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
+        <div class="bloco"><h4>GPU Adreno<small>gráfico</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
+        <div class="bloco"><h4>Vídeo<small>decodificador H.264</small></h4><div class="barra"><i style="--v:1.5%;--cor:var(--ambar)"></i></div><span class="pct ambar">testado</span></div>
+        <p class="corpo" style="font-size:20px">A CPU em 744% de 800% foi medida no laboratório, com reconhecimento facial ligado.</p>
+      </div>
+      <div class="listas" data-r style="--d:3">
+        <div><h3 class="menta">Já roda na AIBOX</h3><ul>
+          <li>Queda, corrida e briga, com alerta no painel</li>
+          <li>Reconhecimento facial <span>com a câmera de cadastro separada</span></li>
+          <li>Batimento: a caixa avisa quando ficou cega</li>
+          <li>Partida automática <span>quando a caixa liga</span></li>
+          <li>Sem internet <span>grava local se a nuvem cair</span></li>
+        </ul></div>
+        <div class="depois"><h3 class="ambar">Próximo passo</h3><ul>
+          <li>Modelo de pose na NPU <span>libera a CPU e permite imagem maior</span></li>
+          <li>Mais pessoas detectadas por sala <span>quem está no fundo também</span></li>
+          <li>Vídeo decodificado no hardware</li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 -->
+  <section class="slide" id="s13" data-cena="sala" aria-label="Equipe">
+    <p class="olho" data-r>Grupo 11 · 2ECR · Desafio DATEN × FIAP</p>
+    <h1 data-r style="--d:1">Auditix <i>IA</i></h1>
+    <p class="lead" data-r style="--d:2">A sala que pede socorro sozinha.</p>
+    <div class="equipe" data-r style="--d:3">
+      <div>Enzo Renato Cunha<span>RM 564942</span></div>
+      <div>Guilherme José Delatorre<span>RM 563183</span></div>
+      <div>Samuel de Oliveira Paschoal Polvere<span>RM 563692</span></div>
+      <div>Daniel de Couto Cardoso<span>RM 562993</span></div>
+      <div>Lucas Gonçalves Pelizari<span>RM 563470</span></div>
+      <div>Matheus Martins Porto<span>RM 561847</span></div>
+    </div>
+  </section>
+</div>
+
+<div id="progresso"></div>
+<div id="barra">
+  <span class="conta" id="conta">01 / 14</span>
+  <button type="button" id="b-ant" aria-label="Slide anterior">←</button>
+  <button type="button" id="b-prox" aria-label="Próximo slide">→</button>
+  <button type="button" id="b-notas" aria-label="Mostrar o roteiro de fala">roteiro</button>
+  <button type="button" id="b-tela" aria-label="Tela cheia">tela cheia</button>
+</div>
+<aside id="notas" hidden></aside>
+
+<script src="vendor/three/three.min.js"></script>
+<script src="ppt/pitch-imagens.js"></script>
+<script>
+"use strict";
+/* ======================================================================
+   Pitch Auditix IA. Setas, espaço ou clique nos botões para navegar.
+   F tela cheia · N roteiro de fala · R repete a queda (slide 4) ou desfaz (slide 9)
+   ====================================================================== */
+const $ = id => document.getElementById(id);
+const REDUZ = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const W = 1920, H = 1080;
+const COR = { menta:0x5FE0B5, rubi:0xFF4D6A, ambar:0xF4C26B, linha:0x1D3A32, noite:0x06100E, fraco:0x88A89E };
+const CSS = { menta:"#5FE0B5", rubi:"#FF4D6A", ambar:"#F4C26B", linha:"#1D3A32", fraco:"#88A89E", texto:"#E8F3EF" };
+const ease = t => t<0 ? 0 : t>1 ? 1 : 1 - Math.pow(1 - t, 3);
+const easeIO = t => t<0 ? 0 : t>1 ? 1 : (t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t + 2, 3) / 2);
+const fmt = n => Math.round(n).toLocaleString("pt-BR");
+const dec = (n, c=2) => n.toFixed(c).replace(".", ",");
+
+/* Roteiro de fala, um por slide (tecla N). */
+const NOTAS = [
+  "Abrir com o número, em silêncio por dois segundos. 15.759 episódios de violência dentro de escolas em 2024, 43 por dia. Quase metade foi agressão física. Cada ponto da tela é um caso.",
+  "E não é só violência. Queda é a principal causa de internação de criança por acidente no país, há dez anos. A maioria das escolas que tem câmera só descobre depois, assistindo à gravação. O problema é tempo.",
+  "Por isso o Auditix. Ele roda dentro da AIBOX, ao lado da câmera, e transforma a câmera que só grava numa câmera que avisa.",
+  "Arrastem a sala. Cada pessoa vira 17 pontos. Daqui a pouco uma delas cai: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel.",
+  "O caminho inteiro. O vídeo vai da câmera até a caixa e para ali. O que sai da AIBOX é número: um alerta com a prova em pontos, uns 8 KB. O servidor encadeia o alerta e o painel toca a sirene.",
+  "Quatro situações. Queda é modelo treinado, com 4.509 clipes. Corrida e briga são regra, e a gente diz isso na tela. E se alguém tampar a câmera ou a caixa cair, o sistema avisa que ficou cego.",
+  "Isso foi medido no laboratório. Uma queda real: a nota sai de 0,01 e chega a 0,98 em pouco mais de um segundo. Antes de uma correção que fizemos, essa linha era zero o tempo todo. E 12 segundos da queda #79 até alguém ficar ciente.",
+  "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
+  "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
+  "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
+  "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
+  "É isso que a coordenação vê: a cadeia íntegra, o alarme que toma a tela, o corpo em pontos e a cadeia conferida no próprio navegador.",
+  "Tudo isso roda hoje só na CPU, a 93%. A NPU, a parte do chip feita para IA, ainda está livre. É o próximo salto: mais quadros, imagem maior e mais pessoas detectadas.",
+  "Auditix IA, grupo 11. Obrigado."
+];
+
+/* ---------------- palco e escala ---------------- */
+const palco = $("palco");
+let escala = 1;
+function ajustar(){
+  escala = Math.min(innerWidth / W, innerHeight / H);
+  document.documentElement.style.setProperty("--s", escala);
+  if(gl) gl.ajustar();
+}
+
+/* ======================================================================
+   WebGL: um renderizador só; cada slide com cena desenha a sua.
+   ====================================================================== */
+let gl = null;
+const CENAS = {};
+function criarGL(){
+  if(typeof THREE === "undefined") return null;
+  let r;
+  try{ r = new THREE.WebGLRenderer({ canvas:$("gl"), antialias:true, alpha:true, powerPreference:"high-performance" }); }
+  catch(e){ return null; }
+  r.setClearColor(0x000000, 0);
+  r.setScissorTest(true);
+  return {
+    r,
+    ajustar(){
+      const k = Math.max(.6, Math.min(1.6, escala * (devicePixelRatio || 1)));
+      r.setPixelRatio(k);
+      r.setSize(W, H, false);
+    }
+  };
+}
+
+/* Projeta um ponto 3D para coordenadas do palco, dentro da regiao da cena. */
+const _v = typeof THREE !== "undefined" ? new THREE.Vector3() : null;
+function projetar(p, cam, reg){
+  _v.copy(p).project(cam);
+  return { x: reg[0] + (_v.x + 1) / 2 * reg[2], y: reg[1] + (1 - _v.y) / 2 * reg[3], atras: _v.z > 1 };
+}
+
+/* Controle de órbita feito à mão: arrastar gira, roda aproxima. */
+function orbita(alvo, r, theta, phi){
+  return { alvo, r, theta, phi, rAlvo:r, phiAlvo:phi, ocioso:99, arrastando:false,
+    aplicar(cam){
+      const sp = Math.sin(this.phi);
+      cam.position.set(this.alvo.x + this.r * sp * Math.sin(this.theta),
+                       this.alvo.y + this.r * Math.cos(this.phi),
+                       this.alvo.z + this.r * sp * Math.cos(this.theta));
+      cam.lookAt(this.alvo);
+    } };
+}
+
+/* ---------------- esqueleto 3D ---------------- */
+const OSSOS = [[0,1],[2,3],[2,4],[4,6],[3,5],[5,7],[2,8],[3,9],[8,9],[8,10],[10,12],[9,11],[11,13]];
+/* juntas: 0 cabeça, 1 pescoço, 2/3 ombros E/D, 4/5 cotovelos, 6/7 punhos,
+   8/9 quadris, 10/11 joelhos, 12/13 tornozelos */
+function poseLocal(o){
+  // o: { quadril, coxaE, canelaE, coxaD, canelaD, bracoE, bracoD, cotE, cotD, abreE, abreD, inclina, deita }
+  const V = (x,y,z) => new THREE.Vector3(x,y,z);
+  const hy = o.quadril;
+  const J = new Array(14);
+  J[8] = V(-.11, hy, 0); J[9] = V(.11, hy, 0);
+  const perna = (q, a1, a2) => {
+    const k = q.clone().add(V(0, -.45*Math.cos(a1), .45*Math.sin(a1)));
+    const t = k.clone().add(V(0, -.45*Math.cos(a2), .45*Math.sin(a2)));
+    return [k, t];
+  };
+  [J[10], J[12]] = perna(J[8], o.coxaE, o.canelaE);
+  [J[11], J[13]] = perna(J[9], o.coxaD, o.canelaD);
+  // tronco, com inclinação para a frente em torno do quadril
+  const inc = o.inclina || 0;
+  const sobe = (dy, x=0, z=0) => V(x, hy + dy*Math.cos(inc), z + dy*Math.sin(inc));
+  J[2] = sobe(.5, -.2); J[3] = sobe(.5, .2); J[1] = sobe(.56); J[0] = sobe(.72, 0, .02);
+  const braco = (s, lado, b, e, ab) => {
+    const d1 = V(lado*Math.sin(ab), -Math.cos(b)*Math.cos(ab), Math.sin(b)*Math.cos(ab));
+    const c = s.clone().addScaledVector(d1, .3);
+    const b2 = b + e;
+    const d2 = V(lado*Math.sin(ab)*.6, -Math.cos(b2)*Math.cos(ab), Math.sin(b2)*Math.cos(ab));
+    return [c, c.clone().addScaledVector(d2, .27)];
+  };
+  [J[4], J[6]] = braco(J[2], -1, o.bracoE, o.cotE, o.abreE);
+  [J[5], J[7]] = braco(J[3], 1, o.bracoD, o.cotD, o.abreD);
+  // tombo de lado: gira tudo em torno dos pés
+  if(o.deita){
+    const a = -o.deita * 1.5, c = Math.cos(a), s = Math.sin(a);
+    for(const p of J){ const x = p.x, y = p.y; p.x = x*c - y*s; p.y = x*s + y*c; }
+    let min = Infinity; for(const p of J) min = Math.min(min, p.y);
+    if(min < .06) for(const p of J) p.y += .06 - min;
+  }
+  return J;
+}
+const POSE = {
+  pe: () => ({ quadril:.95, coxaE:0, canelaE:0, coxaD:0, canelaD:0, bracoE:.05, bracoD:.05, cotE:.1, cotD:.1, abreE:.12, abreD:.12 }),
+  anda: f => { const s = Math.sin(f)*.38; return { quadril:.93 + Math.abs(Math.cos(f))*.02,
+    coxaE:s, canelaE:s - Math.max(0, -Math.sin(f))*.5, coxaD:-s, canelaD:-s - Math.max(0, Math.sin(f))*.5,
+    bracoE:-s*.8, bracoD:s*.8, cotE:.3, cotD:.3, abreE:.08, abreD:.08 }; },
+  senta: f => ({ quadril:.5, coxaE:Math.PI/2, canelaE:0, coxaD:Math.PI/2, canelaD:.05,
+    bracoE:1.05 + Math.sin(f)*.04, bracoD:1.0 + Math.cos(f*1.3)*.05, cotE:.35, cotD:.4, abreE:.05, abreD:.05, inclina:.12 }),
+};
+function misturar(a, b, t){ const o = {}; for(const k in a) o[k] = a[k] + ((b[k] ?? a[k]) - a[k]) * t; return o; }
+
+function criarEsqueleto(cena){
+  const g = new THREE.Group(); cena.add(g);
+  const mat = new THREE.MeshBasicMaterial({ color:COR.menta });
+  const brilho = new THREE.MeshBasicMaterial({ color:COR.menta, transparent:true, opacity:.16, blending:THREE.AdditiveBlending, depthWrite:false });
+  const cil = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
+  const esf = new THREE.SphereGeometry(1, 12, 10);
+  const juntas = [], ossos = [];
+  for(let i = 0; i < 14; i++){
+    const m = new THREE.Mesh(esf, mat); m.scale.setScalar(i === 0 ? .1 : .035); g.add(m); juntas.push(m);
+  }
+  for(const [a, b] of OSSOS){
+    const m = new THREE.Mesh(cil, mat), h = new THREE.Mesh(cil, brilho);
+    g.add(m); g.add(h); ossos.push({ a, b, m, h });
+  }
+  const caixa = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),
+    new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.35 }));
+  g.add(caixa);
+  const Y = new THREE.Vector3(0,1,0), d = new THREE.Vector3(), q = new THREE.Quaternion();
+  const bx = new THREE.Box3();
+  return {
+    g, juntas,
+    pose(J){
+      for(let i = 0; i < 14; i++) juntas[i].position.copy(J[i]);
+      for(const o of ossos){
+        const A = J[o.a], B = J[o.b];
+        d.subVectors(B, A); const L = d.length() || .001; d.divideScalar(L);
+        q.setFromUnitVectors(Y, d);
+        for(const [m, raio] of [[o.m, .018], [o.h, .055]]){
+          m.position.addVectors(A, B).multiplyScalar(.5); m.quaternion.copy(q); m.scale.set(raio, L, raio);
+        }
+      }
+      bx.setFromPoints(J); bx.expandByScalar(.12);
+      bx.getCenter(caixa.position); bx.getSize(caixa.scale);
+    },
+    cor(c){ mat.color.setHex(c); brilho.color.setHex(c); caixa.material.color.setHex(c); }
+  };
+}
+
+/* ======================================================================
+   CENA 1: 15.759 pontos, um por episódio
+   ====================================================================== */
+function cenaPontos(){
+  const cena = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(38, W/H, .1, 100);
+  cam.position.set(0, 0, 16); cam.lookAt(0, 0, 0);
+  const N = 15759, FIS = 7786, COLS = 181;
+  const pos = new Float32Array(N*3), ordem = new Float32Array(N), fis = new Float32Array(N), sem = new Float32Array(N);
+  let s = 7; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const idx = [...Array(N).keys()];
+  for(let i = N-1; i > 0; i--){ const j = Math.floor(rnd()*(i+1)); [idx[i], idx[j]] = [idx[j], idx[i]]; }
+  for(let i = 0; i < N; i++){
+    const c = i % COLS, l = Math.floor(i / COLS), rows = Math.ceil(N / COLS);
+    pos[i*3] = (c / (COLS-1) - .5) * 15.5;
+    pos[i*3+1] = (l / (rows-1) - .5) * 8.2;
+    pos[i*3+2] = 0;
+    ordem[i] = rnd(); sem[i] = rnd();
+  }
+  for(let k = 0; k < FIS; k++) fis[idx[k]] = 1;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("aOrdem", new THREE.BufferAttribute(ordem, 1));
+  geo.setAttribute("aFis", new THREE.BufferAttribute(fis, 1));
+  geo.setAttribute("aSem", new THREE.BufferAttribute(sem, 1));
+  const u = { uT:{value:0}, uMostra:{value:0}, uVerm:{value:0}, uPx:{value:150} };
+  const mat = new THREE.ShaderMaterial({ uniforms:u, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending,
+    vertexShader:`
+      attribute float aOrdem; attribute float aFis; attribute float aSem;
+      uniform float uT, uMostra, uVerm, uPx;
+      varying float vVis, vRed;
+      void main(){
+        vec3 p = position;
+        p.z += sin(p.x*.55 + uT*.7)*.35 + cos(p.y*.8 + uT*.5)*.22;
+        vVis = smoothstep(aOrdem - .015, aOrdem, uMostra);
+        vRed = aFis * smoothstep(aSem - .04, aSem, uVerm);
+        vec4 mv = modelViewMatrix * vec4(p, 1.);
+        gl_PointSize = uPx * (.55 + .45*vVis + vRed*.35) / -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader:`
+      varying float vVis, vRed;
+      void main(){
+        vec2 c = gl_PointCoord - .5; float d = length(c);
+        if(d > .5) discard;
+        float a = smoothstep(.5, .1, d);
+        vec3 menta = vec3(.37,.88,.71), rubi = vec3(1.,.30,.42);
+        vec3 cor = mix(menta*.7, rubi, vRed);
+        gl_FragColor = vec4(cor, a * vVis * (.5 + .3*vRed));
+      }` });
+  const pts = new THREE.Points(geo, mat);
+  pts.position.set(6.4, -.1, -1.5); pts.rotation.set(-.1, -.72, 0); pts.scale.setScalar(.82);
+  cena.add(pts);
+  let t0 = 0;
+  return { cena, cam, reg:[0, 0, W, H],
+    entrar(t){ t0 = t; u.uMostra.value = REDUZ ? 1 : 0; u.uVerm.value = REDUZ ? 1 : 0; },
+    tick(t){
+      const e = t - t0;
+      u.uT.value = t;
+      if(!REDUZ){
+        u.uMostra.value = easeIO(e / 2.6);
+        u.uVerm.value = easeIO((e - 3.0) / 1.8);
+        $("n1").textContent = fmt(15759 * easeIO(e / 2.6));
+        $("n1b").textContent = fmt(7786 * easeIO((e - 3.0) / 1.8));
+      }
+      pts.rotation.y = -.72 + Math.sin(t*.12)*.05;
+    } };
+}
+
+/* ======================================================================
+   CENA 2: a sala 12, compartilhada pelos slides 3 e 4
+   ====================================================================== */
+function cenaSala(){
+  const cena = new THREE.Scene();
+  cena.fog = new THREE.Fog(COR.noite, 12, 34);
+  const cam = new THREE.PerspectiveCamera(42, W/H, .1, 120);
+  const orb = orbita(new THREE.Vector3(0, .7, 0), 19, .75, 1.08);
+  const linha = (pts, cor, op) => {
+    const g = new THREE.BufferGeometry().setFromPoints(pts);
+    return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color:cor, transparent:true, opacity:op }));
+  };
+  const V = (x,y,z) => new THREE.Vector3(x,y,z);
+  // chão em grade
+  const gp = [];
+  for(let x = -6; x <= 6; x += 1){ gp.push(V(x,0,-4.5), V(x,0,4.5)); }
+  for(let z = -4.5; z <= 4.5; z += 1){ gp.push(V(-6,0,z), V(6,0,z)); }
+  cena.add(linha(gp, COR.menta, .09));
+  const chao = new THREE.Mesh(new THREE.PlaneGeometry(12, 9), new THREE.MeshBasicMaterial({ color:0x0A1A16, transparent:true, opacity:.65 }));
+  chao.rotation.x = -Math.PI/2; chao.position.y = -.005; cena.add(chao);
+  // paredes: fundo (lousa) e esquerda (janela)
+  const parede = (w, h, pos, rotY) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color:0x0C1F1A, transparent:true, opacity:.5, side:THREE.DoubleSide }));
+    m.position.copy(pos); m.rotation.y = rotY; cena.add(m);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.22 }));
+    e.position.copy(pos); e.rotation.y = rotY; cena.add(e);
+  };
+  parede(12, 3.2, V(0, 1.6, -4.5), 0);
+  parede(9, 3.2, V(-6, 1.6, 0), Math.PI/2);
+  const lousa = new THREE.Mesh(new THREE.PlaneGeometry(5, 1.4), new THREE.MeshBasicMaterial({ color:0x10302A }));
+  lousa.position.set(0, 1.7, -4.48); cena.add(lousa);
+  const janela = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.1), new THREE.MeshBasicMaterial({ color:0x5FE0B5, transparent:true, opacity:.10 }));
+  janela.position.set(-5.98, 2.0, 0); janela.rotation.y = Math.PI/2; cena.add(janela);
+  // mesas e cadeiras
+  const solido = new THREE.MeshBasicMaterial({ color:0x0F2621, transparent:true, opacity:.85 });
+  const aresta = new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.28 });
+  const caixa = (w,h,d,x,y,z) => {
+    const g = new THREE.BoxGeometry(w,h,d), m = new THREE.Mesh(g, solido); m.position.set(x,y,z); cena.add(m);
+    const e = new THREE.LineSegments(new THREE.EdgesGeometry(g), aresta); e.position.copy(m.position); cena.add(e);
+  };
+  const MESAS = [];
+  for(const z of [-2.3, -.3, 1.7]) for(const x of [-3.2, 0, 3.2]){
+    caixa(1.5, .05, .62, x, .75, z);
+    caixa(.05, .72, .05, x-.68, .36, z-.26); caixa(.05, .72, .05, x+.68, .36, z-.26);
+    caixa(.05, .72, .05, x-.68, .36, z+.26); caixa(.05, .72, .05, x+.68, .36, z+.26);
+    caixa(.42, .26, .03, x-.3, .91, z-.18); // monitor
+    caixa(.45, .04, .45, x-.3, .46, z+.6); caixa(.45, .45, .04, x-.3, .7, z+.83); // cadeira
+    MESAS.push([x-.3, z+.6]);
+  }
+  // a câmera da sala, no canto do teto, e o que ela enxerga
+  const C = V(5.7, 3.1, 4.3);
+  const corpoCam = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(.32, .18, .42)), new THREE.LineBasicMaterial({ color:COR.menta }));
+  corpoCam.position.copy(C); corpoCam.lookAt(0, 0, 0); cena.add(corpoCam);
+  const cantos = [V(-5.8,0,-4.3), V(5.8,0,-4.3), V(5.8,0,1.2), V(-5.8,0,4.3)];
+  const raios = []; for(const c of cantos) raios.push(C, c);
+  cena.add(linha(raios, COR.menta, .25));
+  const cone = new THREE.BufferGeometry().setFromPoints([C, cantos[0], cantos[1], C, cantos[1], cantos[2], C, cantos[2], cantos[3], C, cantos[3], cantos[0]]);
+  cena.add(new THREE.Mesh(cone, new THREE.MeshBasicMaterial({ color:COR.menta, transparent:true, opacity:.035, side:THREE.DoubleSide, depthWrite:false })));
+  // anel do alerta no chão
+  const anel = new THREE.Mesh(new THREE.RingGeometry(.45, .55, 64), new THREE.MeshBasicMaterial({ color:COR.rubi, transparent:true, opacity:0, side:THREE.DoubleSide, depthWrite:false }));
+  anel.rotation.x = -Math.PI/2; anel.position.y = .02; cena.add(anel);
+
+  // as pessoas
+  const P = [
+    { nome:"#1", tipo:"senta", x:MESAS[0][0], z:MESAS[0][1], rot:Math.PI, f:0 },
+    { nome:"Enzo", tipo:"senta", x:MESAS[5][0], z:MESAS[5][1], rot:Math.PI, f:1.3 },
+    { nome:"#3", tipo:"senta", x:MESAS[7][0], z:MESAS[7][1], rot:Math.PI, f:2.1 },
+    { nome:"#5", tipo:"anda", x:0, z:0, rot:0, f:0 },
+    { nome:"#4", tipo:"pe", x:1.7, z:-3.5, rot:.4, f:0, cai:true },
+  ];
+  for(const p of P){
+    p.esq = criarEsqueleto(cena);
+    p.rot0 = p.rot;
+    p.el = document.createElement("div"); p.el.className = "rot";
+  }
+  const queda = P[4];
+
+  // o roteiro da queda, em segundos desde a entrada no slide 4
+  let simT = 0, simAtivo = false, ultimo = -1, alvoX = -5.2;
+  const ROTEIRO = [
+    [ .8, "", "5 pessoas na sala, 1 reconhecida"],
+    [ 4.6, "", "#4 perdeu o equilíbrio"],
+    [ 5.15, "grave", "queda armada · geometria"],
+    [ 5.55, "grave", "rede de queda: 0,98 (limiar 0,50)"],
+    [ 6.4, "grave", "alerta enviado · corpo-4 · 1,2 s no chão"],
+    [ 7.3, "", "painel: sirene tocando"],
+    [ 10.8, "ok", "Estou ciente · 4,4 s · elo #72 gravado"],
+  ];
+  const feed = $("feed");
+  function narrar(cls, txt, t){
+    const li = document.createElement("li"); if(cls) li.className = cls;
+    li.innerHTML = `<time>00:${String(Math.floor(t)).padStart(2,"0")},${Math.floor((t%1)*10)}</time><span></span>`;
+    li.lastChild.textContent = txt;
+    feed.appendChild(li); while(feed.children.length > 5) feed.firstChild.remove();
+  }
+  function reiniciar(){ simT = 0; ultimo = -1; feed.textContent = ""; $("alerta4").hidden = true; }
+
+  function notaQueda(t){
+    // a curva medida no laboratório, colocada no tempo do roteiro
+    const C = [[0,.02],[4.6,.02],[4.95,.10],[5.15,.63],[5.35,.87],[5.55,.98],[5.8,.14],[6.1,.03],[20,.02]];
+    for(let i = 1; i < C.length; i++) if(t <= C[i][0]){
+      const a = C[i-1], b = C[i]; return a[1] + (b[1]-a[1]) * (t - a[0]) / (b[0] - a[0]);
+    }
+    return .02;
+  }
+
+  const reg = [0, 0, W, H];
+  return { cena, cam, reg, orb,
+    entrar(t, slide){
+      if(slide === "s4"){ orb.rAlvo = 12; orb.phiAlvo = .98; alvoX = 0; cena.fog.near = 16; cena.fog.far = 42; simAtivo = true; reiniciar(); }
+      else { orb.rAlvo = 19; orb.phiAlvo = 1.1; alvoX = -5.2; cena.fog.near = 12; cena.fog.far = 34; simAtivo = false; }
+      $("rotulos").replaceChildren(...(simAtivo ? P.map(p => p.el) : []));
+    },
+    sair(){ $("rotulos").replaceChildren(); },
+    reiniciar,
+    tick(t, dt){
+      // câmera
+      orb.r += (orb.rAlvo - orb.r) * Math.min(1, dt*2.2);
+      orb.phi += (orb.phiAlvo - orb.phi) * Math.min(1, dt*2.2);
+      orb.alvo.x += (alvoX - orb.alvo.x) * Math.min(1, dt*2.2);
+      orb.ocioso += dt;
+      if(!orb.arrastando && orb.ocioso > 2.5 && !REDUZ) orb.theta += dt * .07;
+      orb.aplicar(cam);
+      // tempo da simulação
+      if(simAtivo){ simT += dt; if(simT > 16.5) reiniciar(); }
+      const st = simAtivo ? simT : (t % 4);
+      for(let i = 0; i < ROTEIRO.length; i++) if(simAtivo && i > ultimo && st >= ROTEIRO[i][0]){
+        ultimo = i; narrar(ROTEIRO[i][1], ROTEIRO[i][2], ROTEIRO[i][0]);
+        if(i === 4){ $("alerta4").hidden = false; }
+        if(i === 6){ $("alerta4").hidden = true; }
+      }
+      // poses
+      for(const p of P){
+        let o, x = p.x, z = p.z, rot = p.rot0;
+        if(p.tipo === "senta") o = POSE.senta(t*3 + p.f);
+        else if(p.tipo === "anda"){
+          const a = t * .32; x = Math.cos(a) * 4.8; z = Math.sin(a) * 1.1 + .7;
+          rot = Math.atan2(-Math.sin(a) * 4.8, Math.cos(a) * 1.1); o = POSE.anda(t * 5.2);
+        } else {
+          o = POSE.pe(); o.bracoD = .05 + Math.sin(t*1.3)*.04;
+          if(p.cai && simAtivo){
+            const desce = ease((st - 4.6) / .75), levanta = ease((st - 12.2) / 1.4);
+            const d = Math.max(0, desce - levanta);
+            o.deita = d; o.coxaE = o.coxaD = d * .5 * (1 - d*.6); o.canelaE = o.canelaD = -d*.3;
+            o.bracoE = .05 + d*1.6; o.bracoD = .05 + d*1.2; o.abreE = .12 + d*.6;
+          }
+        }
+        const J = poseLocal(o);
+        const c = Math.cos(rot), s = Math.sin(rot);
+        for(const v of J){ const lx = v.x, lz = v.z; v.x = x + lx*c + lz*s; v.z = z - lx*s + lz*c; }
+        p.esq.pose(J);
+        p.cabeca = J[0];
+      }
+      // estado da queda
+      const nota = simAtivo ? notaQueda(st) : .02;
+      const armada = simAtivo && st > 5.15 && st < 12.6;
+      queda.esq.cor(armada ? COR.rubi : COR.menta);
+      $("h-nota").textContent = dec(nota);
+      $("h-nota").style.color = nota >= .5 ? CSS.rubi : "";
+      anel.position.set(queda.cabeca.x, .02, queda.cabeca.z);
+      if(armada && st > 6.4){
+        const ph = ((st - 6.4) % 1.4) / 1.4;
+        anel.scale.setScalar(1 + ph * 4); anel.material.opacity = (1 - ph) * .8;
+      } else anel.material.opacity = 0;
+      // rótulos sobre as cabeças
+      if(simAtivo) for(const p of P){
+        const pr = projetar(p.cabeca.clone().add(new THREE.Vector3(0, .42, 0)), cam, reg);
+        p.el.style.left = pr.x + "px"; p.el.style.top = pr.y + "px";
+        p.el.hidden = pr.atras;
+        const n = p === queda ? nota : .01 + (Math.sin(t*2 + p.f) + 1) * .01;
+        const vermelho = p === queda && armada;
+        p.el.className = "rot" + (vermelho ? " rubi" : "");
+        p.el.innerHTML = `<b></b>${dec(n)}`; p.el.firstChild.textContent = vermelho ? p.nome + " QUEDA" : p.nome;
+      }
+    } };
+}
+
+/* ======================================================================
+   CENA 3: o rosto girado (privacidade)
+   ====================================================================== */
+function cenaGiro(){
+  const cena = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(40, 1, .1, 50); cam.position.set(0, 0, 7.4);
+  let s = 11; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const gauss = () => Math.sqrt(-2*Math.log(rnd()+1e-9)) * Math.cos(2*Math.PI*rnd());
+  const N = 128;
+  const A = new Float32Array(N*3), B = new Float32Array(N*3);
+  for(let i = 0; i < N*3; i++){ A[i] = gauss() * .95; B[i] = A[i] + gauss() * .045; }
+  const mk = (arr, cor, tam) => {
+    const g = new THREE.BufferGeometry(); g.setAttribute("position", new THREE.BufferAttribute(arr, 3));
+    return new THREE.Points(g, new THREE.PointsMaterial({ color:cor, size:tam, sizeAttenuation:true, transparent:true, opacity:.95 }));
+  };
+  const grupo = new THREE.Group(); cena.add(grupo);
+  const pa = mk(A, COR.menta, .09), pb = mk(B, COR.ambar, .06);
+  grupo.add(pa, pb);
+  const lig = []; for(let i = 0; i < N; i += 4) lig.push(new THREE.Vector3(A[i*3],A[i*3+1],A[i*3+2]), new THREE.Vector3(B[i*3],B[i*3+1],B[i*3+2]));
+  grupo.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(lig), new THREE.LineBasicMaterial({ color:COR.fraco, transparent:true, opacity:.35 })));
+  const casca = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.IcosahedronGeometry(2.6, 1)),
+    new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.10 }));
+  grupo.add(casca);
+  const va = new THREE.Vector3(), vb = new THREE.Vector3();
+  const reg = [0, 0, 0, 0];
+  return { cena, cam,
+    get reg(){
+      const el = $("tela-giro"), r = el.getBoundingClientRect(), p = palco.getBoundingClientRect();
+      reg[0] = (r.left - p.left) / escala; reg[1] = (r.top - p.top) / escala;
+      reg[2] = r.width / escala; reg[3] = r.height / escala; return reg;
+    },
+    tick(t){
+      grupo.rotation.set(t*.31, t*.47, t*.13);
+      grupo.updateMatrixWorld();
+      // a distância é medida DEPOIS do giro, no próprio frame: ela não muda
+      let soma = 0;
+      for(let i = 0; i < N; i++){
+        va.set(A[i*3],A[i*3+1],A[i*3+2]).applyMatrix4(grupo.matrixWorld);
+        vb.set(B[i*3],B[i*3+1],B[i*3+2]).applyMatrix4(grupo.matrixWorld);
+        soma += va.distanceToSquared(vb);
+      }
+      $("dist").textContent = dec(Math.sqrt(soma), 4) + " · girado";
+    } };
+}
+
+/* ======================================================================
+   CENA 4: a cadeia de hash, com SHA-256 de verdade
+   ====================================================================== */
+const LINHAS = [
+  { id:61, momento:"2026-10-01 10:40:12", aluno:"corpo-4", tipo:"queda", local:"sala-12" },
+  { id:62, momento:"2026-10-01 10:40:37", aluno:"evento-61", tipo:"ciente", local:"sala-12" },
+  { id:66, momento:"2026-10-01 11:28:03", aluno:"qcs6490-odk", tipo:"camera_sem_imagem", local:"sala-12" },
+  { id:67, momento:"2026-10-01 11:45:20", aluno:"qcs6490-odk", tipo:"sinal_voltou", local:"sala-12" },
+  { id:70, momento:"2026-10-01 11:52:08", aluno:"corpo-18", tipo:"queda", local:"sala-12" },
+  { id:71, momento:"2026-10-01 11:52:32", aluno:"evento-70", tipo:"ciente", local:"sala-12" },
+];
+async function sha256(txt){
+  if(!(crypto && crypto.subtle)) { let h = 0; for(const c of txt) h = (h*31 + c.charCodeAt(0)) >>> 0; return h.toString(16).padStart(8,"0").repeat(8); }
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt));
+  return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2,"0")).join("");
+}
+function cenaCadeia(){
+  const cena = new THREE.Scene();
+  const cam = new THREE.PerspectiveCamera(36, W/H, .1, 80); cam.position.set(0, .4, 13);
+  const blocos = [];
+  const geo = new THREE.BoxGeometry(2.9, 1.8, .28);
+  const lateral = new THREE.MeshBasicMaterial({ color:0x0E241F });
+  LINHAS.forEach((l, i) => {
+    const cv = document.createElement("canvas"); cv.width = 1024; cv.height = 636;
+    const tx = new THREE.CanvasTexture(cv); tx.anisotropy = 4; tx.colorSpace = THREE.SRGBColorSpace;
+    const frente = new THREE.MeshBasicMaterial({ map:tx });
+    const m = new THREE.Mesh(geo, [lateral, lateral, lateral, lateral, frente, lateral]);
+    const x = (i - 2.5) * 3.35;
+    m.position.set(x, 0, -Math.pow(x, 2) * .045);
+    m.rotation.y = -x * .045;
+    const borda = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.7 }));
+    m.add(borda);
+    cena.add(m);
+    blocos.push({ l, m, cv, tx, borda, estado:"ok", hash:"", anterior:"", base:m.position.clone() });
+  });
+  const elos = [];
+  for(let i = 0; i < blocos.length - 1; i++){
+    const g = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, 1, 10), new THREE.MeshBasicMaterial({ color:COR.menta }));
+    cena.add(g); elos.push(g);
+  }
+  function pintar(b){
+    const c = b.cv.getContext("2d"), st = b.estado;
+    const cor = st === "ok" ? CSS.menta : st === "mexido" ? CSS.ambar : CSS.rubi;
+    c.fillStyle = "#0B1E19"; c.fillRect(0, 0, 1024, 636);
+    c.fillStyle = cor; c.fillRect(0, 0, 1024, 10);
+    c.font = '500 40px "DM Mono", monospace'; c.fillStyle = CSS.fraco; c.fillText("#" + b.l.id + "   " + b.l.momento.slice(5, 16).replace("-", "/"), 56, 92);
+    c.font = '700 96px "Bricolage Grotesque", sans-serif'; c.fillStyle = st === "mexido" ? CSS.ambar : CSS.texto;
+    c.fillText(b.l.tipo.length > 16 ? b.l.tipo.slice(0, 15) + "…" : b.l.tipo, 52, 214);
+    c.font = '400 42px "Public Sans", sans-serif'; c.fillStyle = CSS.fraco; c.fillText(b.l.aluno + " · " + b.l.local, 56, 286);
+    c.font = '500 30px "DM Mono", monospace'; c.fillStyle = CSS.fraco; c.fillText("anterior  " + b.anterior.slice(0, 22) + "…", 56, 420);
+    c.fillStyle = cor; c.fillText("este      " + b.hash.slice(0, 22) + "…", 56, 476);
+    c.font = '500 34px "DM Mono", monospace';
+    c.fillText(st === "ok" ? "● elo fecha" : st === "mexido" ? "● linha alterada" : "● não fecha mais", 56, 578);
+    b.tx.needsUpdate = true;
+    b.borda.material.color.set(cor);
+  }
+  let adulterado = false;
+  async function calcular(){
+    // os hashes GRAVADOS vêm da versão original; a conferência recalcula da cópia
+    let ant = "0".repeat(64);
+    const gravados = [];
+    for(const b of blocos){
+      const l = b.l, orig = l.orig || l.tipo;
+      const h = await sha256([l.momento, l.aluno, orig, l.local, ant].join("|"));
+      gravados.push({ ant, h }); ant = h;
+    }
+    let antRecalc = "0".repeat(64), quebrou = -1;
+    for(let i = 0; i < blocos.length; i++){
+      const b = blocos[i], l = b.l;
+      const h = await sha256([l.momento, l.aluno, l.tipo, l.local, antRecalc].join("|"));
+      b.anterior = gravados[i].ant; b.hash = h;
+      const fecha = h === gravados[i].h;
+      b.estado = fecha ? "ok" : (l.orig ? "mexido" : "quebrado");
+      if(!fecha && quebrou < 0) quebrou = i;
+      antRecalc = h;
+    }
+    return quebrou;
+  }
+  let cascata = [];
+  async function atualizar(animar){
+    const q = await calcular();
+    const ruins = blocos.filter(b => b.estado !== "ok").length;
+    cascata = [];
+    blocos.forEach((b, i) => {
+      if(animar && b.estado !== "ok"){ const e = b.estado; b.estado = "ok"; pintar(b); cascata.push({ b, e, quando: performance.now()/1000 + (i - q) * .35 }); }
+      else pintar(b);
+    });
+    $("veredito").innerHTML = q < 0
+      ? 'SHA-256(momento | aluno | tipo | local | hash anterior), calculado agora neste navegador.<br><b class="menta">A cadeia fecha: 6 de 6 elos conferidos.</b>'
+      : `Troquei <b>queda</b> por <b class="ambar">nada_aconteceu</b> no evento #61, que é o que alguém faria para esconder o alerta.<br><b class="vermelho">A cadeia quebrou no #61, e ${ruins} elos deixaram de fechar por causa dele.</b>`;
+  }
+  $("adulterar").addEventListener("click", () => {
+    if(adulterado) return; adulterado = true;
+    LINHAS[0].orig = "queda"; LINHAS[0].tipo = "nada_aconteceu"; atualizar(true);
+  });
+  const desfazer = () => { adulterado = false; delete LINHAS[0].orig; LINHAS[0].tipo = "queda"; atualizar(false); };
+  $("desfazer").addEventListener("click", desfazer);
+  const pronto = (document.fonts ? document.fonts.ready : Promise.resolve()).then(() => atualizar(false));
+  const Y = new THREE.Vector3(0,1,0), d = new THREE.Vector3();
+  return { cena, cam, reg:[0, 0, W, H], desfazer,
+    entrar(){ pronto.then(() => desfazer()); },
+    tick(t){
+      const agora = performance.now()/1000;
+      cascata = cascata.filter(c => { if(agora >= c.quando){ c.b.estado = c.e; pintar(c.b); return false; } return true; });
+      blocos.forEach((b, i) => {
+        b.m.position.y = b.base.y + Math.sin(t*1.1 + i*.8) * .08 + (b.estado === "quebrado" ? -.25 : 0);
+      });
+      for(let i = 0; i < elos.length; i++){
+        const A = blocos[i].m.position, B = blocos[i+1].m.position;
+        const quebra = blocos[i+1].estado !== "ok";
+        const a = A.clone().add(new THREE.Vector3(1.45, 0, 0)), b = B.clone().add(new THREE.Vector3(-1.45, 0, 0));
+        d.subVectors(b, a); const L = d.length();
+        elos[i].position.addVectors(a, b).multiplyScalar(.5);
+        elos[i].quaternion.setFromUnitVectors(Y, d.clone().normalize());
+        elos[i].scale.set(1, quebra ? L * .25 : L, 1);
+        elos[i].material.color.setHex(quebra ? COR.rubi : COR.menta);
+      }
+      cam.position.x = Math.sin(t*.15) * 1.4; cam.position.y = .3 + Math.sin(t*.21) * .3;
+      cam.lookAt(0, -.1, -1);
+    } };
+}
+
+/* ======================================================================
+   CENA 5: carrossel das telas reais do painel
+   ====================================================================== */
+const TELAS = [
+  ["painel", "O painel no laboratório: 80 elos recalculados desde a gênese, todos fechando."],
+  ["alarme", "Queda nova toma a tela em cerca de 1 s, com sirene, até alguém apertar Estou ciente."],
+  ["corpo", "A prova sem rosto: os últimos 24 quadros do corpo, só os 17 pontos, em vermelho o último."],
+  ["cadeia", "A página da cadeia recalcula os hashes no próprio navegador e mostra onde a corrente quebrou."],
+  ["chao", "Linha do chão: com a câmera fixa, cabeça abaixo da linha marcada é queda, direto."],
+];
+function cenaCarrossel(){
+  const cena = new THREE.Scene();
+  cena.fog = new THREE.Fog(COR.noite, 9, 22);
+  const cam = new THREE.PerspectiveCamera(36, W/H, .1, 80); cam.position.set(0, 1.4, 13.2);
+  const anel = new THREE.Group(); cena.add(anel);
+  const R = 4.6, itens = [];
+  const img = window.PITCH_IMG || {};
+  TELAS.forEach(([k], i) => {
+    const info = img[k]; if(!info) return;
+    const tex = new THREE.TextureLoader().load(info.src); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const h = 2.5, w = Math.min(4.3, h * info.w / info.h), hh = w * info.h / info.w;
+    const ang = i / TELAS.length * Math.PI * 2;
+    const g = new THREE.Group(); g.position.set(Math.sin(ang) * R, 1.3, Math.cos(ang) * R); g.rotation.y = ang;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map:tex, side:THREE.DoubleSide, transparent:true }));
+    const reflexo = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map:tex, transparent:true, opacity:.12, side:THREE.DoubleSide }));
+    reflexo.scale.y = -1; reflexo.position.y = -hh - .12;
+    const moldura = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w + .12, hh + .12)), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.5 }));
+    g.add(m, reflexo, moldura); anel.add(g);
+    itens.push({ g, m, moldura });
+  });
+  const piso = []; for(let i = -12; i <= 12; i++){ piso.push(new THREE.Vector3(i, -.35, -12), new THREE.Vector3(i, -.35, 12), new THREE.Vector3(-12, -.35, i), new THREE.Vector3(12, -.35, i)); }
+  cena.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(piso), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.06 })));
+  let atual = 0, rot = 0, desde = 0;
+  function legenda(){ $("leg-n").textContent = (atual + 1) + " / " + TELAS.length; $("leg-t").textContent = TELAS[atual][1]; }
+  return { cena, cam, reg:[0, 0, W, H],
+    entrar(t){ atual = 0; desde = t; legenda(); },
+    avancar(t){ atual = (atual + 1) % TELAS.length; desde = t; legenda(); },
+    tick(t, dt){
+      if(t - desde > 5) this.avancar(t);
+      const alvo = -atual / TELAS.length * Math.PI * 2;
+      let dif = alvo - rot; dif = Math.atan2(Math.sin(dif), Math.cos(dif));
+      rot += dif * Math.min(1, dt * 2.6);
+      anel.rotation.y = rot;
+      itens.forEach((it, i) => {
+        const frente = i === atual;
+        it.moldura.material.opacity = frente ? .9 : .2;
+        it.m.material.opacity = frente ? 1 : .55;
+      });
+      cam.position.y = 1.4 + Math.sin(t*.3) * .12; cam.lookAt(0, 1.05, 0);
+    } };
+}
+
+/* ======================================================================
+   Animações 2D: monitores, ícones do fluxo, cartões, privacidade
+   ====================================================================== */
+function corpo2d(ctx, px, py, h, o, cor, esp){
+  // o: { inc, joelho, passo, bE, bD, cE, cD }  (ângulos em radianos)
+  const pts = {};
+  const hy = -.5 + (o.joelho || 0) * .1, pas = o.passo || 0;
+  const perna = (x, a, k) => { const q = [x, hy], j = [x + .25*Math.sin(a), hy + .25*Math.cos(a)];
+    return [q, j, [j[0] + .25*Math.sin(a - k), j[1] + .25*Math.cos(a - k)]]; };
+  [pts.qE, pts.jE, pts.tE] = perna(-.06, pas + (o.joelho||0)*.6, (o.joelho||0)*1.4);
+  [pts.qD, pts.jD, pts.tD] = perna(.06, -pas + (o.joelho||0)*.6, (o.joelho||0)*1.4);
+  pts.oE = [-.11, hy - .32]; pts.oD = [.11, hy - .32]; pts.pe = [0, hy - .36]; pts.ca = [0, hy - .46];
+  const braco = (s, b, c, lado) => { const e = [s[0] + lado*.16*Math.sin(b), s[1] + .16*Math.cos(b)];
+    return [e, [e[0] + lado*.15*Math.sin(b + c), e[1] + .15*Math.cos(b + c)]]; };
+  [pts.cE, pts.pE] = braco(pts.oE, o.bE || .1, o.cE || .1, -1);
+  [pts.cD, pts.pD] = braco(pts.oD, o.bD || .1, o.cD || .1, 1);
+  const a = o.inc || 0, co = Math.cos(a), si = Math.sin(a);
+  const T = p => [px + (p[0]*co - p[1]*si) * h, py + (p[0]*si + p[1]*co) * h];
+  ctx.strokeStyle = cor; ctx.fillStyle = cor; ctx.lineWidth = esp; ctx.lineCap = "round";
+  const L = (A, B) => { const a1 = T(pts[A]), b1 = T(pts[B]); ctx.beginPath(); ctx.moveTo(a1[0], a1[1]); ctx.lineTo(b1[0], b1[1]); ctx.stroke(); };
+  [["oE","oD"],["oE","cE"],["cE","pE"],["oD","cD"],["cD","pD"],["oE","qE"],["oD","qD"],["qE","qD"],["qE","jE"],["jE","tE"],["qD","jD"],["jD","tD"]].forEach(([x,y]) => L(x,y));
+  const c = T(pts.ca); ctx.beginPath(); ctx.arc(c[0], c[1], h*.055, 0, Math.PI*2); ctx.stroke();
+  for(const k of ["oE","oD","cE","cD","pE","pD","qE","qD","jE","jD","tE","tD"]){ const p = T(pts[k]); ctx.beginPath(); ctx.arc(p[0], p[1], esp*.9, 0, Math.PI*2); ctx.fill(); }
+}
+const ANIM = {};
+function animar(id, fn){ const c = $(id); if(c) ANIM[id] = { c, x: c.getContext("2d"), fn }; }
+
+// parede de monitores (slide 2)
+(function(){
+  const mon = $("monitores");
+  const ruido = [];
+  for(let f = 0; f < 6; f++){
+    const c = document.createElement("canvas"); c.width = 96; c.height = 60; const x = c.getContext("2d");
+    const d = x.createImageData(96, 60);
+    for(let i = 0; i < d.data.length; i += 4){ const v = 12 + Math.random()*30; d.data[i] = v*.7; d.data[i+1] = v; d.data[i+2] = v*.85; d.data[i+3] = 255; }
+    x.putImageData(d, 0, 0); ruido.push(c);
+  }
+  const nomes = ["SALA 08","PÁTIO","SALA 12","CORREDOR B","QUADRA","SALA 03","ENTRADA","BIBLIOTECA","REFEITÓRIO"];
+  nomes.forEach((n, i) => {
+    const d = document.createElement("div"); d.className = "mon" + (i === 4 ? " alvo" : "");
+    d.innerHTML = `<canvas width="320" height="200"></canvas><span class="tag">CAM ${String(i+1).padStart(2,"0")} · ${n}</span><span class="rec">REC</span><span class="relogio"></span>` + (i === 4 ? '<span class="ninguem" hidden></span>' : "");
+    mon.appendChild(d);
+  });
+  const telas = [...mon.querySelectorAll("canvas")].map(c => ({ c, x:c.getContext("2d") }));
+  let t0 = 0;
+  ANIM.monitores = { entrar(t){ t0 = t; }, fn(t){
+    const e = t - t0;
+    telas.forEach((m, i) => {
+      m.x.imageSmoothingEnabled = false;
+      m.x.drawImage(ruido[(Math.floor(t*12) + i) % ruido.length], 0, 0, 320, 200);
+      m.x.fillStyle = "rgba(95,224,181,.05)"; m.x.fillRect(0, 0, 320, 200);
+      // um vulto andando em cada tela, para parecer gente
+      const vx = ((t*28 + i*90) % 380) - 30;
+      if(i !== 4) corpo2d(m.x, vx, 168, 80, { passo:Math.sin(t*6 + i)*.4, bE:Math.sin(t*6+i)*.4, bD:-Math.sin(t*6+i)*.4 }, "rgba(220,235,230,.35)", 3);
+      else {
+        const k = ease((e - 1.8) / .7);
+        corpo2d(m.x, 160, 172, 92, { inc:k * 1.45, joelho:k*.5, bE:.1 + k*1.4, bD:.1 + k }, "rgba(230,240,236,.55)", 3.4);
+      }
+    });
+    const hora = new Date(Date.UTC(2026, 9, 1, 11, 52, 0) + e*1000);
+    mon.querySelectorAll(".relogio").forEach(r => r.textContent = hora.toISOString().slice(11, 19));
+    const ning = mon.querySelector(".ninguem");
+    if(e > 2.6){ ning.hidden = false; const s = Math.floor(e - 2.6); ning.textContent = "ninguém viu · " + String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0"); }
+    else ning.hidden = true;
+  } };
+})();
+
+// ícones do fluxo (slide 5)
+animar("ic-cam", (x, t) => {
+  x.clearRect(0,0,380,190);
+  x.strokeStyle = CSS.menta; x.lineWidth = 3; x.fillStyle = "rgba(95,224,181,.12)";
+  x.beginPath(); x.roundRect(110, 62, 120, 66, 10); x.fill(); x.stroke();
+  x.beginPath(); x.arc(250, 95, 22, 0, Math.PI*2); x.stroke();
+  x.beginPath(); x.moveTo(170, 128); x.lineTo(170, 160); x.lineTo(130, 160); x.stroke();
+  x.fillStyle = CSS.rubi; x.globalAlpha = .5 + .5*Math.sin(t*4); x.beginPath(); x.arc(128, 78, 6, 0, Math.PI*2); x.fill(); x.globalAlpha = 1;
+  for(let i = 0; i < 3; i++){ x.strokeStyle = `rgba(95,224,181,${.5 - i*.15})`; x.beginPath(); x.arc(250, 95, 34 + i*16 + (t*20 % 16), -.6, .6); x.stroke(); }
+});
+animar("ic-caixa", (x, t) => {
+  x.clearRect(0,0,380,190);
+  x.strokeStyle = CSS.menta; x.lineWidth = 3; x.fillStyle = "rgba(95,224,181,.10)";
+  x.beginPath(); x.roundRect(90, 46, 200, 104, 12); x.fill(); x.stroke();
+  for(let i = 0; i < 8; i++){ const on = Math.sin(t*3 + i*1.7) > -.2; x.fillStyle = on ? CSS.menta : "rgba(95,224,181,.2)"; x.fillRect(108 + i*21, 128, 14, 8); }
+  corpo2d(x, 190, 116, 64, { passo:Math.sin(t*3)*.3, bE:.2, bD:.2 }, CSS.menta, 2.4);
+});
+animar("ic-banco", (x, t) => {
+  x.clearRect(0,0,380,190);
+  for(let i = 0; i < 4; i++){
+    const xx = 70 + i*64, y = 95 + Math.sin(t*2 + i)*4;
+    x.strokeStyle = CSS.menta; x.lineWidth = 3; x.fillStyle = "rgba(95,224,181,.12)";
+    x.beginPath(); x.roundRect(xx, y - 26, 46, 52, 7); x.fill(); x.stroke();
+    if(i < 3){ x.beginPath(); x.moveTo(xx + 46, y); x.lineTo(xx + 64, y); x.stroke(); }
+  }
+  x.font = '500 15px "DM Mono", monospace'; x.fillStyle = CSS.fraco; x.fillText("a7f3…  →  e19c…  →  52b8…", 72, 160);
+});
+animar("ic-painel", (x, t) => {
+  x.clearRect(0,0,380,190);
+  x.strokeStyle = CSS.menta; x.lineWidth = 3; x.fillStyle = "rgba(95,224,181,.08)";
+  x.beginPath(); x.roundRect(80, 36, 220, 120, 10); x.fill(); x.stroke();
+  const pulso = (Math.sin(t*5) + 1) / 2;
+  x.fillStyle = `rgba(255,77,106,${.25 + pulso*.5})`; x.beginPath(); x.roundRect(120, 64, 140, 64, 8); x.fill();
+  x.font = '700 26px "Bricolage Grotesque", sans-serif'; x.fillStyle = "#fff"; x.fillText("queda", 156, 104);
+});
+
+// cartões (slide 6)
+animar("m-queda", (x, t) => {
+  x.clearRect(0,0,420,220); grade2d(x, 420, 220);
+  const c = (t % 4) / 4, k = ease((c - .25) / .2), alerta = c > .55;
+  corpo2d(x, 200, 196, 150, { inc:k*1.45, joelho:k*.5, bE:.1 + k*1.3, bD:.1 + k }, alerta ? CSS.rubi : CSS.menta, 4);
+  if(alerta){ x.font = '500 18px "DM Mono", monospace'; x.fillStyle = CSS.rubi; x.fillText("▲ QUEDA · nota 0,98", 18, 32); }
+});
+animar("m-corrida", (x, t) => {
+  x.clearRect(0,0,420,220); grade2d(x, 420, 220);
+  const px = ((t*170) % 560) - 70;
+  for(let r = 3; r >= 1; r--){ x.globalAlpha = .12 * (4 - r); corpo2d(x, px - r*32, 196, 140, { inc:.18, passo:Math.sin((t - r*.06)*11)*.6, bE:Math.sin((t-r*.06)*11)*.9, bD:-Math.sin((t-r*.06)*11)*.9 }, CSS.ambar, 4); }
+  x.globalAlpha = 1;
+  corpo2d(x, px, 196, 140, { inc:.18, passo:Math.sin(t*11)*.6, bE:Math.sin(t*11)*.9, bD:-Math.sin(t*11)*.9, cE:.9, cD:.9 }, CSS.ambar, 4);
+});
+animar("m-briga", (x, t) => {
+  x.clearRect(0,0,420,220); grade2d(x, 420, 220);
+  const g1 = Math.max(0, Math.sin(t*7)), g2 = Math.max(0, Math.sin(t*7 + Math.PI));
+  const flash = g1 > .9 || g2 > .9;
+  corpo2d(x, 150, 196, 140, { inc:.05, bD:-.4 - g1*1.1, cD:-.3 + g1*.3, bE:.3, passo:.15 }, flash ? CSS.rubi : CSS.ambar, 4);
+  corpo2d(x, 270, 196, 140, { inc:-.05, bE:-.4 - g2*1.1, cE:-.3 + g2*.3, bD:.3, passo:-.15 }, flash ? CSS.rubi : CSS.ambar, 4);
+});
+animar("m-ajuda", (x, t) => {
+  x.clearRect(0,0,420,220); grade2d(x, 420, 220);
+  const c = (t % 3) / 3, p = Math.min(1, c / .3);
+  x.lineWidth = 10; x.strokeStyle = "rgba(95,224,181,.15)"; x.beginPath(); x.arc(210, 110, 62, 0, Math.PI*2); x.stroke();
+  x.strokeStyle = p >= 1 ? CSS.rubi : CSS.menta; x.beginPath(); x.arc(210, 110, 62, -Math.PI/2, -Math.PI/2 + p*Math.PI*2); x.stroke();
+  x.fillStyle = p >= 1 ? CSS.rubi : "rgba(95,224,181,.25)"; x.beginPath(); x.arc(210, 110, 46, 0, Math.PI*2); x.fill();
+  x.font = '700 22px "Bricolage Grotesque", sans-serif'; x.fillStyle = "#fff"; x.textAlign = "center";
+  x.fillText(p >= 1 ? "enviado" : "segure", 210, 118); x.textAlign = "start";
+});
+function grade2d(x, w, h){
+  x.strokeStyle = "rgba(95,224,181,.06)"; x.lineWidth = 1;
+  for(let i = 0; i < w; i += 28){ x.beginPath(); x.moveTo(i, 0); x.lineTo(i, h); x.stroke(); }
+  for(let j = 0; j < h; j += 28){ x.beginPath(); x.moveTo(0, j); x.lineTo(w, j); x.stroke(); }
+}
+
+// privacidade (slide 8)
+animar("p-prova", (x, t) => {
+  x.clearRect(0,0,560,380); grade2d(x, 560, 380);
+  const c = (t % 4.5) / 4.5;
+  for(let f = 0; f < 24; f++){
+    const tt = Math.max(0, c - (23 - f) * .012), k = ease((tt - .2) / .3);
+    x.globalAlpha = f === 23 ? 1 : .05 + f*.012;
+    corpo2d(x, 280, 300, 210, { inc:k*1.45, joelho:k*.5, bE:.1 + k*1.3, bD:.1 + k }, f === 23 ? CSS.rubi : CSS.fraco, f === 23 ? 4 : 2);
+  }
+  x.globalAlpha = 1;
+});
+animar("p-mosaico", (x, t) => {
+  x.clearRect(0,0,560,380); grade2d(x, 560, 380);
+  // um retrato em blocos: a cabeça vira mosaico de 4 em 4, o corpo continua legível
+  const cx = 280, cy = 132;
+  x.fillStyle = "#1A3A33"; x.beginPath(); x.ellipse(cx, 330, 150, 110, 0, Math.PI, 0); x.fill();
+  const tam = 22;
+  for(let i = -4; i < 4; i++) for(let j = -5; j < 5; j++){
+    const d = Math.hypot(i + .5, (j + .5) * .8);
+    if(d > 4.2) continue;
+    const v = 60 + ((Math.sin(i*3.1 + j*1.7 + Math.floor(t*.6)) + 1) * 45);
+    x.fillStyle = `rgb(${v*.75|0},${v|0},${v*.9|0})`;
+    x.fillRect(cx + i*tam, cy + j*tam, tam - 1, tam - 1);
+  }
+  x.strokeStyle = CSS.menta; x.setLineDash([8, 6]); x.lineWidth = 2; x.strokeRect(cx - 4*tam - 8, cy - 5*tam - 8, 8*tam + 16, 10*tam + 16); x.setLineDash([]);
+});
+
+/* ======================================================================
+   Gráfico real da queda (slide 7)
+   ====================================================================== */
+(function(){
+  const svg = $("graf"), NS = "http://www.w3.org/2000/svg";
+  const M = { l:70, r:24, t:20, b:56 }, w = 900 - M.l - M.r, h = 470 - M.t - M.b;
+  const X = s => M.l + s / 2.3 * w, Y = v => M.t + (1 - v) * h;
+  const el = (n, a, txt) => { const e = document.createElementNS(NS, n); for(const k in a) e.setAttribute(k, a[k]); if(txt) e.textContent = txt; svg.appendChild(e); return e; };
+  for(const v of [0, .25, .5, .75, 1]){
+    el("line", { x1:M.l, x2:M.l + w, y1:Y(v), y2:Y(v), stroke:CSS.linha, "stroke-width":1 });
+    el("text", { x:M.l - 14, y:Y(v) + 6, fill:CSS.fraco, "font-size":17, "text-anchor":"end", "font-family":"DM Mono, monospace" }, dec(v));
+  }
+  for(const s of [0, .5, 1, 1.5, 2]) el("text", { x:X(s), y:M.t + h + 34, fill:CSS.fraco, "font-size":17, "text-anchor":"middle", "font-family":"DM Mono, monospace" }, dec(s, 1) + " s");
+  // quadros lidos do vídeo do laboratório (tempo do vídeo, nota na etiqueta da tela)
+  const D = [[0,.01],[.17,.01],[.35,.01],[.52,.10],[.70,.63],[.87,.87],[1.05,.87],[1.22,.98],[1.40,.14],[1.57,.01],[1.74,.01],[1.92,.14],[2.09,0],[2.27,.02]];
+  el("rect", { x:X(.52), y:M.t, width:X(1.74) - X(.52), height:h, fill:"rgba(255,77,106,.07)" });
+  el("text", { x:X(.56), y:M.t + h - 14, fill:CSS.rubi, "font-size":16, "font-family":"DM Mono, monospace" }, "esqueleto vermelho: queda armada");
+  el("line", { x1:M.l, x2:M.l + w, y1:Y(.5), y2:Y(.5), stroke:CSS.ambar, "stroke-width":2, "stroke-dasharray":"10 6" });
+  el("line", { x1:M.l, x2:M.l + w, y1:Y(0) - 3, y2:Y(0) - 3, stroke:CSS.fraco, "stroke-width":3, "stroke-dasharray":"6 5" });
+  const p = D.map(([s, v], i) => (i ? "L" : "M") + X(s).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
+  el("path", { d:p + ` L ${X(2.27)} ${Y(0)} L ${X(0)} ${Y(0)} Z`, fill:"rgba(95,224,181,.12)" });
+  const linha = el("path", { d:p, fill:"none", stroke:CSS.menta, "stroke-width":4, "stroke-linejoin":"round", class:"curva" });
+  D.forEach(([s, v]) => el("circle", { cx:X(s), cy:Y(v), r:v >= .5 ? 7 : 4.5, fill:v >= .5 ? CSS.rubi : CSS.menta }));
+  el("text", { x:X(1.22) + 14, y:Y(.98) + 6, fill:CSS.texto, "font-size":22, "font-family":"DM Mono, monospace" }, "0,98");
+  el("text", { x:X(1.5), y:Y(.62), fill:CSS.fraco, "font-size":16, "font-family":"Public Sans, sans-serif" }, "a nota mede o tombo;");
+  el("text", { x:X(1.5), y:Y(.62) + 20, fill:CSS.fraco, "font-size":16, "font-family":"Public Sans, sans-serif" }, "no chão, quem segura o alerta é a geometria");
+  const L = linha.getTotalLength ? linha.getTotalLength() : 2000;
+  linha.style.strokeDasharray = L; linha.style.strokeDashoffset = 0;
+  ANIM.graf = { entrar(){ if(REDUZ) return; linha.style.transition = "none"; linha.style.strokeDashoffset = L;
+    requestAnimationFrame(() => requestAnimationFrame(() => { linha.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.4,.1,.2,1) .5s"; linha.style.strokeDashoffset = 0; })); }, fn(){} };
+})();
+
+/* fluxo: pacotes correndo entre os nós (slide 5) */
+(function(){
+  const svg = $("fluxo-svg"), NS = "http://www.w3.org/2000/svg";
+  // a trilha corre por cima dos nós, de centro a centro
+  const y = 16, xs = [0, 1, 2, 3].map(i => i * (1664 + 44) / 4 + (1664 - 3*44) / 8);
+  for(const x of xs){ const c = document.createElementNS(NS, "circle"); c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", 6);
+    c.setAttribute("fill", "none"); c.setAttribute("stroke", CSS.menta); c.setAttribute("stroke-width", 2); svg.appendChild(c); }
+  for(let i = 0; i < 3; i++){
+    const l = document.createElementNS(NS, "line");
+    l.setAttribute("x1", xs[i] + 12); l.setAttribute("x2", xs[i+1] - 12); l.setAttribute("y1", y); l.setAttribute("y2", y);
+    l.setAttribute("stroke", CSS.menta); l.setAttribute("stroke-width", 2); l.setAttribute("stroke-dasharray", "4 8"); l.setAttribute("opacity", ".5");
+    svg.appendChild(l);
+  }
+  const pac = [];
+  const cores = [CSS.texto, CSS.menta, CSS.rubi];
+  for(let i = 0; i < 3; i++) for(let k = 0; k < 3; k++){
+    const c = document.createElementNS(NS, "circle"); c.setAttribute("r", i === 0 ? 5 : 8); c.setAttribute("fill", cores[i]); c.setAttribute("cy", y);
+    svg.appendChild(c); pac.push({ c, i, k });
+  }
+  ANIM.fluxo = { c:svg, fn(t){
+    for(const p of pac){
+      const vel = p.i === 0 ? 1.4 : .45, f = ((t * vel + p.k / 3) % 1);
+      const a = xs[p.i] + 12, b = xs[p.i+1] - 12;
+      p.c.setAttribute("cx", a + (b - a) * f); p.c.setAttribute("opacity", Math.sin(f * Math.PI));
+    }
+  } };
+})();
+
+/* ======================================================================
+   Mídia de vocês (slide 10): aparece sozinha quando o arquivo existe
+   ====================================================================== */
+document.querySelectorAll(".midia").forEach(fig => {
+  const arq = fig.dataset.arquivo, video = fig.dataset.tipo === "video";
+  const vazio = document.createElement("div"); vazio.className = "vazio";
+  vazio.innerHTML = `<b></b><code></code><span>Coloque o arquivo nesta pasta, com este nome, e recarregue a página. ${video ? "MP4 em H.264 toca em qualquer navegador." : "JPG ou PNG."}</span>`;
+  vazio.querySelector("b").textContent = "Espaço para: " + fig.dataset.titulo.toLowerCase();
+  vazio.querySelector("code").textContent = arq;
+  fig.appendChild(vazio);
+  const m = document.createElement(video ? "video" : "img");
+  m.hidden = true;
+  if(video){ m.muted = true; m.loop = true; m.playsInline = true; m.preload = "auto"; m.addEventListener("loadedmetadata", mostrar, { once:true }); m.addEventListener("click", () => m.paused ? m.play() : m.pause()); }
+  else { m.alt = fig.dataset.legenda; m.addEventListener("load", mostrar); }
+  m.addEventListener("error", () => { m.remove(); });
+  m.src = arq;
+  fig.prepend(m);
+  function mostrar(){
+    if(!vazio.isConnected) return;
+    vazio.remove(); m.hidden = false;
+    if(video && slides[atual] && slides[atual].contains(m)) m.play().catch(() => {});
+    const cap = document.createElement("figcaption"); cap.textContent = fig.dataset.legenda; fig.appendChild(cap);
+  }
+});
+
+/* ======================================================================
+   Navegação
+   ====================================================================== */
+const slides = [...document.querySelectorAll(".slide")];
+let atual = -1, relogio = 0, cenaAtual = null;
+function irPara(i){
+  i = Math.max(0, Math.min(slides.length - 1, i));
+  if(i === atual) return;
+  const anterior = slides[atual], novo = slides[i];
+  if(anterior){ anterior.classList.remove("on"); }
+  novo.classList.add("on");
+  // vídeos só tocam no slide deles
+  document.querySelectorAll(".midia video").forEach(v => { if(novo.contains(v)) v.play().catch(() => {}); else v.pause(); });
+  const nomeCena = novo.dataset.cena, mesma = anterior && anterior.dataset.cena === nomeCena;
+  if(cenaAtual && cenaAtual.sair && !mesma) cenaAtual.sair();
+  cenaAtual = nomeCena && CENAS[nomeCena] ? CENAS[nomeCena] : null;
+  if(cenaAtual && cenaAtual.entrar) cenaAtual.entrar(relogio, novo.id);
+  $("gl").classList.toggle("on", !!cenaAtual);
+  for(const k in ANIM) if(ANIM[k].entrar && novo.contains(ANIM[k].c || $(k))) ANIM[k].entrar(relogio);
+  atual = i;
+  $("conta").textContent = String(i + 1).padStart(2, "0") + " / " + slides.length;
+  $("progresso").style.width = ((i + 1) / slides.length * 100) + "%";
+  if(!$("notas").hidden) mostrarNotas();
+  try{ history.replaceState(null, "", "#" + (i + 1)); }catch(e){}
+}
+function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
+const prox = () => irPara(atual + 1), ant = () => irPara(atual - 1);
+$("b-prox").onclick = prox; $("b-ant").onclick = ant;
+$("b-notas").onclick = () => { $("notas").hidden = !$("notas").hidden; if(!$("notas").hidden) mostrarNotas(); };
+const telaCheia = () => { const d = document; (d.fullscreenElement ? d.exitFullscreen() : d.documentElement.requestFullscreen()).catch(() => {}); };
+$("b-tela").onclick = telaCheia;
+addEventListener("keydown", e => {
+  if(e.target.closest("button") && (e.key === " " || e.key === "Enter")) return;
+  const k = e.key;
+  if(["ArrowRight","PageDown"," "].includes(k)){ e.preventDefault(); prox(); }
+  else if(["ArrowLeft","PageUp"].includes(k)){ e.preventDefault(); ant(); }
+  else if(k === "Home") irPara(0);
+  else if(k === "End") irPara(slides.length - 1);
+  else if(k === "f" || k === "F") telaCheia();
+  else if(k === "n" || k === "N") $("b-notas").click();
+  else if(k === "r" || k === "R"){ if(slides[atual].id === "s4" && CENAS.sala) CENAS.sala.reiniciar(); if(slides[atual].id === "s9" && CENAS.cadeia) CENAS.cadeia.desfazer(); }
+});
+// barra some quando o mouse para
+let parado; addEventListener("pointermove", () => { $("barra").classList.remove("some"); clearTimeout(parado); parado = setTimeout(() => $("barra").classList.add("some"), 2500); });
+// arrastar gira a sala no slide 4; em outros slides, deslizar troca de slide
+let toque = null;
+palco.addEventListener("pointerdown", e => {
+  if(e.target.closest("button,video,a")) return;
+  toque = { x:e.clientX, y:e.clientY, t:performance.now() };
+  if(slides[atual].id === "s4" && CENAS.sala){ CENAS.sala.orb.arrastando = true; palco.setPointerCapture(e.pointerId); }
+});
+palco.addEventListener("pointermove", e => {
+  if(!toque || !(slides[atual].id === "s4" && CENAS.sala)) return;
+  const o = CENAS.sala.orb;
+  o.theta -= (e.movementX || 0) * .006 / escala;
+  o.phiAlvo = Math.max(.35, Math.min(1.35, o.phiAlvo - (e.movementY || 0) * .004 / escala));
+  o.ocioso = 0;
+});
+palco.addEventListener("pointerup", e => {
+  if(!toque) return;
+  const dx = e.clientX - toque.x, rapido = performance.now() - toque.t < 500;
+  if(slides[atual].id === "s4" && CENAS.sala){ CENAS.sala.orb.arrastando = false; }
+  else if(rapido && Math.abs(dx) > 60) (dx < 0 ? prox : ant)();
+  else if(slides[atual].id === "s11" && CENAS.carrossel) CENAS.carrossel.avancar(relogio);
+  toque = null;
+});
+palco.addEventListener("wheel", e => {
+  if(slides[atual].id !== "s4" || !CENAS.sala) return;
+  e.preventDefault(); const o = CENAS.sala.orb; o.rAlvo = Math.max(6, Math.min(22, o.rAlvo + e.deltaY * .01)); o.ocioso = 0;
+}, { passive:false });
+
+/* ======================================================================
+   Partida
+   ====================================================================== */
+gl = criarGL();
+addEventListener("resize", ajustar);
+ajustar();
+if(gl){
+  try{
+    CENAS.pontos = cenaPontos();
+    CENAS.sala = cenaSala();
+    CENAS.giro = cenaGiro();
+    CENAS.cadeia = cenaCadeia();
+    CENAS.carrossel = cenaCarrossel();
+  }catch(e){ console.error(e); gl = null; }
+}
+const inicial = parseInt((location.hash || "").slice(1), 10);
+irPara(Number.isFinite(inicial) ? inicial - 1 : 0);
+
+let antes = performance.now();
+function quadro(agora){
+  const dt = Math.min(.1, (agora - antes) / 1000); antes = agora; relogio += dt;
+  const slide = slides[atual];
+  for(const k in ANIM){ const a = ANIM[k]; const c = a.c || $(k); if(c && slide.contains(c)) a.fn(a.x ? a.x : relogio, relogio, dt); }
+  if(gl && cenaAtual){
+    cenaAtual.tick(relogio, dt);
+    const r = cenaAtual.reg;
+    gl.r.setViewport(r[0], H - r[1] - r[3], r[2], r[3]);
+    gl.r.setScissor(r[0], H - r[1] - r[3], r[2], r[3]);
+    gl.r.clear();
+    cenaAtual.cam.aspect = r[2] / r[3]; cenaAtual.cam.updateProjectionMatrix();
+    gl.r.render(cenaAtual.cena, cenaAtual.cam);
+  }
+  requestAnimationFrame(quadro);
+}
+requestAnimationFrame(quadro);
+</script>

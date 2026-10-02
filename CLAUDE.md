@@ -167,6 +167,24 @@ As três causas de "não responde", em ordem de frequência:
   sirene. `SERVICO_ARGS=--rosto` no `.env` passa argumentos. **Com o serviço
   rodando, não rode o `ir.sh` junto:** a porta 8080 já está ocupada.
 
+## O pitch (`Auditix-pitch.html`)
+
+Deck em HTML com three.js (`vendor/three/three.min.js`, r160, versionado: o
+laboratório não tem internet). 14 slides num palco 1920x1080 escalado; setas
+trocam, `F` tela cheia, `N` roteiro de fala, `R` repete a queda (slide 4) ou
+desfaz a adulteração (slide 9). Abrir com `pc pitch` (serve em 127.0.0.1:8090):
+pelo duplo clique as fontes de `vendor/fontes` não carregam.
+
+- Os dois dados de abertura têm fonte na tela: 15.759 episódios de violência
+  em escolas em 2024 (Anuário Brasileiro de Segurança Pública 2025, SINAN) e
+  mais de 55 mil internações de crianças por queda em 2025 (Criança Segura,
+  DataSUS). Não troque por número sem fonte.
+- O gráfico do slide 7 são quadros lidos do vídeo da queda real do laboratório.
+- A cadeia do slide 9 calcula SHA-256 de verdade, com a fórmula do servidor.
+- `ppt/pitch-imagens.js`: capturas do painel embutidas (sem rosto, versionado).
+- `ppt/midia/`: vídeos e fotos do laboratório, **fora do Git** (rosto de gente).
+  Arquivo que falta vira espaço tracejado com o nome esperado; `LEIA.txt` lista.
+
 ## A entrega dos alertas (`aibox/entrega.py`)
 
 O laço da análise **nunca espera a rede**: entrega o alerta numa fila e segue

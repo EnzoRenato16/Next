@@ -25,6 +25,7 @@ if /i "%1"=="enviar"   goto enviar
 if /i "%1"=="modelos"  goto modelos
 if /i "%1"=="entrar"   goto entrar
 if /i "%1"=="servidor" goto servidor
+if /i "%1"=="pitch"    goto pitch
 goto menu
 
 :menu
@@ -36,6 +37,7 @@ echo   pc enviar     copia o codigo (aibox e daten\app) para a caixa
 echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
+echo   pc pitch      abre a apresentacao (Auditix-pitch.html) no navegador
 echo.
 echo   A ordem de uma noite normal:  puxar -^> enviar -^> servidor (outra janela) -^> entrar
 echo.
@@ -174,6 +176,19 @@ set HOST=0.0.0.0
 set CALIBRACAO=1
 where uv >nul 2>&1
 if errorlevel 1 (python servidor.py) else (uv run servidor.py)
+goto fim
+
+:pitch
+echo.
+echo -- a apresentacao, servida so para este PC --
+echo    Pelo duplo clique as fontes nao carregam: o navegador barra fonte de
+echo    arquivo local. Por aqui carrega tudo, sem internet.
+echo    Teclas: setas trocam, F tela cheia, N roteiro de fala, R repete a queda.
+echo    Os videos ficam em ppt\midia (fora do Git). Feche a janela "pitch" no fim.
+where uv >nul 2>&1
+if errorlevel 1 (start "pitch" python -m http.server 8090 --bind 127.0.0.1) else (start "pitch" uv run python -m http.server 8090 --bind 127.0.0.1)
+timeout /t 3 /nobreak >nul
+start "" http://127.0.0.1:8090/Auditix-pitch.html
 goto fim
 
 :fim
