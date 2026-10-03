@@ -72,7 +72,28 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 /* ---------- 1. o dado ---------- */
 #s1::before{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
   background:linear-gradient(90deg, var(--noite) 0%, rgba(6,16,14,.92) 38%, rgba(6,16,14,0) 62%)}
-#s1 .col{width:860px;display:flex;flex-direction:column;gap:30px;margin-top:20px}
+#s1 .col{width:860px;display:flex;flex-direction:column;gap:22px;margin-top:-30px}
+#s1 .mega{font-size:220px}
+#s1 .lead{font-size:34px}
+#s1 .trio b{font-size:52px}
+.queda2{display:flex;align-items:center;gap:30px;padding-top:24px;border-top:1px solid var(--linha)}
+.queda2 > b{font-family:var(--f-display);font-weight:700;font-size:120px;line-height:.85;letter-spacing:-.045em;
+  white-space:nowrap;color:var(--ambar)}
+.queda2 p{margin:0;font-size:24px;line-height:1.38;color:var(--fraco)}
+.queda2 strong{color:var(--texto);font-weight:600}
+.fontes{display:flex;flex-direction:column;gap:2px}
+.fontes .fonte{font-size:16px}
+#s1 .parede{position:absolute;right:128px;bottom:110px;width:660px;flex:none;gap:16px;padding:22px 22px 18px;
+  border-radius:16px;background:rgba(4,11,9,.92);border:1px solid var(--linha);box-shadow:0 30px 90px rgba(0,0,0,.7)}
+#s1 .soco{font-size:32px;line-height:1.12}
+#s1 .monitores{box-shadow:none}
+#s1 .monitores{padding:10px;gap:7px}
+#s1 .mon .tag,#s1 .mon .rec{font-size:10px;left:6px;top:4px}
+#s1 .mon .rec{left:auto;right:6px}
+#s1 .mon .relogio{font-size:10px}
+#s1 .mon.alvo .ninguem{font-size:11px}
+#s1 .mon.alvo .relogio{display:none}
+#s1 .legenda3d{bottom:auto;top:104px;padding:6px 12px;border-radius:6px;background:rgba(4,11,9,.85)}
 .trio{display:grid;grid-template-columns:repeat(3,auto);gap:46px;margin-top:6px}
 .trio div{display:flex;flex-direction:column;gap:6px}
 .trio b{font-family:var(--f-display);font-size:64px;line-height:1;letter-spacing:-.03em;
@@ -83,10 +104,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   color:var(--fraco);letter-spacing:.06em;text-align:right;margin:0}
 .legenda3d i{font-style:normal;color:var(--rubi)}
 
-/* ---------- 2. quedas + parede de monitores ---------- */
-#s2{flex-direction:row;gap:80px;align-items:center}
-#s2 .col{width:760px;flex:none;display:flex;flex-direction:column;gap:28px}
-#s2 .mega{font-size:230px}
+/* ---------- parede de monitores (no slide 1) ---------- */
 .parede{flex:1;display:flex;flex-direction:column;gap:22px;min-width:0}
 .monitores{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:14px;
   background:#030807;border:1px solid var(--linha);border-radius:10px;
@@ -350,32 +368,29 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   <div id="rotulos" aria-hidden="true"></div>
 
   <!-- 1 -->
-  <section class="slide" id="s1" data-cena="pontos" aria-label="O dado">
+  <section class="slide" id="s1" data-cena="pontos" aria-label="Os dados">
     <div class="col">
-      <p class="olho rubi" data-r>Brasil, 2024 · dentro da escola</p>
+      <p class="olho rubi" data-r>Brasil · dentro da escola</p>
       <p class="mega" data-r style="--d:1"><span id="n1">15.759</span></p>
-      <p class="lead" data-r style="--d:2">episódios de violência notificados <b>dentro de escolas</b> brasileiras em um único ano.</p>
+      <p class="lead" data-r style="--d:2">episódios de violência notificados <b>dentro de escolas</b> brasileiras em 2024.</p>
       <div class="trio" data-r style="--d:3">
         <div><b>+23%</b><span>em relação a 2023</span></div>
         <div><b>43</b><span>por dia, em média</span></div>
         <div class="vermelho"><b id="n1b">7.786</b><span>agressões físicas, 49,4% do total</span></div>
       </div>
-      <p class="fonte" data-r style="--d:4">Anuário Brasileiro de Segurança Pública 2025, Fórum Brasileiro de Segurança Pública, a partir das notificações do SINAN/DataSUS.</p>
+      <div class="queda2" data-r style="--d:4">
+        <b><span id="n2">55</span> mil</b>
+        <p>internações de crianças e adolescentes por <strong>queda</strong> em 2025. A principal causa de internação por acidente até os 14 anos, <strong>pelo décimo ano seguido</strong>.</p>
+      </div>
+      <div class="fontes" data-r style="--d:5">
+        <p class="fonte">Anuário Brasileiro de Segurança Pública 2025 (FBSP), notificações do SINAN/DataSUS.</p>
+        <p class="fonte">Projeto Criança Segura (Aldeias Infantis SOS), dados do DataSUS, 2025.</p>
+      </div>
     </div>
     <p class="legenda3d">cada ponto é um episódio de 2024 · <i>em vermelho, agressão física</i></p>
-  </section>
-
-  <!-- 2 -->
-  <section class="slide" id="s2" aria-label="Quedas">
-    <div class="col">
-      <p class="olho" data-r>E quando alguém cai?</p>
-      <p class="mega" data-r style="--d:1"><span id="n2">55</span>&nbsp;mil</p>
-      <p class="lead" data-r style="--d:2">internações de crianças e adolescentes por <b>queda</b> no Brasil em 2025. É a principal causa de internação por acidente até os 14 anos, <b>pelo décimo ano seguido</b>.</p>
-      <p class="fonte" data-r style="--d:3">Projeto Criança Segura (Aldeias Infantis SOS), a partir de dados do DataSUS, 2025.</p>
-    </div>
-    <div class="parede" data-r style="--d:2">
-      <div class="monitores" id="monitores"></div>
+    <div class="parede" data-r style="--d:3">
       <p class="soco">Câmera comum grava tudo e não avisa ninguém.<br><span>O socorro precisa ser agora, não depois.</span></p>
+      <div class="monitores" id="monitores"></div>
     </div>
   </section>
 
@@ -641,8 +656,7 @@ const dec = (n, c=2) => n.toFixed(c).replace(".", ",");
 
 /* Roteiro de fala, um por slide (tecla N). */
 const NOTAS = [
-  "Abrir com o número, em silêncio por dois segundos. 15.759 episódios de violência dentro de escolas em 2024, 43 por dia. Quase metade foi agressão física. Cada ponto da tela é um caso.",
-  "E não é só violência. Queda é a principal causa de internação de criança por acidente no país, há dez anos. A maioria das escolas que tem câmera só descobre depois, assistindo à gravação. O problema é tempo.",
+  "Abrir com o número, em silêncio por dois segundos. 15.759 episódios de violência dentro de escolas em 2024, 43 por dia. Quase metade foi agressão física: cada ponto vermelho é um caso. E não é só violência: 55 mil crianças internadas por queda, a principal causa de internação por acidente há dez anos. A escola tem câmera, mas a câmera só grava. O problema é tempo.",
   "Por isso o Auditix. Ele roda dentro da AIBOX, ao lado da câmera, e transforma a câmera que só grava numa câmera que avisa.",
   "Arrastem a sala. Cada pessoa vira 17 pontos. Primeiro uma queda: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel. Depois uma corrida, que vira aviso em âmbar, sem sirene. Depois uma briga, dois impulsos encostados, alerta grave com sirene. Corrida e briga são regra, e a tela diz isso. Os botões embaixo pulam direto para cada uma.",
   "O caminho inteiro. O vídeo vai da câmera até a caixa e para ali. O que sai da AIBOX é número: um alerta com a prova em pontos, uns 8 KB. O servidor encadeia o alerta e o painel toca a sirene.",
@@ -850,7 +864,7 @@ function cenaPontos(){
         gl_FragColor = vec4(cor, a * vVis * (.5 + .3*vRed));
       }` });
   const pts = new THREE.Points(geo, mat);
-  pts.position.set(6.4, -.1, -1.5); pts.rotation.set(-.1, -.72, 0); pts.scale.setScalar(.82);
+  pts.position.set(6.4, 1.3, -1.5); pts.rotation.set(-.1, -.72, 0); pts.scale.setScalar(.82);
   cena.add(pts);
   let t0 = 0;
   return { cena, cam, reg:[0, 0, W, H],
@@ -863,6 +877,7 @@ function cenaPontos(){
         u.uVerm.value = easeIO((e - 3.0) / 1.8);
         $("n1").textContent = fmt(15759 * easeIO(e / 2.6));
         $("n1b").textContent = fmt(7786 * easeIO((e - 3.0) / 1.8));
+        $("n2").textContent = fmt(55 * easeIO((e - 3.4) / 1.6));
       }
       pts.rotation.y = -.72 + Math.sin(t*.12)*.05;
     } };
@@ -1639,10 +1654,10 @@ function contar(){
 }
 function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
 /* ---- MODO 5 MINUTOS ----------------------------------------------------
-   11 dos 14 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
+   10 dos 13 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
    quando ele pesa mais. Os outros 3 (como funciona, o que detecta
    e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
-const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s11","s9","s8","s8b","s13"];
+const CURTO_IDS = ["s1","s3","s4","s10","s10b","s11","s9","s8","s8b","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
 try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}
