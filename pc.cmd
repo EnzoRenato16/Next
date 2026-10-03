@@ -184,7 +184,7 @@ echo -- a apresentacao, servida so para este PC --
 echo    Pelo duplo clique as fontes nao carregam: o navegador barra fonte de
 echo    arquivo local. Por aqui carrega tudo, sem internet.
 echo    Abre no MODO 5 MIN (10 slides). M volta ao deck completo.
-echo    Teclas: setas trocam, F tela cheia, N roteiro de fala, R repete a queda,
+echo    Teclas: setas trocam, F tela cheia, N roteiro de fala, R repete o evento,
 echo    numero + Enter abre qualquer slide (para as perguntas), T zera o tempo.
 echo    Os videos ficam em ppt\midia (fora do Git). Feche a janela "pitch" no fim.
 where uv >nul 2>&1

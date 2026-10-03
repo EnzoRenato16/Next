@@ -150,6 +150,14 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   background:rgba(90,10,26,.92);border:1px solid var(--rubi);box-shadow:0 0 60px rgba(255,77,106,.35);
   font-family:var(--f-dado);font-size:24px;color:#FFE2E7;letter-spacing:.04em}
 .alerta b{font-family:var(--f-display);font-size:40px;letter-spacing:-.01em;color:#fff}
+.alerta.aviso{background:rgba(70,48,8,.92);border-color:var(--ambar);box-shadow:0 0 60px rgba(244,194,107,.3);color:#FFF1D6}
+.rot.ambar{color:#FFF1D6;border-color:var(--ambar);background:rgba(70,48,8,.85)}
+.feed li.aviso{border-color:rgba(244,194,107,.6);color:#FFF1D6;background:rgba(60,42,8,.65)}
+.atos{display:flex;gap:8px}
+.atos button{font-family:var(--f-dado);font-size:18px;letter-spacing:.06em;padding:8px 18px;border-radius:999px;
+  background:rgba(12,27,23,.78);border:1px solid var(--linha);color:var(--fraco);cursor:pointer}
+.atos button:hover{color:var(--texto)}
+.atos button.on{background:var(--menta);border-color:var(--menta);color:var(--noite)}
 
 /* ---------- 5. pipeline ---------- */
 .fluxo{position:relative;flex:1;margin-top:10px}
@@ -206,14 +214,30 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 /* ---------- 8. privacidade ---------- */
 .tres{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;flex:1;min-height:0}
 .priv{display:flex;flex-direction:column;gap:14px}
-.priv .tela{height:380px;border:1px solid var(--linha);border-radius:16px;background:#07120F;
+.priv .tela{height:230px;border:1px solid var(--linha);border-radius:16px;background:#07120F;
   position:relative;overflow:hidden}
-.priv .tela canvas{width:100%;height:100%;display:block}
+.priv .tela canvas{width:100%;height:100%;display:block;object-fit:contain}
 .priv .tela .medida{position:absolute;left:16px;right:16px;bottom:14px;font-family:var(--f-dado);
   font-size:17px;color:var(--fraco);display:flex;justify-content:space-between;gap:10px}
 .priv .tela .medida b{color:var(--menta);font-weight:500}
-.priv h3{font-family:var(--f-display);font-size:38px;margin:0;letter-spacing:-.02em}
-.priv p{margin:0;font-size:21px;line-height:1.45;color:var(--fraco)}
+.priv h3{font-family:var(--f-display);font-size:32px;margin:0;letter-spacing:-.02em}
+.priv p{margin:0;font-size:19px;line-height:1.4;color:var(--fraco)}
+#s8{gap:20px}
+#s8 h2{font-size:62px}
+#s8 .tres{flex:none;gap:24px}
+#s8 .priv{gap:10px}
+.lgpd{display:grid;grid-template-columns:270px 1fr;gap:26px;padding:20px 22px;border-radius:16px;
+  border:1px solid rgba(95,224,181,.35);background:linear-gradient(90deg,rgba(95,224,181,.08),rgba(12,27,23,.5))}
+.lgpd-tit{display:flex;flex-direction:column;gap:10px}
+.lgpd-tit .selo{align-self:flex-start;font-family:var(--f-dado);font-size:20px;letter-spacing:.16em;
+  padding:4px 12px;border-radius:6px;background:var(--menta);color:var(--noite);font-weight:500}
+.lgpd-tit h3{font-family:var(--f-display);font-size:30px;line-height:1.05;margin:0;letter-spacing:-.02em}
+.lgpd-tit p{margin:0;font-size:17px;line-height:1.4;color:var(--fraco)}
+.lgpd ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px}
+.lgpd li{padding:10px 12px;border-radius:10px;background:rgba(6,16,14,.55);border:1px solid var(--linha)}
+.lgpd li b{font-family:var(--f-dado);font-weight:500;font-size:17px;color:var(--menta)}
+.lgpd li span{font-family:var(--f-dado);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--fraco);margin-left:8px}
+.lgpd li p{margin:5px 0 0;font-size:16px;line-height:1.35;color:var(--texto)}
 .priv p b{color:var(--texto);font-weight:600}
 .faixa{font-family:var(--f-display);font-size:40px;letter-spacing:-.015em;margin:0}
 
@@ -369,19 +393,22 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   <section class="slide" id="s4" data-cena="sala" aria-label="A sala em 360 graus">
     <div class="topo">
       <p class="olho" data-r>Sala 12 · vista 360°</p>
-      <h2 data-r style="--d:1">Cada corpo vira 17 pontos. O Auditix olha todos, o tempo todo.</h2>
+      <h2 data-r style="--d:1">Cada corpo vira 17 pontos. Queda, corrida e briga, ao vivo.</h2>
     </div>
-    <div class="alerta" id="alerta4" hidden><span>▲ ALERTA GRAVE</span><b>queda</b><span id="alerta4t">sala-12 · corpo-4</span></div>
+    <div class="alerta" id="alerta4" hidden><span id="alerta4k">▲ ALERTA GRAVE</span><b id="alerta4b">queda</b><span id="alerta4t">sala-12 · corpo-4</span></div>
     <div class="hud">
+      <div class="atos" id="atos" role="group" aria-label="Escolher o evento">
+        <button class="on">queda</button><button>corrida</button><button>briga</button>
+      </div>
       <span class="vivo">ao vivo · AIBOX</span>
       <div class="leituras">
-        <div><b id="h-pessoas">5</b><span>pessoas</span></div>
+        <div><b id="h-pessoas">8</b><span>pessoas</span></div>
         <div><b>8,7</b><span>quadros/s</span></div>
-        <div><b id="h-nota">0,02</b><span>nota da queda</span></div>
+        <div><b id="h-nota">0,02</b><span id="h-nota-r">nota da queda</span></div>
       </div>
       <ul class="feed" id="feed"></ul>
     </div>
-    <p class="dica">arraste para girar a sala<br><kbd>R</kbd> repete a queda</p>
+    <p class="dica">arraste para girar a sala<br>clique em queda, corrida ou briga<br><kbd>R</kbd> repete o evento</p>
   </section>
 
   <!-- 5 -->
@@ -464,7 +491,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 
   <!-- 8 -->
   <section class="slide" id="s8" data-cena="giro" aria-label="Privacidade">
-    <p class="olho" data-r>Privacidade desde o projeto</p>
+    <p class="olho" data-r>Privacidade e LGPD desde o projeto</p>
     <h2 data-r style="--d:1">Vê o corpo. Não guarda o rosto.</h2>
     <div class="tres" data-r style="--d:2">
       <div class="priv">
@@ -484,6 +511,20 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
         <h3>Foto só com mosaico</h3>
         <p>Quando o navegador manda foto, a cabeça sobe em <b>mosaico</b>. Desfoque ainda deixa reconhecer. Mosaico não.</p>
       </div>
+    </div>
+    <div class="lgpd" data-r style="--d:3">
+      <div class="lgpd-tit"><span class="selo">LGPD</span><h3>Lei 13.709, artigo por artigo</h3>
+        <p>Cada item é código rodando hoje, não promessa.</p></div>
+      <ul>
+        <li><b>Art. 6º, III</b><span>necessidade</span><p>O vídeo não sai da sala. Da AIBOX sai só o alerta e 17 pontos por corpo.</p></li>
+        <li><b>Art. 11</b><span>dado sensível</span><p>Rosto só de quem se cadastrou, com prova de vida. Reconhecimento vem desligado.</p></li>
+        <li><b>Art. 14</b><span>criança</span><p>Mede postura, não identidade. Pedido de ajuda nunca guarda imagem.</p></li>
+        <li><b>Art. 15 e 16</b><span>fim do tratamento</span><p>O cadastro se apaga sozinho em 365 dias. A foto do alerta, em 7.</p></li>
+        <li><b>Art. 18, IX</b><span>revogar</span><p>Botão remover: a biometria para de valer na hora, e o registro de que existiu fica.</p></li>
+        <li><b>Art. 37</b><span>registro</span><p>Quem abriu a foto de quem, e quando: cada acesso vira uma linha.</p></li>
+        <li><b>Art. 46</b><span>segurança</span><p>Chave fora do banco, e a caixa nunca guarda cadastro: manda números, recebe um nome.</p></li>
+        <li><b>Art. 6º, X</b><span>prestação de contas</span><p>Cadeia SHA-256: apagar ou trocar um alerta quebra todos os seguintes.</p></li>
+      </ul>
     </div>
   </section>
 
@@ -598,7 +639,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 "use strict";
 /* ======================================================================
    Pitch Auditix IA. Setas, espaço ou clique nos botões para navegar.
-   F tela cheia · N roteiro de fala · R repete a queda (slide 4) ou desfaz (slide 9)
+   F tela cheia · N roteiro de fala · R repete o evento (slide 4) ou desfaz (slide 9)
    M alterna modo 5 min / deck completo · número + Enter abre qualquer slide · T zera o tempo
    ====================================================================== */
 const $ = id => document.getElementById(id);
@@ -616,11 +657,11 @@ const NOTAS = [
   "Abrir com o número, em silêncio por dois segundos. 15.759 episódios de violência dentro de escolas em 2024, 43 por dia. Quase metade foi agressão física. Cada ponto da tela é um caso.",
   "E não é só violência. Queda é a principal causa de internação de criança por acidente no país, há dez anos. A maioria das escolas que tem câmera só descobre depois, assistindo à gravação. O problema é tempo.",
   "Por isso o Auditix. Ele roda dentro da AIBOX, ao lado da câmera, e transforma a câmera que só grava numa câmera que avisa.",
-  "Arrastem a sala. Cada pessoa vira 17 pontos. Daqui a pouco uma delas cai: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel.",
+  "Arrastem a sala. Cada pessoa vira 17 pontos. Primeiro uma queda: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel. Depois uma corrida, que vira aviso em âmbar, sem sirene. Depois uma briga, dois impulsos encostados, alerta grave com sirene. Corrida e briga são regra, e a tela diz isso. Os botões embaixo pulam direto para cada uma.",
   "O caminho inteiro. O vídeo vai da câmera até a caixa e para ali. O que sai da AIBOX é número: um alerta com a prova em pontos, uns 8 KB. O servidor encadeia o alerta e o painel toca a sirene.",
   "Quatro situações. Queda é modelo treinado, com 4.509 clipes. Corrida e briga são regra, e a gente diz isso na tela. E se alguém tampar a câmera ou a caixa cair, o sistema avisa que ficou cego.",
   "Isso foi medido no laboratório. Uma queda real: a nota sai de 0,01 e chega a 0,98 em pouco mais de um segundo. Antes de uma correção que fizemos, essa linha era zero o tempo todo. E 12 segundos da queda #79 até alguém ficar ciente.",
-  "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
+  "Privacidade e LGPD. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco, e a foto, quando existe, sobe com a cabeça em mosaico. Embaixo, a lei artigo por artigo: necessidade, dado sensível, criança, prazo que se cumpre sozinho, direito de revogar, registro de quem viu, segurança e prestação de contas. Tudo isso é código rodando, não promessa.",
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
@@ -723,6 +764,11 @@ const POSE = {
   anda: f => { const s = Math.sin(f)*.38; return { quadril:.93 + Math.abs(Math.cos(f))*.02,
     coxaE:s, canelaE:s - Math.max(0, -Math.sin(f))*.5, coxaD:-s, canelaD:-s - Math.max(0, Math.sin(f))*.5,
     bracoE:-s*.8, bracoD:s*.8, cotE:.3, cotD:.3, abreE:.08, abreD:.08 }; },
+  corre: f => { const s = Math.sin(f)*.75; return { quadril:.9 + Math.abs(Math.cos(f))*.04,
+    coxaE:s, canelaE:s - Math.max(0, -Math.sin(f))*1.1, coxaD:-s, canelaD:-s - Math.max(0, Math.sin(f))*1.1,
+    bracoE:-s*1.1, bracoD:s*1.1, cotE:1.4, cotD:1.4, abreE:.1, abreD:.1, inclina:.22 }; },
+  guarda: () => ({ quadril:.9, coxaE:.25, canelaE:-.3, coxaD:-.15, canelaD:-.1, bracoE:.75, bracoD:.65,
+    cotE:1.7, cotD:1.6, abreE:.25, abreD:.25, inclina:.08 }),
   senta: f => ({ quadril:.5, coxaE:Math.PI/2, canelaE:0, coxaD:Math.PI/2, canelaD:.05,
     bracoE:1.05 + Math.sin(f)*.04, bracoD:1.0 + Math.cos(f*1.3)*.05, cotE:.35, cotD:.4, abreE:.05, abreD:.05, inclina:.12 }),
 };
@@ -904,25 +950,65 @@ function cenaSala(){
     { nome:"#3", tipo:"senta", x:MESAS[7][0], z:MESAS[7][1], rot:Math.PI, f:2.1 },
     { nome:"#5", tipo:"anda", x:0, z:0, rot:0, f:0 },
     { nome:"#4", tipo:"pe", x:1.7, z:-3.5, rot:.4, f:0, cai:true },
+    { nome:"#6", tipo:"pe", x:-1.55, z:4.1, rot:Math.PI, f:.7, corre:true },
+    { nome:"#7", tipo:"pe", x:-.45, z:-3.45, rot:Math.PI/2, f:1.9, briga:1 },
+    { nome:"#8", tipo:"pe", x:.45, z:-3.45, rot:-Math.PI/2, f:2.6, briga:-1 },
   ];
   for(const p of P){
     p.esq = criarEsqueleto(cena);
     p.rot0 = p.rot;
     p.el = document.createElement("div"); p.el.className = "rot";
   }
-  const queda = P[4];
+  const queda = P[4], corredor = P[5], brigaA = P[6], brigaB = P[7];
 
-  // o roteiro da queda, em segundos desde a entrada no slide 4
-  let simT = 0, simAtivo = false, ultimo = -1, alvoX = -5.2;
-  const ROTEIRO = [
-    [ .8, "", "5 pessoas na sala, 1 reconhecida"],
-    [ 4.6, "", "#4 perdeu o equilíbrio"],
-    [ 5.15, "grave", "queda armada · geometria"],
-    [ 5.55, "grave", "rede de queda: 0,98 (limiar 0,50)"],
-    [ 6.4, "grave", "alerta enviado · corpo-4 · 1,2 s no chão"],
-    [ 7.3, "", "painel: sirene tocando"],
-    [ 10.8, "ok", "Estou ciente · 4,4 s · elo #72 gravado"],
+  /* TRÊS ATOS, um depois do outro, em laço: queda, corrida, briga.
+     Os números do feed são os limiares de verdade de aibox/regras.py
+     (CORRE_VEL 1,20 alturas/s por 600 ms; BRIGA_GOLPE 1,80 alturas/s,
+     2 impulsos em 2,5 s, 600 ms encostados). Corrida não é GRAVE no
+     servidor: vira aviso, sem sirene e sem e-mail. Briga é GRAVE. */
+  const ATOS = [
+    { nome:"queda", fim:13.5, selo:"▲ ALERTA GRAVE", quem:"sala-12 · corpo-4", cor:"rubi", alerta:[6.4, 10.8],
+      leitura:"nota da queda", roteiro:[
+      [ .8, "", "8 pessoas na sala, 1 reconhecida"],
+      [ 4.6, "", "#4 perdeu o equilíbrio"],
+      [ 5.15, "grave", "queda armada · geometria"],
+      [ 5.55, "grave", "rede de queda: 0,98 (limiar 0,50)"],
+      [ 6.4, "grave", "alerta enviado · corpo-4 · 1,2 s no chão"],
+      [ 7.3, "", "painel: sirene tocando · e-mail"],
+      [ 10.8, "ok", "Estou ciente · 4,4 s · elo #72 gravado"],
+    ]},
+    { nome:"corrida", fim:9.5, selo:"▲ AVISO", quem:"sala-12 · corpo-6", cor:"ambar", alerta:[3.7, 8.2],
+      leitura:"alturas/s", roteiro:[
+      [ .6, "", "#6 em pé, na frente da sala"],
+      [ 2.0, "", "#6 acelerou"],
+      [ 2.6, "aviso", "velocidade 1,9 alturas/s (limiar 1,20)"],
+      [ 3.2, "aviso", "corrida: 600 ms acima, corpo em pé"],
+      [ 3.7, "aviso", "aviso enviado · corpo-6 · corrida"],
+      [ 4.6, "", "corrida é regra: aviso no painel, sem sirene"],
+      [ 7.6, "ok", "elo #73 gravado na cadeia"],
+    ]},
+    { nome:"briga", fim:12.5, selo:"▲ ALERTA GRAVE", quem:"sala-12 · corpos 7 e 8", cor:"rubi", alerta:[4.0, 9.6],
+      leitura:"impulsos em 2,5 s", roteiro:[
+      [ .6, "", "#7 e #8 frente a frente, 0,9 altura"],
+      [ 2.0, "", "#7 avançou o punho: 2,4 alturas/s"],
+      [ 2.7, "grave", "#8 revidou · 2 impulsos encostados"],
+      [ 3.4, "grave", "briga armada · é regra, não modelo"],
+      [ 4.0, "grave", "alerta enviado · corpos 7 e 8"],
+      [ 4.9, "", "painel: sirene tocando · e-mail"],
+      [ 9.6, "ok", "Estou ciente · 5,6 s · elo #74 gravado"],
+    ]},
   ];
+  // os socos: [quem, instante]; o pico é 0,15 s depois
+  const SOCOS = [[1, 2.0], [-1, 2.6], [1, 3.15], [-1, 3.7], [1, 4.3], [-1, 4.9], [1, 5.6], [-1, 6.3]];
+  const soco = (lado, lt) => {
+    let k = 0;
+    for(const [q, t0] of SOCOS) if(q === lado){ const u = (lt - t0) / .34; if(u > 0 && u < 1) k = Math.max(k, Math.sin(u * Math.PI)); }
+    return k;
+  };
+  const impulsos = lt => { let n = 0; for(const [, t0] of SOCOS) if(lt >= t0 + .15 && lt - t0 - .15 < 2.5) n++; return n; };
+
+  // o tempo da simulação: ato atual e tempo dentro dele
+  let ato = 0, lt = 0, simAtivo = false, ultimo = -1, alvoX = -5.2;
   const feed = $("feed");
   function narrar(cls, txt, t){
     const li = document.createElement("li"); if(cls) li.className = cls;
@@ -930,7 +1016,19 @@ function cenaSala(){
     li.lastChild.textContent = txt;
     feed.appendChild(li); while(feed.children.length > 5) feed.firstChild.remove();
   }
-  function reiniciar(){ simT = 0; ultimo = -1; feed.textContent = ""; $("alerta4").hidden = true; }
+  function mostrarAlerta(on){
+    const A = ATOS[ato], el = $("alerta4");
+    el.hidden = !on;
+    el.classList.toggle("aviso", A.cor === "ambar");
+    $("alerta4k").textContent = A.selo; $("alerta4b").textContent = A.nome; $("alerta4t").textContent = A.quem;
+  }
+  function irAto(i){
+    ato = (i + ATOS.length) % ATOS.length; lt = 0; ultimo = -1; feed.textContent = ""; mostrarAlerta(false);
+    $("h-nota-r").textContent = ATOS[ato].leitura;
+    document.querySelectorAll("#atos button").forEach((b, k) => b.classList.toggle("on", k === ato));
+  }
+  const reiniciar = () => irAto(ato);
+  document.querySelectorAll("#atos button").forEach((b, k) => b.addEventListener("click", () => irAto(k)));
 
   function notaQueda(t){
     // a curva medida no laboratório, colocada no tempo do roteiro
@@ -940,11 +1038,19 @@ function cenaSala(){
     }
     return .02;
   }
+  // o corredor: sobe o corredor entre as mesas, da frente até o fundo, e volta
+  const IDA = 2.0, VOLTA = 4.2, CHEGA = 6.4, Z0 = 4.1, Z1 = -2.9;
+  function corrida(t){
+    if(t < IDA || t > CHEGA) return { z:Z0, rot:Math.PI, m:0 };
+    const ida = t < VOLTA, u = ida ? (t - IDA) / (VOLTA - IDA) : (t - VOLTA) / (CHEGA - VOLTA);
+    const m = Math.min(1, (t - IDA) / .35, (CHEGA - t) / .35);
+    return { z: ida ? Z0 + (Z1 - Z0)*u : Z1 + (Z0 - Z1)*u, rot: ida ? Math.PI : 0, m };
+  }
 
   const reg = [0, 0, W, H];
   return { cena, cam, reg, orb,
     entrar(t, slide){
-      if(slide === "s4"){ orb.rAlvo = 12; orb.phiAlvo = .98; alvoX = 0; cena.fog.near = 16; cena.fog.far = 42; simAtivo = true; reiniciar(); }
+      if(slide === "s4"){ orb.rAlvo = 12; orb.phiAlvo = .98; alvoX = 0; cena.fog.near = 16; cena.fog.far = 42; simAtivo = true; irAto(0); }
       else { orb.rAlvo = 19; orb.phiAlvo = 1.1; alvoX = -5.2; cena.fog.near = 12; cena.fog.far = 34; simAtivo = false; }
       $("rotulos").replaceChildren(...(simAtivo ? P.map(p => p.el) : []));
     },
@@ -959,12 +1065,15 @@ function cenaSala(){
       if(!orb.arrastando && orb.ocioso > 2.5 && !REDUZ) orb.theta += dt * .07;
       orb.aplicar(cam);
       // tempo da simulação
-      if(simAtivo){ simT += dt; if(simT > 16.5) reiniciar(); }
-      const st = simAtivo ? simT : (t % 4);
-      for(let i = 0; i < ROTEIRO.length; i++) if(simAtivo && i > ultimo && st >= ROTEIRO[i][0]){
-        ultimo = i; narrar(ROTEIRO[i][1], ROTEIRO[i][2], ROTEIRO[i][0]);
-        if(i === 4){ $("alerta4").hidden = false; }
-        if(i === 6){ $("alerta4").hidden = true; }
+      if(simAtivo){ lt += dt; if(lt > ATOS[ato].fim) irAto(ato + 1); }
+      const A = ATOS[ato], nome = simAtivo ? A.nome : "";
+      const tq = nome === "queda" ? lt : 0, tc = nome === "corrida" ? lt : 0, tb = nome === "briga" ? lt : 0;
+      if(simAtivo) for(let i = 0; i < A.roteiro.length; i++) if(i > ultimo && lt >= A.roteiro[i][0]){
+        ultimo = i; narrar(A.roteiro[i][1], A.roteiro[i][2], A.roteiro[i][0]);
+      }
+      if(simAtivo){
+        const on = lt >= A.alerta[0] && lt < A.alerta[1];
+        if(on === $("alerta4").hidden) mostrarAlerta(on);
       }
       // poses
       for(const p of P){
@@ -974,12 +1083,25 @@ function cenaSala(){
           const a = t * .32; x = Math.cos(a) * 4.8; z = Math.sin(a) * 1.1 + .7;
           rot = Math.atan2(-Math.sin(a) * 4.8, Math.cos(a) * 1.1); o = POSE.anda(t * 5.2);
         } else {
-          o = POSE.pe(); o.bracoD = .05 + Math.sin(t*1.3)*.04;
-          if(p.cai && simAtivo){
-            const desce = ease((st - 4.6) / .75), levanta = ease((st - 12.2) / 1.4);
+          o = POSE.pe(); o.bracoD = .05 + Math.sin(t*1.3 + p.f)*.04;
+          if(p.cai){
+            const desce = ease((tq - 4.6) / .75), levanta = ease((tq - 12.2) / 1.4);
             const d = Math.max(0, desce - levanta);
             o.deita = d; o.coxaE = o.coxaD = d * .5 * (1 - d*.6); o.canelaE = o.canelaD = -d*.3;
             o.bracoE = .05 + d*1.6; o.bracoD = .05 + d*1.2; o.abreE = .12 + d*.6;
+          }
+          if(p.corre){
+            const c = corrida(tc); z = c.z; rot = c.rot;
+            if(c.m > 0) o = misturar(o, POSE.corre(t * 11), c.m);
+          }
+          if(p.briga){
+            // guarda alta enquanto a briga dura; soco estica o braço e avança o corpo
+            const g = ease((tb - 1.2) / .5) * (1 - ease((tb - 7.6) / .8));
+            const k = soco(p.briga, tb), levou = soco(-p.briga, tb);
+            o = misturar(o, POSE.guarda(), g);
+            o.bracoD = o.bracoD + (1.55 - o.bracoD) * k; o.cotD = o.cotD * (1 - k);
+            o.inclina = (o.inclina || 0) + k*.22 - levou*.18;
+            x += p.briga * (k*.12 - levou*.08) - p.briga * ease((tb - 7.6) / .8) * .45;
           }
         }
         const J = poseLocal(o);
@@ -988,15 +1110,28 @@ function cenaSala(){
         p.esq.pose(J);
         p.cabeca = J[0];
       }
-      // estado da queda
-      const nota = simAtivo ? notaQueda(st) : .02;
-      const armada = simAtivo && st > 5.15 && st < 12.6;
-      queda.esq.cor(armada ? COR.rubi : COR.menta);
-      $("h-nota").textContent = dec(nota);
-      $("h-nota").style.color = nota >= .5 ? CSS.rubi : "";
-      anel.position.set(queda.cabeca.x, .02, queda.cabeca.z);
-      if(armada && st > 6.4){
-        const ph = ((st - 6.4) % 1.4) / 1.4;
+      // leituras e cores de cada ato
+      const nota = notaQueda(tq);
+      const vel = corrida(tc).m * (1.9 + Math.sin(t*9)*.06) + .04;
+      const imp = impulsos(tb);
+      const qArm = nome === "queda" && tq > 5.15 && tq < 12.6;
+      const cArm = nome === "corrida" && tc > 2.6 && tc < 6.6;
+      const bArm = nome === "briga" && tb > 2.7 && tb < 8.2;
+      queda.esq.cor(qArm ? COR.rubi : COR.menta);
+      corredor.esq.cor(cArm ? COR.ambar : COR.menta);
+      brigaA.esq.cor(bArm ? COR.rubi : COR.menta); brigaB.esq.cor(bArm ? COR.rubi : COR.menta);
+      const hn = $("h-nota");
+      if(nome === "corrida"){ hn.textContent = dec(vel); hn.style.color = vel >= 1.2 ? CSS.ambar : ""; }
+      else if(nome === "briga"){ hn.textContent = String(imp); hn.style.color = imp >= 2 ? CSS.rubi : ""; }
+      else { hn.textContent = dec(nota); hn.style.color = nota >= .5 ? CSS.rubi : ""; }
+      // anel no chão sob quem disparou, depois que o alerta saiu
+      let foco = null, t0 = 0;
+      if(qArm && tq > 6.4){ foco = queda.cabeca; t0 = 6.4; anel.material.color.setHex(COR.rubi); }
+      else if(cArm && tc > 3.7){ foco = corredor.cabeca; t0 = 3.7; anel.material.color.setHex(COR.ambar); }
+      else if(bArm && tb > 4.0){ foco = brigaA.cabeca.clone().add(brigaB.cabeca).multiplyScalar(.5); t0 = 4.0; anel.material.color.setHex(COR.rubi); }
+      if(foco){
+        const ph = ((lt - t0) % 1.4) / 1.4;
+        anel.position.set(foco.x, .02, foco.z);
         anel.scale.setScalar(1 + ph * 4); anel.material.opacity = (1 - ph) * .8;
       } else anel.material.opacity = 0;
       // rótulos sobre as cabeças
@@ -1004,10 +1139,13 @@ function cenaSala(){
         const pr = projetar(p.cabeca.clone().add(new THREE.Vector3(0, .42, 0)), cam, reg);
         p.el.style.left = pr.x + "px"; p.el.style.top = pr.y + "px";
         p.el.hidden = pr.atras;
-        const n = p === queda ? nota : .01 + (Math.sin(t*2 + p.f) + 1) * .01;
-        const vermelho = p === queda && armada;
-        p.el.className = "rot" + (vermelho ? " rubi" : "");
-        p.el.innerHTML = `<b></b>${dec(n)}`; p.el.firstChild.textContent = vermelho ? p.nome + " QUEDA" : p.nome;
+        let n = .01 + (Math.sin(t*2 + p.f) + 1) * .01, marca = "", cls = "";
+        if(p === queda){ n = nota; if(qArm){ marca = " QUEDA"; cls = " rubi"; } }
+        if(p === corredor && cArm){ marca = " CORRIDA"; cls = " ambar"; }
+        if((p === brigaA || p === brigaB) && bArm){ marca = " BRIGA"; cls = " rubi"; }
+        p.el.className = "rot" + cls;
+        const val = p === corredor && cArm ? dec(vel) + " alt/s" : (p === brigaA || p === brigaB) && bArm ? imp + " impulsos" : dec(n);
+        p.el.innerHTML = `<b></b>${val}`; p.el.firstChild.textContent = p.nome + marca;
       }
     } };
 }
