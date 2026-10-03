@@ -191,25 +191,6 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 .cego .chip{font-family:var(--f-dado);font-size:17px;padding:6px 12px;border-radius:6px;
   background:rgba(244,194,107,.12);color:var(--ambar)}
 
-/* ---------- 7. medido ---------- */
-#s7 .grade{display:grid;grid-template-columns:1.25fr 1fr;gap:56px;flex:1;min-height:0}
-.grafico{position:relative;background:var(--painel);border:1px solid var(--linha);border-radius:16px;
-  padding:24px 28px 18px;display:flex;flex-direction:column;gap:6px}
-.grafico h3{font-family:var(--f-dado);font-weight:400;font-size:18px;letter-spacing:.12em;
-  text-transform:uppercase;color:var(--fraco);margin:0}
-.grafico svg{flex:1;width:100%}
-.grafico .leg{display:flex;gap:26px;font-size:18px;color:var(--fraco);flex-wrap:wrap}
-.grafico .leg span::before{content:"";display:inline-block;width:22px;height:3px;margin-right:8px;
-  vertical-align:middle;background:var(--menta)}
-.grafico .leg .antes::before{background:repeating-linear-gradient(90deg,var(--fraco) 0 5px,transparent 5px 9px)}
-.grafico .leg .lim::before{background:repeating-linear-gradient(90deg,var(--ambar) 0 8px,transparent 8px 13px)}
-.kpis{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-content:start}
-.kpi{padding:22px 24px;border-radius:14px;border:1px solid var(--linha);background:rgba(12,27,23,.6);
-  display:flex;flex-direction:column;gap:8px}
-.kpi b{font-family:var(--f-display);font-size:70px;line-height:.95;letter-spacing:-.035em;
-  font-variant-numeric:tabular-nums}
-.kpi b small{font-size:30px;letter-spacing:0;margin-left:4px;color:var(--fraco);font-weight:600}
-.kpi span{font-size:19px;line-height:1.4;color:var(--fraco)}
 
 /* ---------- 8. privacidade ---------- */
 .tres{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;flex:1;min-height:0}
@@ -487,24 +468,6 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     </div>
   </section>
 
-  <!-- 7 -->
-  <section class="slide" id="s7" aria-label="Medido no laboratório">
-    <p class="olho" data-r>Medido no laboratório da FIAP</p>
-    <h2 data-r style="--d:1">Uma queda real, quadro a quadro.</h2>
-    <div class="grade">
-      <div class="grafico" data-r style="--d:2">
-        <h3>nota da rede de queda · AIBOX · 01/10/2026</h3>
-        <svg id="graf" viewBox="0 0 900 470" aria-label="Gráfico: a nota da rede sobe de 0,01 a 0,98 em 1,2 segundo durante a queda, passando do limiar de 0,50 em 0,70 s"></svg>
-        <div class="leg"><span>depois da correção</span><span class="antes">antes: a rede ficava muda a 6 quadros/s</span><span class="lim">limiar 0,50</span></div>
-      </div>
-      <div class="kpis" data-r style="--d:3">
-        <div class="kpi"><b>8,7<small>/s</small></b><span>quadros analisados na AIBOX, só CPU, sem placa de vídeo</span></div>
-        <div class="kpi"><b>0,5<small>ms</small></b><span>custo da nossa análise por quadro. O resto é o modelo de pose</span></div>
-        <div class="kpi"><b class="menta">84%</b><span>das quedas pegas pela rede a 6 quadros/s, com 98% de precisão. A regra sozinha pega 48%</span></div>
-        <div class="kpi"><b class="vermelho">12<small>s</small></b><span>da queda #79 até alguém apertar Estou ciente, registrado na cadeia</span></div>
-      </div>
-    </div>
-  </section>
 
   <!-- 8 -->
   <section class="slide" id="s8" data-cena="giro" aria-label="Privacidade">
@@ -684,7 +647,6 @@ const NOTAS = [
   "Arrastem a sala. Cada pessoa vira 17 pontos. Primeiro uma queda: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel. Depois uma corrida, que vira aviso em âmbar, sem sirene. Depois uma briga, dois impulsos encostados, alerta grave com sirene. Corrida e briga são regra, e a tela diz isso. Os botões embaixo pulam direto para cada uma.",
   "O caminho inteiro. O vídeo vai da câmera até a caixa e para ali. O que sai da AIBOX é número: um alerta com a prova em pontos, uns 8 KB. O servidor encadeia o alerta e o painel toca a sirene.",
   "Quatro situações. Queda é modelo treinado, com 4.509 clipes. Corrida e briga são regra, e a gente diz isso na tela. E se alguém tampar a câmera ou a caixa cair, o sistema avisa que ficou cego.",
-  "Isso foi medido no laboratório. Uma queda real: a nota sai de 0,01 e chega a 0,98 em pouco mais de um segundo. Antes de uma correção que fizemos, essa linha era zero o tempo todo. E 12 segundos da queda #79 até alguém ficar ciente.",
   "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
   "E a LGPD, artigo por artigo. Escola é dado de criança, e rosto é dado sensível. O vídeo não sai da sala; rosto só com cadastro e prova de vida; o prazo se cumpre sozinho, 365 dias para o cadastro e 7 para a foto; um clique revoga; e quem abriu cada foto fica registrado. Não é promessa: é código rodando.",
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
@@ -1591,38 +1553,6 @@ animar("p-mosaico", (x, t) => {
   x.strokeStyle = CSS.menta; x.setLineDash([8, 6]); x.lineWidth = 2; x.strokeRect(cx - 4*tam - 8, cy - 5*tam - 8, 8*tam + 16, 10*tam + 16); x.setLineDash([]);
 });
 
-/* ======================================================================
-   Gráfico real da queda (slide 7)
-   ====================================================================== */
-(function(){
-  const svg = $("graf"), NS = "http://www.w3.org/2000/svg";
-  const M = { l:70, r:24, t:20, b:56 }, w = 900 - M.l - M.r, h = 470 - M.t - M.b;
-  const X = s => M.l + s / 2.3 * w, Y = v => M.t + (1 - v) * h;
-  const el = (n, a, txt) => { const e = document.createElementNS(NS, n); for(const k in a) e.setAttribute(k, a[k]); if(txt) e.textContent = txt; svg.appendChild(e); return e; };
-  for(const v of [0, .25, .5, .75, 1]){
-    el("line", { x1:M.l, x2:M.l + w, y1:Y(v), y2:Y(v), stroke:CSS.linha, "stroke-width":1 });
-    el("text", { x:M.l - 14, y:Y(v) + 6, fill:CSS.fraco, "font-size":17, "text-anchor":"end", "font-family":"DM Mono, monospace" }, dec(v));
-  }
-  for(const s of [0, .5, 1, 1.5, 2]) el("text", { x:X(s), y:M.t + h + 34, fill:CSS.fraco, "font-size":17, "text-anchor":"middle", "font-family":"DM Mono, monospace" }, dec(s, 1) + " s");
-  // quadros lidos do vídeo do laboratório (tempo do vídeo, nota na etiqueta da tela)
-  const D = [[0,.01],[.17,.01],[.35,.01],[.52,.10],[.70,.63],[.87,.87],[1.05,.87],[1.22,.98],[1.40,.14],[1.57,.01],[1.74,.01],[1.92,.14],[2.09,0],[2.27,.02]];
-  el("rect", { x:X(.52), y:M.t, width:X(1.74) - X(.52), height:h, fill:"rgba(255,77,106,.07)" });
-  el("text", { x:X(.56), y:M.t + h - 14, fill:CSS.rubi, "font-size":16, "font-family":"DM Mono, monospace" }, "esqueleto vermelho: queda armada");
-  el("line", { x1:M.l, x2:M.l + w, y1:Y(.5), y2:Y(.5), stroke:CSS.ambar, "stroke-width":2, "stroke-dasharray":"10 6" });
-  el("line", { x1:M.l, x2:M.l + w, y1:Y(0) - 3, y2:Y(0) - 3, stroke:CSS.fraco, "stroke-width":3, "stroke-dasharray":"6 5" });
-  const p = D.map(([s, v], i) => (i ? "L" : "M") + X(s).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
-  el("path", { d:p + ` L ${X(2.27)} ${Y(0)} L ${X(0)} ${Y(0)} Z`, fill:"rgba(95,224,181,.12)" });
-  const linha = el("path", { d:p, fill:"none", stroke:CSS.menta, "stroke-width":4, "stroke-linejoin":"round", class:"curva" });
-  D.forEach(([s, v]) => el("circle", { cx:X(s), cy:Y(v), r:v >= .5 ? 7 : 4.5, fill:v >= .5 ? CSS.rubi : CSS.menta }));
-  el("text", { x:X(1.22) + 14, y:Y(.98) + 6, fill:CSS.texto, "font-size":22, "font-family":"DM Mono, monospace" }, "0,98");
-  el("text", { x:X(1.5), y:Y(.62), fill:CSS.fraco, "font-size":16, "font-family":"Public Sans, sans-serif" }, "a nota mede o tombo;");
-  el("text", { x:X(1.5), y:Y(.62) + 20, fill:CSS.fraco, "font-size":16, "font-family":"Public Sans, sans-serif" }, "no chão, quem segura o alerta é a geometria");
-  const L = linha.getTotalLength ? linha.getTotalLength() : 2000;
-  linha.style.strokeDasharray = L; linha.style.strokeDashoffset = 0;
-  ANIM.graf = { entrar(){ if(REDUZ) return; linha.style.transition = "none"; linha.style.strokeDashoffset = L;
-    requestAnimationFrame(() => requestAnimationFrame(() => { linha.style.transition = "stroke-dashoffset 2.2s cubic-bezier(.4,.1,.2,1) .5s"; linha.style.strokeDashoffset = 0; })); }, fn(){} };
-})();
-
 /* fluxo: pacotes correndo entre os nós (slide 5) */
 (function(){
   const svg = $("fluxo-svg"), NS = "http://www.w3.org/2000/svg";
@@ -1709,9 +1639,9 @@ function contar(){
 }
 function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
 /* ---- MODO 5 MINUTOS ----------------------------------------------------
-   11 dos 15 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
-   quando ele pesa mais. Os outros 4 (como funciona, o que detecta, o gráfico
-   da queda e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
+   11 dos 14 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
+   quando ele pesa mais. Os outros 3 (como funciona, o que detecta
+   e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
 const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s11","s9","s8","s8b","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
