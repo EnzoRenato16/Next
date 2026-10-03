@@ -378,6 +378,10 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   font-variant-numeric:tabular-nums;padding-left:4px}
 #barra .crono.perto{color:var(--ambar)}
 #barra .crono.estourou{color:var(--rubi)}
+/* Na apresentação a barra mostra só as setas e a tela cheia. Cronômetro, modo,
+   contador e roteiro continuam no teclado (T, M, N): ficam escondidos, não removidos. */
+#barra .crono,#barra .conta,#b-modo,#b-notas{display:none}
+#b-ant{margin-left:auto}
 #barra button[aria-pressed="true"]{border-color:var(--menta);color:var(--menta)}
 #ir{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:62;
   font:500 64px var(--f-dado);color:var(--texto);background:rgba(6,16,14,.92);
