@@ -170,13 +170,13 @@ As três causas de "não responde", em ordem de frequência:
 ## O pitch (`Auditix-pitch.html`)
 
 Deck em HTML com three.js (`vendor/three/three.min.js`, r160, versionado: o
-laboratório não tem internet). 14 slides num palco 1920x1080 escalado; setas
+laboratório não tem internet). 15 slides num palco 1920x1080 escalado; setas
 trocam, `F` tela cheia, `N` roteiro de fala, `R` repete o evento da sala (slide 4: queda, corrida ou briga) ou
-desfaz a adulteração (slide 9). Abrir com `pc pitch` (serve em 127.0.0.1:8090):
+desfaz a adulteração (slide da cadeia). Abrir com `pc pitch` (serve em 127.0.0.1:8090):
 pelo duplo clique as fontes de `vendor/fontes` não carregam.
 
 **Modo 5 minutos, ligado por padrão** (o pitch tem 5 min): 11 slides na ordem
-`s1 s2 s3 s4 s10 s10b s11 s7 s9 s8 s13`, com o vídeo real logo depois da sala em 3D e o painel logo depois.
+`s1 s2 s3 s4 s10 s10b s11 s9 s8 s8b s13`: vídeo real depois da sala em 3D, o painel, e a LGPD num slide próprio (`s8b`). O gráfico da queda (`s7`) ficou só no deck completo.
 `M` alterna com o deck completo (lembrado no navegador); número + Enter abre
 qualquer slide para as perguntas, e → volta ao roteiro dali; cronômetro na
 barra, âmbar aos 4:20 e rubi aos 5:00, `T` zera. Para mudar o roteiro, edite
@@ -186,8 +186,8 @@ barra, âmbar aos 4:20 e rubi aos 5:00, `T` zera. Para mudar o roteiro, edite
   em escolas em 2024 (Anuário Brasileiro de Segurança Pública 2025, SINAN) e
   mais de 55 mil internações de crianças por queda em 2025 (Criança Segura,
   DataSUS). Não troque por número sem fonte.
-- O gráfico do slide 7 são quadros lidos do vídeo da queda real do laboratório.
-- A cadeia do slide 9 calcula SHA-256 de verdade, com a fórmula do servidor.
+- O gráfico do `s7` são quadros lidos do vídeo da queda real do laboratório.
+- O slide da cadeia calcula SHA-256 de verdade, com a fórmula do servidor.
 - `ppt/pitch-imagens.js`: capturas do painel embutidas (sem rosto, versionado).
 - `ppt/midia/`: vídeos e fotos do laboratório, **fora do Git** (rosto de gente).
   Arquivo que falta vira espaço tracejado com o nome esperado; `LEIA.txt` lista.

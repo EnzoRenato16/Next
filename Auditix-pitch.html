@@ -214,30 +214,24 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 /* ---------- 8. privacidade ---------- */
 .tres{display:grid;grid-template-columns:repeat(3,1fr);gap:28px;flex:1;min-height:0}
 .priv{display:flex;flex-direction:column;gap:14px}
-.priv .tela{height:230px;border:1px solid var(--linha);border-radius:16px;background:#07120F;
+.priv .tela{height:380px;border:1px solid var(--linha);border-radius:16px;background:#07120F;
   position:relative;overflow:hidden}
 .priv .tela canvas{width:100%;height:100%;display:block;object-fit:contain}
 .priv .tela .medida{position:absolute;left:16px;right:16px;bottom:14px;font-family:var(--f-dado);
   font-size:17px;color:var(--fraco);display:flex;justify-content:space-between;gap:10px}
 .priv .tela .medida b{color:var(--menta);font-weight:500}
-.priv h3{font-family:var(--f-display);font-size:32px;margin:0;letter-spacing:-.02em}
-.priv p{margin:0;font-size:19px;line-height:1.4;color:var(--fraco)}
-#s8{gap:20px}
-#s8 h2{font-size:62px}
-#s8 .tres{flex:none;gap:24px}
-#s8 .priv{gap:10px}
-.lgpd{display:grid;grid-template-columns:270px 1fr;gap:26px;padding:20px 22px;border-radius:16px;
-  border:1px solid rgba(95,224,181,.35);background:linear-gradient(90deg,rgba(95,224,181,.08),rgba(12,27,23,.5))}
-.lgpd-tit{display:flex;flex-direction:column;gap:10px}
-.lgpd-tit .selo{align-self:flex-start;font-family:var(--f-dado);font-size:20px;letter-spacing:.16em;
-  padding:4px 12px;border-radius:6px;background:var(--menta);color:var(--noite);font-weight:500}
-.lgpd-tit h3{font-family:var(--f-display);font-size:30px;line-height:1.05;margin:0;letter-spacing:-.02em}
-.lgpd-tit p{margin:0;font-size:17px;line-height:1.4;color:var(--fraco)}
-.lgpd ul{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,1fr);gap:10px 14px}
-.lgpd li{padding:10px 12px;border-radius:10px;background:rgba(6,16,14,.55);border:1px solid var(--linha)}
-.lgpd li b{font-family:var(--f-dado);font-weight:500;font-size:17px;color:var(--menta)}
-.lgpd li span{font-family:var(--f-dado);font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--fraco);margin-left:8px}
-.lgpd li p{margin:5px 0 0;font-size:16px;line-height:1.35;color:var(--texto)}
+.priv h3{font-family:var(--f-display);font-size:38px;margin:0;letter-spacing:-.02em}
+.priv p{margin:0;font-size:21px;line-height:1.45;color:var(--fraco)}
+#s8b{justify-content:center}
+#s8b .cab{display:flex;align-items:flex-end;justify-content:space-between;gap:40px}
+#s8b .cab p{margin:0;max-width:520px;font-size:24px;line-height:1.4;color:var(--fraco);text-align:right}
+#s8b .cab p b{color:var(--texto);font-weight:600}
+.lei{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:20px}
+.lei div{padding:26px 28px;border-radius:16px;border:1px solid var(--linha);
+  background:linear-gradient(180deg,rgba(95,224,181,.07),rgba(12,27,23,.55))}
+.lei small{font-family:var(--f-dado);font-size:17px;letter-spacing:.16em;text-transform:uppercase;color:var(--menta)}
+.lei b{display:block;margin:8px 0 10px;font-family:var(--f-display);font-size:50px;line-height:1;letter-spacing:-.03em}
+.lei p{margin:0;font-size:22px;line-height:1.4;color:var(--fraco)}
 .priv p b{color:var(--texto);font-weight:600}
 .faixa{font-family:var(--f-display);font-size:40px;letter-spacing:-.015em;margin:0}
 
@@ -514,7 +508,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 
   <!-- 8 -->
   <section class="slide" id="s8" data-cena="giro" aria-label="Privacidade">
-    <p class="olho" data-r>Privacidade e LGPD desde o projeto</p>
+    <p class="olho" data-r>Privacidade desde o projeto</p>
     <h2 data-r style="--d:1">Vê o corpo. Não guarda o rosto.</h2>
     <div class="tres" data-r style="--d:2">
       <div class="priv">
@@ -535,19 +529,22 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
         <p>Quando o navegador manda foto, a cabeça sobe em <b>mosaico</b>. Desfoque ainda deixa reconhecer. Mosaico não.</p>
       </div>
     </div>
-    <div class="lgpd" data-r style="--d:3">
-      <div class="lgpd-tit"><span class="selo">LGPD</span><h3>Lei 13.709, artigo por artigo</h3>
-        <p>Cada item é código rodando hoje, não promessa.</p></div>
-      <ul>
-        <li><b>Art. 6º, III</b><span>necessidade</span><p>O vídeo não sai da sala. Da AIBOX sai só o alerta e 17 pontos por corpo.</p></li>
-        <li><b>Art. 11</b><span>dado sensível</span><p>Rosto só de quem se cadastrou, com prova de vida. Reconhecimento vem desligado.</p></li>
-        <li><b>Art. 14</b><span>criança</span><p>Mede postura, não identidade. Pedido de ajuda nunca guarda imagem.</p></li>
-        <li><b>Art. 15 e 16</b><span>fim do tratamento</span><p>O cadastro se apaga sozinho em 365 dias. A foto do alerta, em 7.</p></li>
-        <li><b>Art. 18, IX</b><span>revogar</span><p>Botão remover: a biometria para de valer na hora, e o registro de que existiu fica.</p></li>
-        <li><b>Art. 37</b><span>registro</span><p>Quem abriu a foto de quem, e quando: cada acesso vira uma linha.</p></li>
-        <li><b>Art. 46</b><span>segurança</span><p>Chave fora do banco, e a caixa nunca guarda cadastro: manda números, recebe um nome.</p></li>
-        <li><b>Art. 6º, X</b><span>prestação de contas</span><p>Cadeia SHA-256: apagar ou trocar um alerta quebra todos os seguintes.</p></li>
-      </ul>
+  </section>
+
+  <!-- 8b -->
+  <section class="slide" id="s8b" aria-label="LGPD">
+    <div class="cab">
+      <div><p class="olho" data-r>LGPD · Lei 13.709</p>
+        <h2 data-r style="--d:1">A lei cumprida no código, não no papel.</h2></div>
+      <p data-r style="--d:2">Escola é dado de <b>criança</b> e rosto é <b>dado sensível</b>. Cada item abaixo já roda hoje.</p>
+    </div>
+    <div class="lei">
+      <div data-r style="--d:3"><small>Necessidade</small><b>Art. 6º</b><p>O vídeo não sai da sala. Sai um alerta e 17 pontos por corpo.</p></div>
+      <div data-r style="--d:4"><small>Dado sensível</small><b>Art. 11</b><p>Rosto só de quem se cadastrou, com prova de vida.</p></div>
+      <div data-r style="--d:5"><small>Criança</small><b>Art. 14</b><p>Mede postura, não identidade. Pedido de ajuda nunca guarda imagem.</p></div>
+      <div data-r style="--d:6"><small>Prazo</small><b>Art. 16</b><p>O cadastro se apaga sozinho em 365 dias. A foto do alerta, em 7.</p></div>
+      <div data-r style="--d:7"><small>Revogar</small><b>Art. 18</b><p>Um clique em remover e a biometria para de valer.</p></div>
+      <div data-r style="--d:8"><small>Registro e segurança</small><b>Art. 37 e 46</b><p>Quem abriu cada foto fica gravado. A chave mora fora do banco.</p></div>
     </div>
   </section>
 
@@ -596,7 +593,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     <h2 data-r style="--d:1">Tudo que a coordenação precisa, numa tela.</h2>
     <div class="painel-lado" data-r style="--d:2">
       <ol class="recursos" id="recursos"></ol>
-      <p class="tambem"><span>e mais</span>eventos por dia · onde o dia aperta · por tipo e por local · mapa de calor · pessoas reconhecidas · e-mail para a coordenação · banco na AWS</p>
+      <p class="tambem"><span>e mais</span>eventos por dia · onde o dia aperta · por tipo e por local · mapa de calor · pessoas reconhecidas · banco na AWS</p>
     </div>
     <b class="leg-n" id="leg-n">1 / 6</b>
   </section>
@@ -666,7 +663,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 "use strict";
 /* ======================================================================
    Pitch Auditix IA. Setas, espaço ou clique nos botões para navegar.
-   F tela cheia · N roteiro de fala · R repete o evento (slide 4) ou desfaz (slide 9)
+   F tela cheia · N roteiro de fala · R repete o evento (sala 360) ou desfaz (cadeia)
    M alterna modo 5 min / deck completo · número + Enter abre qualquer slide · T zera o tempo
    ====================================================================== */
 const $ = id => document.getElementById(id);
@@ -688,11 +685,12 @@ const NOTAS = [
   "O caminho inteiro. O vídeo vai da câmera até a caixa e para ali. O que sai da AIBOX é número: um alerta com a prova em pontos, uns 8 KB. O servidor encadeia o alerta e o painel toca a sirene.",
   "Quatro situações. Queda é modelo treinado, com 4.509 clipes. Corrida e briga são regra, e a gente diz isso na tela. E se alguém tampar a câmera ou a caixa cair, o sistema avisa que ficou cego.",
   "Isso foi medido no laboratório. Uma queda real: a nota sai de 0,01 e chega a 0,98 em pouco mais de um segundo. Antes de uma correção que fizemos, essa linha era zero o tempo todo. E 12 segundos da queda #79 até alguém ficar ciente.",
-  "Privacidade e LGPD. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco, e a foto, quando existe, sobe com a cabeça em mosaico. Embaixo, a lei artigo por artigo: necessidade, dado sensível, criança, prazo que se cumpre sozinho, direito de revogar, registro de quem viu, segurança e prestação de contas. Tudo isso é código rodando, não promessa.",
+  "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
+  "E a LGPD, artigo por artigo. Escola é dado de criança, e rosto é dado sensível. O vídeo não sai da sala; rosto só com cadastro e prova de vida; o prazo se cumpre sozinho, 365 dias para o cadastro e 7 para a foto; um clique revoga; e quem abriu cada foto fica registrado. Não é promessa: é código rodando.",
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
-  "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. Fora isso: eventos por dia, horários de pico, mapa de calor, pessoas reconhecidas e e-mail para a coordenação.",
+  "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. E o e-mail chega na hora: este é o que recebemos de uma queda real no laboratório. Fora isso: eventos por dia, horários de pico, mapa de calor e pessoas reconhecidas.",
   "Tudo isso roda hoje só na CPU, a 93%. A NPU, a parte do chip feita para IA, ainda está livre. É o próximo salto: mais quadros, imagem maior e mais pessoas detectadas.",
   "Auditix IA, grupo 11. Obrigado."
 ];
@@ -1350,10 +1348,10 @@ function cenaCadeia(){
 const TELAS = [
   ["painel", "Cadeia íntegra, ao vivo", "No laboratório: 80 elos recalculados desde a gênese, todos fechando. Um selo por câmera diz se ela está vendo."],
   ["alarme", "Alarme que toma a tela", "Queda ou briga nova aparece em cerca de 1 s, com sirene, até alguém apertar Estou ciente. O clique vira elo."],
+  ["email", "E-mail na hora do alarme", "A coordenação recebe onde, quando e o registro na trilha de auditoria. Este chegou de uma queda real no laboratório."],
   ["corpo", "A prova sem rosto", "Os últimos 2,5 s do corpo em 17 pontos, o último quadro em vermelho. Confere a queda sem expor ninguém."],
   ["cadeia", "Cadeia conferida no navegador", "O SHA-256 é recalculado na máquina de quem olha, sem confiar no servidor, e mostra onde a corrente quebrou."],
   ["ppt/midia/tela-cadastro.jpg", "Cadastro pela câmera da AIBOX", "A coordenação cadastra pela câmera de baixo. O rosto vira 128 números girados; a foto não é guardada."],
-  ["chao", "Linha do chão", "Com a câmera fixa, cabeça abaixo da linha marcada é queda, direto."],
 ];
 function cenaCarrossel(){
   const cena = new THREE.Scene();
@@ -1711,10 +1709,10 @@ function contar(){
 }
 function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
 /* ---- MODO 5 MINUTOS ----------------------------------------------------
-   10 dos 14 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
-   quando ele pesa mais. Os outros 4 (como funciona, o que detecta, painel e
-   próximo passo) continuam no arquivo para as perguntas: número + Enter. */
-const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s11","s7","s9","s8","s13"];
+   11 dos 15 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
+   quando ele pesa mais. Os outros 4 (como funciona, o que detecta, o gráfico
+   da queda e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
+const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s11","s9","s8","s8b","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
 try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}
