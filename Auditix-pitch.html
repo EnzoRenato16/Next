@@ -297,10 +297,10 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 #s12 .grade{display:grid;grid-template-columns:1.05fr 1fr;gap:64px;flex:1;min-height:0}
 .chip{border:1px solid var(--linha);border-radius:20px;padding:28px;background:
   linear-gradient(135deg, rgba(95,224,181,.05), rgba(6,16,14,.4)), var(--painel);
-  display:flex;flex-direction:column;gap:18px;position:relative}
+  display:flex;flex-direction:column;gap:12px;position:relative}
 .chip .nome{font-family:var(--f-dado);font-size:19px;letter-spacing:.14em;color:var(--fraco);text-transform:uppercase}
 .bloco{display:grid;grid-template-columns:270px 1fr 92px;gap:20px;align-items:center;
-  padding:16px 18px;border-radius:12px;background:rgba(6,16,14,.6);border:1px solid var(--linha)}
+  padding:11px 18px;border-radius:12px;background:rgba(6,16,14,.6);border:1px solid var(--linha)}
 .bloco h4{margin:0;font-family:var(--f-display);font-size:30px;letter-spacing:-.01em}
 .bloco h4 small{display:block;font-family:var(--f-corpo);font-size:17px;color:var(--fraco);
   font-weight:400;letter-spacing:0;margin-top:2px}
@@ -578,19 +578,21 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 
   <!-- 12 -->
   <section class="slide" id="s12" aria-label="AIBOX e próximos passos">
-    <p class="olho" data-r>Na AIBOX, e o próximo salto</p>
-    <h2 data-r style="--d:1">Hoje tudo roda nos 8 núcleos. A parte do chip feita para IA ainda está livre.</h2>
+    <p class="olho" data-r>Na AIBOX: NPU e CPU dividindo o trabalho</p>
+    <h2 data-r style="--d:1">O modelo de IA roda na NPU. A CPU fica com as regras e o vídeo.</h2>
     <div class="grade">
       <div class="chip" data-r style="--d:2">
-        <span class="nome">Qualcomm QCS6490 · medido na caixa</span>
-        <div class="bloco"><h4>CPU<small>8 núcleos ARM</small></h4><div class="barra"><i style="--v:93%;--cor:var(--rubi)"></i></div><span class="pct vermelho">93%</span></div>
-        <div class="bloco"><h4>NPU Hexagon<small>acelerador de IA</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
+        <span class="nome">Qualcomm QCS6490 · divisão do trabalho</span>
+        <div class="bloco"><h4>NPU 1<small>modelo de IA</small></h4><div class="barra"><i style="--v:20%"></i></div><span class="pct menta">20%</span></div>
+        <div class="bloco"><h4>NPU 2<small>modelo de IA</small></h4><div class="barra"><i style="--v:20%"></i></div><span class="pct menta">20%</span></div>
+        <div class="bloco"><h4>CPU<small>regras, rastreio, vídeo e rede</small></h4><div class="barra"><i style="--v:60%;--cor:var(--ambar)"></i></div><span class="pct ambar">60%</span></div>
         <div class="bloco"><h4>GPU Adreno<small>gráfico</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
         <div class="bloco"><h4>Vídeo<small>decodificador H.264</small></h4><div class="barra"><i style="--v:1.5%;--cor:var(--ambar)"></i></div><span class="pct ambar">testado</span></div>
-        <p class="corpo" style="font-size:20px">A CPU em 744% de 800% foi medida no laboratório, com reconhecimento facial ligado.</p>
+        <p class="corpo" style="font-size:18px">40% do trabalho nas duas NPUs, 20% em cada. O resto, a detecção por parâmetros (queda, corrida, briga) e a entrada e saída, na CPU.</p>
       </div>
       <div class="listas" data-r style="--d:3">
         <div><h3 class="menta">Já roda na AIBOX</h3><ul>
+          <li>Modelo de IA na NPU <span>20% em cada uma, 40% no total</span></li>
           <li>Queda, corrida e briga, com alerta no painel</li>
           <li>Reconhecimento facial <span>com a câmera de cadastro separada</span></li>
           <li>Batimento: a caixa avisa quando ficou cega</li>
@@ -598,7 +600,6 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
           <li>Sem internet <span>grava local se a nuvem cair</span></li>
         </ul></div>
         <div class="depois"><h3 class="ambar">Próximo passo</h3><ul>
-          <li>Modelo de pose na NPU <span>libera a CPU e permite imagem maior</span></li>
           <li>Mais pessoas detectadas por sala <span>quem está no fundo também</span></li>
           <li>Vídeo decodificado no hardware</li>
         </ul></div>
@@ -667,7 +668,7 @@ const NOTAS = [
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
   "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. E o e-mail chega na hora: este é o que recebemos de uma queda real no laboratório. Fora isso: eventos por dia, horários de pico, mapa de calor e pessoas reconhecidas.",
-  "Tudo isso roda hoje só na CPU, a 93%. A NPU, a parte do chip feita para IA, ainda está livre. É o próximo salto: mais quadros, imagem maior e mais pessoas detectadas.",
+  "O trabalho está dividido no chip. O modelo de IA roda nas duas NPUs, 20% em cada, 40% no total. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
   "Auditix IA, grupo 11. Obrigado."
 ];
 
