@@ -583,16 +583,15 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     <div class="grade">
       <div class="chip" data-r style="--d:2">
         <span class="nome">Qualcomm QCS6490 · divisão do trabalho</span>
-        <div class="bloco"><h4>NPU 1<small>modelo de IA</small></h4><div class="barra"><i style="--v:20%"></i></div><span class="pct menta">20%</span></div>
-        <div class="bloco"><h4>NPU 2<small>modelo de IA</small></h4><div class="barra"><i style="--v:20%"></i></div><span class="pct menta">20%</span></div>
+        <div class="bloco"><h4>NPU Hexagon<small>modelo de IA</small></h4><div class="barra"><i style="--v:40%"></i></div><span class="pct menta">40%</span></div>
         <div class="bloco"><h4>CPU<small>regras, rastreio, vídeo e rede</small></h4><div class="barra"><i style="--v:60%;--cor:var(--ambar)"></i></div><span class="pct ambar">60%</span></div>
         <div class="bloco"><h4>GPU Adreno<small>gráfico</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
         <div class="bloco"><h4>Vídeo<small>decodificador H.264</small></h4><div class="barra"><i style="--v:1.5%;--cor:var(--ambar)"></i></div><span class="pct ambar">testado</span></div>
-        <p class="corpo" style="font-size:18px">40% do trabalho nas duas NPUs, 20% em cada. O resto, a detecção por parâmetros (queda, corrida, briga) e a entrada e saída, na CPU.</p>
+        <p class="corpo" style="font-size:18px">40% do trabalho na NPU. O resto, a detecção por parâmetros (queda, corrida, briga) e a entrada e saída, na CPU.</p>
       </div>
       <div class="listas" data-r style="--d:3">
         <div><h3 class="menta">Já roda na AIBOX</h3><ul>
-          <li>Modelo de IA na NPU <span>20% em cada uma, 40% no total</span></li>
+          <li>Modelo de IA na NPU <span>40% do trabalho</span></li>
           <li>Queda, corrida e briga, com alerta no painel</li>
           <li>Reconhecimento facial <span>com a câmera de cadastro separada</span></li>
           <li>Batimento: a caixa avisa quando ficou cega</li>
@@ -668,7 +667,7 @@ const NOTAS = [
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
   "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. E o e-mail chega na hora: este é o que recebemos de uma queda real no laboratório. Fora isso: eventos por dia, horários de pico, mapa de calor e pessoas reconhecidas.",
-  "O trabalho está dividido no chip. O modelo de IA roda nas duas NPUs, 20% em cada, 40% no total. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
+  "O trabalho está dividido no chip. O modelo de IA roda na NPU, com 40% do trabalho. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
   "Auditix IA, grupo 11. Obrigado."
 ];
 
