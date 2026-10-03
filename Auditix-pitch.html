@@ -264,35 +264,68 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   padding:4px 10px;border-radius:6px}
 .vazio span{font-size:18px;color:var(--fraco);max-width:520px}
 
-/* ---------- 11. carrossel ---------- */
+/* ---------- 11. o painel, por dentro ---------- */
 #s11{pointer-events:none}
 #s11 > *{pointer-events:auto}
-#s11 h2{font-size:60px;max-width:760px}
-.painel-lado{width:700px;display:flex;flex-direction:column;gap:18px}
-.recursos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
-.recursos li{position:relative;padding:12px 18px 12px 62px;border-radius:12px;border:1px solid var(--linha);
-  background:rgba(8,20,17,.9);cursor:pointer;overflow:hidden;transition:background .3s,border-color .3s}
-.recursos li::before{content:attr(data-n);position:absolute;left:18px;top:13px;font-family:var(--f-dado);
-  font-size:20px;color:var(--fraco)}
-.recursos li h3{margin:0;font-family:var(--f-display);font-size:27px;letter-spacing:-.015em;color:var(--fraco)}
-.recursos li p{margin:0;max-height:0;opacity:0;font-size:19px;line-height:1.4;color:var(--texto);
-  transition:max-height .45s,opacity .45s,margin .45s}
-.recursos li.on{background:rgb(14,42,35);border-color:rgba(95,224,181,.55)}
-.recursos li.on::before{color:var(--menta)}
-.recursos li.on h3{color:var(--texto)}
-.recursos li.on p{max-height:90px;opacity:1;margin-top:6px}
-.recursos li i{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--menta)}
-.recursos li.on i{animation:enche var(--dur,6s) linear forwards}
-@keyframes enche{to{width:100%}}
-.tambem{margin:0;font-size:18px;line-height:1.55;color:var(--fraco)}
-.tambem span{font-family:var(--f-dado);font-size:15px;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--menta);margin-right:12px}
-.leg-n{position:absolute;right:128px;bottom:110px;font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:20px}
-#s11 .legenda{position:absolute;left:128px;right:128px;bottom:110px;display:flex;gap:30px;align-items:baseline}
-#s11 .legenda b{font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:20px;
-  letter-spacing:.12em;text-transform:uppercase;flex:none}
-#s11 .legenda p{margin:0;font-size:32px;line-height:1.3}
-
+#s11 .lado{width:560px;display:flex;flex-direction:column;gap:22px}
+#s11 h2{font-size:54px}
+.passo{padding:24px 26px 20px;border-radius:16px;border:1px solid rgba(95,224,181,.4);
+  background:linear-gradient(180deg,rgba(95,224,181,.09),rgba(12,27,23,.6));display:flex;flex-direction:column;gap:10px;min-height:300px}
+.passo small{font-family:var(--f-dado);font-size:18px;letter-spacing:.14em;color:var(--menta);text-transform:uppercase}
+.passo h3{margin:0;font-family:var(--f-display);font-size:42px;line-height:1.02;letter-spacing:-.02em}
+.passo p{margin:0;font-size:23px;line-height:1.42;color:var(--fraco)}
+.passo p b{color:var(--texto);font-weight:600}
+.passo .tempo{height:3px;background:var(--linha);border-radius:2px;overflow:hidden;margin-top:auto}
+.passo .tempo i{display:block;height:100%;width:0;background:var(--menta)}
+.pontos-p{display:flex;flex-wrap:wrap;gap:5px}
+.pontos-p button{width:35px;height:35px;border-radius:8px;border:1px solid var(--linha);background:rgba(12,27,23,.7);
+  color:var(--fraco);font-family:var(--f-dado);font-size:14px;cursor:pointer;padding:0}
+.pontos-p button.on{background:var(--menta);border-color:var(--menta);color:var(--noite)}
+/* a réplica do painel: mesma ordem e mesmos nomes do auditix-painel.html */
+.dash{position:absolute;left:760px;top:104px;width:1040px;height:866px;padding:16px;border-radius:14px;
+  background:#0B1311;border:1px solid var(--linha);box-shadow:0 40px 120px rgba(0,0,0,.6);
+  display:flex;flex-direction:column;gap:9px;font-family:"Public Sans",sans-serif;color:#DCE7E3;overflow:hidden}
+.dash [data-p]{border-radius:10px;transition:opacity .4s,box-shadow .4s,outline-color .4s;outline:2px solid transparent;cursor:pointer}
+.dash.guia [data-p]{opacity:.32}
+.dash.guia [data-p].on{opacity:1;outline-color:var(--menta);box-shadow:0 0 0 6px rgba(95,224,181,.12),0 0 50px rgba(95,224,181,.25)}
+.dash .c{background:#121C19;border:1px solid #1E2E29;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.dash .rt{font-family:var(--f-dado);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:#7F988F}
+.dash h5{margin:0;font-size:15px;font-weight:600;display:flex;gap:10px;align-items:baseline}
+.dash h5 span{font-size:11px;font-weight:400;color:#7F988F}
+.dash .btns{margin-left:auto;display:flex;gap:5px}
+.dash .btns i{font-style:normal;font-size:10px;padding:2px 7px;border-radius:5px;border:1px solid #2A3C36;color:#9FB5AD}
+.dash .btns i.on{background:#DCE7E3;color:#0B1311}
+.d-top{display:flex;align-items:center;gap:14px;padding:4px 6px}
+.d-top b{font-size:19px}
+.d-top p{margin:0;font-size:11px;color:#7F988F}
+.d-top .selos{margin-left:auto;display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.d-top .selos span{font-size:10.5px;padding:3px 8px;border-radius:999px;border:1px solid #2A3C36;color:#9FB5AD}
+.d-top .selos .ok{color:#5FE0B5;border-color:rgba(95,224,181,.4);background:rgba(95,224,181,.08)}
+.d-kpis{display:grid;grid-template-columns:1.6fr 1fr 1fr 1fr 1fr;gap:8px}
+.d-kpis .n{font-family:var(--f-display);font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1}
+.d-kpis .pe{font-size:10.5px;color:#7F988F;line-height:1.3}
+.d-heroi .n{color:#5FE0B5}
+.d-g2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dash svg{width:100%;display:block}
+.dash table{width:100%;border-collapse:collapse;font-size:11.5px}
+.dash th{font-family:var(--f-dado);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#7F988F;text-align:left;font-weight:400;padding:3px 6px;border-bottom:1px solid #1E2E29}
+.dash td{padding:5px 6px;border-bottom:1px solid #18241F}
+.dash td.n{text-align:right}
+.dash .tag{font-size:10px;padding:1px 7px;border-radius:999px;background:rgba(255,77,106,.14);color:#FF8DA0;border:1px solid rgba(255,77,106,.35)}
+.dash .tag.ok{background:rgba(95,224,181,.1);color:#5FE0B5;border-color:rgba(95,224,181,.35)}
+.dash .vazio td{color:transparent}
+.dash .vazio td::after{content:"";display:block;height:7px;border-radius:4px;background:#1A2723;margin-top:-12px}
+.d-alarme{position:absolute;inset:0;border-radius:14px;background:rgba(40,4,12,.72);display:flex;align-items:center;justify-content:center;gap:26px;
+  opacity:0;pointer-events:none;transition:opacity .4s}
+.dash.guia .d-alarme{opacity:0}
+.dash.guia .d-alarme.on{opacity:1;outline:none;box-shadow:none}
+.d-alarme .cart{width:380px;padding:22px 24px;border-radius:14px;background:#fff;color:#2A1A1E;display:flex;flex-direction:column;gap:6px}
+.d-alarme .cart small{font-family:var(--f-dado);font-size:11px;letter-spacing:.14em;color:#C2304A}
+.d-alarme .cart b{font-family:var(--f-display);font-size:40px;color:#C2304A;line-height:1}
+.d-alarme .cart span{font-size:13px}
+.d-alarme .cart em{font-style:normal;align-self:flex-start;margin-top:8px;padding:8px 16px;border-radius:8px;background:#C2304A;color:#fff;font-weight:600;font-size:14px}
+.d-alarme .cart p{margin:6px 0 0;font-size:11px;color:#6B5A5E;line-height:1.4}
+.d-alarme img{width:380px;border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
 /* ---------- 12. chip ---------- */
 #s12 .grade{display:grid;grid-template-columns:1.05fr 1fr;gap:64px;flex:1;min-height:0}
 .chip{border:1px solid var(--linha);border-radius:20px;padding:28px;background:
@@ -566,14 +599,62 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
   </section>
 
   <!-- 12 -->
-  <section class="slide" id="s11" data-cena="carrossel" aria-label="O painel">
-    <p class="olho" data-r>Entrega · o painel da coordenação</p>
-    <h2 data-r style="--d:1">Tudo que a coordenação precisa, numa tela.</h2>
-    <div class="painel-lado" data-r style="--d:2">
-      <ol class="recursos" id="recursos"></ol>
-      <p class="tambem"><span>e mais</span>eventos por dia · onde o dia aperta · por tipo e por local · mapa de calor · pessoas reconhecidas · banco na AWS</p>
+  <section class="slide" id="s11" aria-label="O painel">
+    <div class="lado">
+      <p class="olho" data-r>Entrega · o painel</p>
+      <h2 data-r style="--d:1">O painel, cartão por cartão.</h2>
+      <div class="passo" data-r style="--d:2">
+        <small id="p-n">01 / 14</small>
+        <h3 id="p-t">—</h3>
+        <p id="p-d">—</p>
+        <div class="tempo"><i id="p-tempo"></i></div>
+      </div>
+      <div class="pontos-p" id="p-pontos" data-r style="--d:3"></div>
     </div>
-    <b class="leg-n" id="leg-n">1 / 6</b>
+
+    <div class="dash" id="dash" data-r style="--d:2">
+      <div class="d-top" data-p="0">
+        <div><b>Painel Auditix</b><p>Leitura do banco da escola · só grava quem ficou ciente de um alerta</p></div>
+        <div class="selos"><span class="ok">● Postgres AWS</span><span>atualizado 12:30</span><span class="ok">sala-12 · vendo · 7,6/s</span><span>Conferir a cadeia</span><span>Som ligado</span><span>Tema</span></div>
+      </div>
+      <div class="d-kpis">
+        <div class="c d-heroi" data-p="1"><span class="rt">Cadeia de hash</span><span class="n">✓ íntegra</span><span class="pe">80 elos recalculados desde a gênese, todos fechando</span></div>
+        <div class="c" data-p="2"><span class="rt">Eventos</span><span class="n">32</span><span class="pe">nos últimos 30 dias</span></div>
+        <div class="c" data-p="3"><span class="rt">Último evento</span><span class="n" style="color:#F4C26B">agora</span><span class="pe">queda em sala-12, pendente de conferência</span></div>
+        <div class="c" data-p="4"><span class="rt">Dia mais cheio</span><span class="n">32</span><span class="pe">01 de out.</span></div>
+        <div class="c" data-p="5"><span class="rt">Horário de pico</span><span class="n">12h</span><span class="pe">16 eventos nessa faixa</span></div>
+      </div>
+      <div class="c" data-p="6">
+        <h5>Eventos por dia <span>últimos 30 dias</span><span class="btns"><i>7d</i><i class="on">30d</i><i>90d</i><i>Tabela</i></span></h5>
+        <svg id="d-serie" viewBox="0 0 980 110" style="height:110px"></svg>
+      </div>
+      <div class="d-g2">
+        <div class="c" data-p="7"><h5>Onde o dia aperta <span>eventos por hora, somando a janela</span></h5><svg id="d-hora" viewBox="0 0 470 96" style="height:96px"></svg></div>
+        <div class="c" data-p="8"><h5>Por tipo de evento <span>base inteira</span></h5><svg id="d-tipo" viewBox="0 0 470 96" style="height:96px"></svg></div>
+      </div>
+      <div class="d-g2">
+        <div class="c" data-p="9"><h5>Por local <span>base inteira</span></h5><svg id="d-local" viewBox="0 0 470 70" style="height:70px"></svg></div>
+        <div class="c" data-p="10"><h5>Mapa de calor <span>câmera sala-12</span><span class="btns"><i>hoje</i><i class="on">7d</i><i>tudo</i></span></h5><svg id="d-mapa" viewBox="0 0 470 70" style="height:70px"></svg></div>
+      </div>
+      <div class="c" data-p="11">
+        <h5>Pessoas <span>quem foi reconhecido e quando</span><span class="btns"><i>buscar por nome</i></span></h5>
+        <table><thead><tr><th>Nome</th><th>Última vez</th><th>Onde</th><th>Há quanto tempo</th><th style="text-align:right">Registros</th></tr></thead>
+        <tbody><tr><td>heitor</td><td>01/10, 12:24</td><td>sala-12</td><td>há 1 min</td><td class="n">1</td></tr></tbody></table>
+      </div>
+      <div class="c" data-p="12">
+        <h5>Últimos eventos <span>com o hash que fecha cada elo</span></h5>
+        <table><thead><tr><th>#</th><th>Quando</th><th>Tipo</th><th>Local</th><th>Aluno</th><th>Hash</th><th>Evidência</th></tr></thead>
+        <tbody>
+          <tr><td>79</td><td>01/10 12:24</td><td><span class="tag">queda</span></td><td>sala-12</td><td>heitor</td><td>fecha ✓</td><td><span class="tag ok">ciente em 12 s</span> ver o corpo</td></tr>
+          <tr><td>·</td><td>21/09 16:25</td><td><span class="tag">queda</span></td><td>sala-12</td><td>corpo-1</td><td>baa5ae13fda5…</td><td>ver o corpo</td></tr>
+        </tbody></table>
+      </div>
+      <div class="d-alarme" data-p="13">
+        <div class="cart"><small>▲ ALERTA GRAVE</small><b>queda</b><span>sala-12 · corpo-1</span><span style="color:#8A6E74">há 7 s sem ninguém ciente</span><em>Estou ciente</em>
+          <p>"Estou ciente" vira uma linha na cadeia de hash, com o horário.</p></div>
+        <img id="d-email" alt="O e-mail que a coordenação recebeu numa queda real do laboratório">
+      </div>
+    </div>
   </section>
 
   <!-- 12 -->
@@ -666,7 +747,7 @@ const NOTAS = [
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
-  "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. E o e-mail chega na hora: este é o que recebemos de uma queda real no laboratório. Fora isso: eventos por dia, horários de pico, mapa de calor e pessoas reconhecidas.",
+  "O painel é uma entrega à parte, e cada cartão tem um porquê. No topo, o banco que está em uso e a câmera vendo. Depois a cadeia íntegra, os quatro números do dia, a série por dia, o horário de pico, por tipo e por local, o mapa de calor, as pessoas reconhecidas e os últimos eventos com o hash de cada elo. E quando cai alguém, o alarme toma a tela e o e-mail chega junto.",
   "O trabalho está dividido no chip. O modelo de IA roda na NPU, com 40% do trabalho. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
   "Auditix IA, grupo 11. Obrigado."
 ];
@@ -1320,89 +1401,6 @@ function cenaCadeia(){
 }
 
 /* ======================================================================
-   CENA 5: carrossel das telas reais do painel
-   ====================================================================== */
-const TELAS = [
-  ["painel", "Cadeia íntegra, ao vivo", "No laboratório: 80 elos recalculados desde a gênese, todos fechando. Um selo por câmera diz se ela está vendo."],
-  ["alarme", "Alarme que toma a tela", "Queda ou briga nova aparece em cerca de 1 s, com sirene, até alguém apertar Estou ciente. O clique vira elo."],
-  ["email", "E-mail na hora do alarme", "A coordenação recebe onde, quando e o registro na trilha de auditoria. Este chegou de uma queda real no laboratório."],
-  ["corpo", "A prova sem rosto", "Os últimos 2,5 s do corpo em 17 pontos, o último quadro em vermelho. Confere a queda sem expor ninguém."],
-  ["cadeia", "Cadeia conferida no navegador", "O SHA-256 é recalculado na máquina de quem olha, sem confiar no servidor, e mostra onde a corrente quebrou."],
-  ["ppt/midia/tela-cadastro.jpg", "Cadastro pela câmera da AIBOX", "A coordenação cadastra pela câmera de baixo. O rosto vira 128 números girados; a foto não é guardada."],
-];
-function cenaCarrossel(){
-  const cena = new THREE.Scene();
-  cena.fog = new THREE.Fog(COR.noite, 9, 22);
-  const cam = new THREE.PerspectiveCamera(36, W/H, .1, 80); cam.position.set(0, 1.4, 13.2);
-  // o anel fica à direita: a esquerda é da lista de recursos
-  const anel = new THREE.Group(); anel.position.x = 2.0; cena.add(anel);
-  const R = 4.9, itens = [], TROCA = 6;
-  const img = window.PITCH_IMG || {};
-  // Cada tela vem embutida (PITCH_IMG) ou de um arquivo em ppt/midia. Arquivo
-  // que não existe fica de fora, e o anel se monta só com o que carregou.
-  const carregar = ([k, tit, txt]) => new Promise(ok => {
-    const fonte = img[k] ? img[k].src : k;
-    const im = new Image();
-    im.onload = () => ok({ im, tit, txt, w:im.naturalWidth, h:im.naturalHeight });
-    im.onerror = () => ok(null);
-    im.src = fonte;
-  });
-  let lista = [];
-  Promise.all(TELAS.map(carregar)).then(r => {
-    lista = r.filter(Boolean); lista.forEach(montar);
-    // a lista da esquerda é feita do que carregou: clicar gira o anel até a tela
-    $("recursos").replaceChildren(...lista.map((it, i) => {
-      const li = document.createElement("li"); li.dataset.n = String(i + 1).padStart(2, "0");
-      li.style.setProperty("--dur", TROCA + "s");
-      li.innerHTML = "<h3></h3><p></p><i></i>"; li.children[0].textContent = it.tit; li.children[1].textContent = it.txt;
-      li.addEventListener("click", () => { atual = i; desde = relogio; legenda(); });
-      return li;
-    }));
-    legenda();
-  });
-  function montar(info, i){
-    const tex = new THREE.Texture(info.im); tex.needsUpdate = true; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    const h = 2.6, w = Math.min(4.4, h * info.w / info.h), hh = w * info.h / info.w;
-    const ang = i / lista.length * Math.PI * 2;
-    const g = new THREE.Group(); g.position.set(Math.sin(ang) * R, 1.3, Math.cos(ang) * R); g.rotation.y = ang;
-    const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map:tex, side:THREE.DoubleSide, transparent:true }));
-    const reflexo = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map:tex, transparent:true, opacity:.12, side:THREE.DoubleSide }));
-    reflexo.scale.y = -1; reflexo.position.y = -hh - .12;
-    const moldura = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(w + .12, hh + .12)), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.5 }));
-    g.add(m, reflexo, moldura); anel.add(g);
-    itens.push({ g, m, moldura });
-  }
-  const piso = []; for(let i = -12; i <= 12; i++){ piso.push(new THREE.Vector3(i, -.35, -12), new THREE.Vector3(i, -.35, 12), new THREE.Vector3(-12, -.35, i), new THREE.Vector3(12, -.35, i)); }
-  cena.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(piso), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.06 })));
-  let atual = 0, rot = 0, desde = 0;
-  function legenda(){
-    if(!lista.length) return;
-    $("leg-n").textContent = (atual + 1) + " / " + lista.length;
-    [...$("recursos").children].forEach((li, i) => {
-      li.classList.toggle("on", i === atual);
-      // reinicia a barrinha de tempo do item da frente
-      const b = li.querySelector("i"); b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
-    });
-  }
-  return { cena, cam, reg:[0, 0, W, H],
-    entrar(t){ atual = 0; desde = t; legenda(); },
-    avancar(t){ if(!lista.length) return; atual = (atual + 1) % lista.length; desde = t; legenda(); },
-    tick(t, dt){
-      if(t - desde > TROCA) this.avancar(t);
-      const alvo = lista.length ? -atual / lista.length * Math.PI * 2 : 0;
-      let dif = alvo - rot; dif = Math.atan2(Math.sin(dif), Math.cos(dif));
-      rot += dif * Math.min(1, dt * 2.6);
-      anel.rotation.y = rot;
-      itens.forEach((it, i) => {
-        const frente = i === atual;
-        it.moldura.material.opacity = frente ? .9 : .2;
-        it.m.material.opacity = frente ? 1 : .55;
-      });
-      cam.position.y = 1.4 + Math.sin(t*.3) * .12; cam.lookAt(0, 1.05, 0);
-    } };
-}
-
-/* ======================================================================
    Animações 2D: monitores, ícones do fluxo, cartões, privacidade
    ====================================================================== */
 function corpo2d(ctx, px, py, h, o, cor, esp){
@@ -1451,7 +1449,8 @@ function animar(id, fn){ const c = $(id); if(c) ANIM[id] = { c, x: c.getContext(
     const e = t - t0;
     telas.forEach((m, i) => {
       m.x.imageSmoothingEnabled = false;
-      m.x.drawImage(ruido[(Math.floor(t*12) + i) % ruido.length], 0, 0, 320, 200);
+      const q = ruido[(((Math.floor(t*12) + i) % ruido.length) + ruido.length) % ruido.length];
+      if(q) m.x.drawImage(q, 0, 0, 320, 200);
       m.x.fillStyle = "rgba(95,224,181,.05)"; m.x.fillRect(0, 0, 320, 200);
       // um vulto andando em cada tela, para parecer gente
       const vx = ((t*28 + i*90) % 380) - 30;
@@ -1466,6 +1465,71 @@ function animar(id, fn){ const c = $(id); if(c) ANIM[id] = { c, x: c.getContext(
     const ning = mon.querySelector(".ninguem");
     if(e > 2.6){ ning.hidden = false; const s = Math.floor(e - 2.6); ning.textContent = "ninguém viu · " + String(Math.floor(s/60)).padStart(2,"0") + ":" + String(s%60).padStart(2,"0"); }
     else ning.hidden = true;
+  } };
+})();
+
+/* ======================================================================
+   O painel por dentro (slide 11): cada cartão acende e se explica
+   ====================================================================== */
+const PASSOS = [
+  ["Selos do topo", "Qual banco está <b>realmente</b> em uso (Postgres na AWS, ou SQLite local se a nuvem cair), quando atualizou, e um selo por câmera: <b>vendo</b>, sem sinal ou tampada. Botões para conferir a cadeia, ligar a sirene e trocar o tema."],
+  ["Cadeia de hash", "O primeiro cartão é a integridade. O painel <b>recalcula a corrente desde a gênese</b> a cada carga: 80 elos fechando no laboratório. Mexer numa linha antiga quebra tudo dali para frente."],
+  ["Eventos", "Quantos eventos entraram na janela escolhida. <b>32 nos últimos 30 dias</b> no laboratório."],
+  ["Último evento", "Há quanto tempo foi o último, e o que era. Em âmbar enquanto está <b>pendente de conferência</b>: ninguém apertou Estou ciente ainda."],
+  ["Dia mais cheio", "O dia com mais eventos na janela, <b>32 em 01 de outubro</b>, o dia dos testes no laboratório."],
+  ["Horário de pico", "A faixa de hora que mais concentra eventos: <b>12h, com 16</b>. É o dado para decidir onde reforçar a vigia."],
+  ["Eventos por dia", "A série de <b>7, 30 ou 90 dias</b>, com os graves numa linha à parte. O botão <b>Tabela</b> mostra os mesmos números em texto, para quem não lê gráfico."],
+  ["Onde o dia aperta", "Eventos por hora, somando a janela inteira. Mostra <b>o horário em que a escola mais precisa de gente olhando</b>."],
+  ["Por tipo de evento", "Queda, corrida, briga e pedido de ajuda, na base inteira. Corrida aparece e conta, mas <b>não é tratada como emergência</b>: não toca sirene."],
+  ["Por local", "Onde acontece. No laboratório, <b>sala-12 com 32 eventos</b>. Com mais câmeras, cada sala vira uma barra."],
+  ["Mapa de calor", "Onde a sala engarrafa. Cada célula é <b>uma passagem, não uma pessoa</b>. Hoje a grade vem da versão do navegador; a AIBOX ainda não manda."],
+  ["Pessoas", "Quem foi reconhecido, onde e quando, com busca por nome. <b>Só entra quem se cadastrou</b>: o painel não descobre gente nova, conta o que foi consentido."],
+  ["Últimos eventos", "Cada linha com o <b>hash que fecha o elo</b>, quanto tempo levou até alguém ficar ciente, e a evidência: o <b>corpo em pontos</b>, sem rosto. A foto, quando existe, deixa registro de quem abriu."],
+  ["Alarme e e-mail", "Queda ou briga nova <b>toma a tela em cerca de 1 s</b>, com sirene, até alguém apertar Estou ciente; o clique vira elo. O e-mail sai junto: este chegou de uma <b>queda real no laboratório</b>."],
+];
+(function(){
+  const dash = $("dash"), regs = [...dash.querySelectorAll("[data-p]")], TROCA = 6;
+  const pontos = $("p-pontos");
+  PASSOS.forEach((_, i) => { const b = document.createElement("button"); b.textContent = i + 1; b.onclick = () => ir(i); pontos.appendChild(b); });
+  if(window.PITCH_IMG && PITCH_IMG.email) $("d-email").src = PITCH_IMG.email.src;
+  let atual = 0, desde = 0, agora = 0;
+  function ir(i){
+    atual = (i + PASSOS.length) % PASSOS.length; desde = agora;
+    dash.classList.add("guia");
+    regs.forEach(r => r.classList.toggle("on", +r.dataset.p === atual));
+    [...pontos.children].forEach((b, k) => b.classList.toggle("on", k === atual));
+    $("p-n").textContent = String(atual + 1).padStart(2, "0") + " / " + PASSOS.length;
+    $("p-t").textContent = PASSOS[atual][0]; $("p-d").innerHTML = PASSOS[atual][1];
+  }
+  regs.forEach(r => r.addEventListener("click", () => ir(+r.dataset.p)));
+  // os gráficos: formas do painel do laboratório; números só onde foram medidos
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (svg, n, a, txt) => { const e = document.createElementNS(NS, n); for(const k in a) e.setAttribute(k, a[k]); if(txt) e.textContent = txt; $(svg).appendChild(e); return e; };
+  const VERDE = "#5FE0B5", FR = "#7F988F", GR = "#1E2E29";
+  for(let i = 0; i < 4; i++) el("d-serie", "line", { x1:30, x2:975, y1:10 + i*28, y2:10 + i*28, stroke:GR });
+  el("d-serie", "polyline", { points:"30,94 900,94 935,94 955,12", fill:"none", stroke:VERDE, "stroke-width":2.5 });
+  el("d-serie", "polyline", { points:"30,94 935,94 955,80", fill:"none", stroke:"#FF4D6A", "stroke-width":1.6, "stroke-dasharray":"5 4" });
+  ["02/09","09/09","16/09","23/09","30/09"].forEach((d, i) => el("d-serie", "text", { x:30 + i*228, y:108, fill:FR, "font-size":11 }, d));
+  const horas = { 12:1, 13:.75, 14:.08, 15:.06, 16:.05, 17:.04 };
+  for(let h = 0; h < 24; h++){ const v = horas[h] || 0, bh = Math.max(2, v*70);
+    el("d-hora", "rect", { x:10 + h*19, y:80 - bh, width:14, height:bh, rx:2, fill: v ? VERDE : GR, opacity: v ? .5 + v*.5 : 1 }); }
+  [0,6,12,18].forEach(h => el("d-hora", "text", { x:10 + h*19, y:94, fill:FR, "font-size":11 }, h + "h"));
+  [["queda", .9], ["ciente", .55], ["briga", .25], ["corrida", .2]].forEach(([n, v], i) => {
+    el("d-tipo", "text", { x:0, y:16 + i*22, fill:"#DCE7E3", "font-size":12 }, n);
+    el("d-tipo", "rect", { x:70, y:6 + i*22, width:v*380, height:12, rx:3, fill: n === "corrida" ? "#F4C26B" : n === "ciente" ? "#2C6B58" : n === "queda" || n === "briga" ? "#FF4D6A" : VERDE, opacity:.75 });
+  });
+  el("d-local", "text", { x:0, y:30, fill:"#DCE7E3", "font-size":12 }, "sala-12");
+  el("d-local", "rect", { x:62, y:20, width:360, height:14, rx:3, fill:VERDE, opacity:.8 });
+  el("d-local", "text", { x:430, y:31, fill:"#DCE7E3", "font-size":12 }, "32");
+  let sem = 5; const rnd = () => (sem = (sem * 16807) % 2147483647) / 2147483647;
+  for(let x = 0; x < 24; x++) for(let y = 0; y < 4; y++){
+    const v = Math.max(0, Math.sin(x*.35 + y*.9) * .5 + .5 - Math.abs(y - 1.5)*.15) * rnd();
+    el("d-mapa", "rect", { x:x*19.5, y:y*17, width:18, height:15.5, rx:2, fill:VERDE, opacity:(.06 + v*.75).toFixed(2) });
+  }
+  ANIM.dash = { c: dash, entrar(t){ agora = t; ir(0); }, fn(t){
+    agora = t;
+    if(t - desde > TROCA) ir(atual + 1);
+    $("p-tempo").style.width = Math.min(100, (t - desde) / TROCA * 100) + "%";
   } };
 })();
 
@@ -1735,7 +1799,7 @@ let parado; addEventListener("pointermove", () => { $("barra").classList.remove(
 // arrastar gira a sala no slide 4; em outros slides, deslizar troca de slide
 let toque = null;
 palco.addEventListener("pointerdown", e => {
-  if(e.target.closest("button,video,a,.recursos")) return;
+  if(e.target.closest("button,video,a,.dash")) return;
   toque = { x:e.clientX, y:e.clientY, t:performance.now() };
   if(slides[atual].id === "s4" && CENAS.sala){ CENAS.sala.orb.arrastando = true; palco.setPointerCapture(e.pointerId); }
 });
@@ -1751,7 +1815,6 @@ palco.addEventListener("pointerup", e => {
   const dx = e.clientX - toque.x, rapido = performance.now() - toque.t < 500;
   if(slides[atual].id === "s4" && CENAS.sala){ CENAS.sala.orb.arrastando = false; }
   else if(rapido && Math.abs(dx) > 60) (dx < 0 ? prox : ant)();
-  else if(slides[atual].id === "s11" && CENAS.carrossel) CENAS.carrossel.avancar(relogio);
   toque = null;
 });
 palco.addEventListener("wheel", e => {
@@ -1771,7 +1834,6 @@ if(gl){
     CENAS.sala = cenaSala();
     CENAS.giro = cenaGiro();
     CENAS.cadeia = cenaCadeia();
-    CENAS.carrossel = cenaCarrossel();
   }catch(e){ console.error(e); gl = null; }
 }
 const inicial = parseInt((location.hash || "").slice(1), 10);
