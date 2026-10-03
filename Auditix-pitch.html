@@ -272,6 +272,29 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 .vazio span{font-size:18px;color:var(--fraco);max-width:520px}
 
 /* ---------- 11. carrossel ---------- */
+#s11{pointer-events:none}
+#s11 > *{pointer-events:auto}
+#s11 h2{font-size:60px;max-width:760px}
+.painel-lado{width:700px;display:flex;flex-direction:column;gap:18px}
+.recursos{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.recursos li{position:relative;padding:12px 18px 12px 62px;border-radius:12px;border:1px solid var(--linha);
+  background:rgba(8,20,17,.9);cursor:pointer;overflow:hidden;transition:background .3s,border-color .3s}
+.recursos li::before{content:attr(data-n);position:absolute;left:18px;top:13px;font-family:var(--f-dado);
+  font-size:20px;color:var(--fraco)}
+.recursos li h3{margin:0;font-family:var(--f-display);font-size:27px;letter-spacing:-.015em;color:var(--fraco)}
+.recursos li p{margin:0;max-height:0;opacity:0;font-size:19px;line-height:1.4;color:var(--texto);
+  transition:max-height .45s,opacity .45s,margin .45s}
+.recursos li.on{background:rgb(14,42,35);border-color:rgba(95,224,181,.55)}
+.recursos li.on::before{color:var(--menta)}
+.recursos li.on h3{color:var(--texto)}
+.recursos li.on p{max-height:90px;opacity:1;margin-top:6px}
+.recursos li i{position:absolute;left:0;bottom:0;height:3px;width:0;background:var(--menta)}
+.recursos li.on i{animation:enche var(--dur,6s) linear forwards}
+@keyframes enche{to{width:100%}}
+.tambem{margin:0;font-size:18px;line-height:1.55;color:var(--fraco)}
+.tambem span{font-family:var(--f-dado);font-size:15px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--menta);margin-right:12px}
+.leg-n{position:absolute;right:128px;bottom:110px;font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:20px}
 #s11 .legenda{position:absolute;left:128px;right:128px;bottom:110px;display:flex;gap:30px;align-items:baseline}
 #s11 .legenda b{font-family:var(--f-dado);font-weight:500;color:var(--menta);font-size:20px;
   letter-spacing:.12em;text-transform:uppercase;flex:none}
@@ -569,9 +592,13 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 
   <!-- 12 -->
   <section class="slide" id="s11" data-cena="carrossel" aria-label="O painel">
-    <p class="olho" data-r>O que a coordenação vê</p>
-    <h2 data-r style="--d:1">O painel, como ele está hoje.</h2>
-    <div class="legenda"><b id="leg-n">1 / 5</b><p id="leg-t">O painel no laboratório: 80 elos recalculados desde a gênese, todos fechando.</p></div>
+    <p class="olho" data-r>Entrega · o painel da coordenação</p>
+    <h2 data-r style="--d:1">Tudo que a coordenação precisa, numa tela.</h2>
+    <div class="painel-lado" data-r style="--d:2">
+      <ol class="recursos" id="recursos"></ol>
+      <p class="tambem"><span>e mais</span>eventos por dia · onde o dia aperta · por tipo e por local · mapa de calor · pessoas reconhecidas · e-mail para a coordenação · banco na AWS</p>
+    </div>
+    <b class="leg-n" id="leg-n">1 / 6</b>
   </section>
 
   <!-- 12 -->
@@ -665,7 +692,7 @@ const NOTAS = [
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
-  "É isso que a coordenação vê: a cadeia íntegra, o alarme que toma a tela, o corpo em pontos e a cadeia conferida no próprio navegador.",
+  "O painel é uma entrega à parte. A coordenação vê a cadeia íntegra ao vivo, o alarme que toma a tela com sirene até alguém ficar ciente, a prova do corpo em pontos, a cadeia conferida no próprio navegador e o cadastro pela câmera da caixa. Fora isso: eventos por dia, horários de pico, mapa de calor, pessoas reconhecidas e e-mail para a coordenação.",
   "Tudo isso roda hoje só na CPU, a 93%. A NPU, a parte do chip feita para IA, ainda está livre. É o próximo salto: mais quadros, imagem maior e mais pessoas detectadas.",
   "Auditix IA, grupo 11. Obrigado."
 ];
@@ -1321,34 +1348,46 @@ function cenaCadeia(){
    CENA 5: carrossel das telas reais do painel
    ====================================================================== */
 const TELAS = [
-  ["painel", "O painel no laboratório: 80 elos recalculados desde a gênese, todos fechando."],
-  ["ppt/midia/tela-cadastro.jpg", "O cadastro pela câmera de baixo da AIBOX: o rosto vira 128 números girados, e a foto não é guardada."],
-  ["alarme", "Queda nova toma a tela em cerca de 1 s, com sirene, até alguém apertar Estou ciente."],
-  ["corpo", "A prova sem rosto: os últimos 24 quadros do corpo, só os 17 pontos, em vermelho o último."],
-  ["cadeia", "A página da cadeia recalcula os hashes no próprio navegador e mostra onde a corrente quebrou."],
-  ["chao", "Linha do chão: com a câmera fixa, cabeça abaixo da linha marcada é queda, direto."],
+  ["painel", "Cadeia íntegra, ao vivo", "No laboratório: 80 elos recalculados desde a gênese, todos fechando. Um selo por câmera diz se ela está vendo."],
+  ["alarme", "Alarme que toma a tela", "Queda ou briga nova aparece em cerca de 1 s, com sirene, até alguém apertar Estou ciente. O clique vira elo."],
+  ["corpo", "A prova sem rosto", "Os últimos 2,5 s do corpo em 17 pontos, o último quadro em vermelho. Confere a queda sem expor ninguém."],
+  ["cadeia", "Cadeia conferida no navegador", "O SHA-256 é recalculado na máquina de quem olha, sem confiar no servidor, e mostra onde a corrente quebrou."],
+  ["ppt/midia/tela-cadastro.jpg", "Cadastro pela câmera da AIBOX", "A coordenação cadastra pela câmera de baixo. O rosto vira 128 números girados; a foto não é guardada."],
+  ["chao", "Linha do chão", "Com a câmera fixa, cabeça abaixo da linha marcada é queda, direto."],
 ];
 function cenaCarrossel(){
   const cena = new THREE.Scene();
   cena.fog = new THREE.Fog(COR.noite, 9, 22);
   const cam = new THREE.PerspectiveCamera(36, W/H, .1, 80); cam.position.set(0, 1.4, 13.2);
-  const anel = new THREE.Group(); cena.add(anel);
-  const R = 4.6, itens = [];
+  // o anel fica à direita: a esquerda é da lista de recursos
+  const anel = new THREE.Group(); anel.position.x = 2.0; cena.add(anel);
+  const R = 4.9, itens = [], TROCA = 6;
   const img = window.PITCH_IMG || {};
   // Cada tela vem embutida (PITCH_IMG) ou de um arquivo em ppt/midia. Arquivo
   // que não existe fica de fora, e o anel se monta só com o que carregou.
-  const carregar = ([k, txt]) => new Promise(ok => {
+  const carregar = ([k, tit, txt]) => new Promise(ok => {
     const fonte = img[k] ? img[k].src : k;
     const im = new Image();
-    im.onload = () => ok({ im, txt, w:im.naturalWidth, h:im.naturalHeight });
+    im.onload = () => ok({ im, tit, txt, w:im.naturalWidth, h:im.naturalHeight });
     im.onerror = () => ok(null);
     im.src = fonte;
   });
   let lista = [];
-  Promise.all(TELAS.map(carregar)).then(r => { lista = r.filter(Boolean); lista.forEach(montar); legenda(); });
+  Promise.all(TELAS.map(carregar)).then(r => {
+    lista = r.filter(Boolean); lista.forEach(montar);
+    // a lista da esquerda é feita do que carregou: clicar gira o anel até a tela
+    $("recursos").replaceChildren(...lista.map((it, i) => {
+      const li = document.createElement("li"); li.dataset.n = String(i + 1).padStart(2, "0");
+      li.style.setProperty("--dur", TROCA + "s");
+      li.innerHTML = "<h3></h3><p></p><i></i>"; li.children[0].textContent = it.tit; li.children[1].textContent = it.txt;
+      li.addEventListener("click", () => { atual = i; desde = relogio; legenda(); });
+      return li;
+    }));
+    legenda();
+  });
   function montar(info, i){
     const tex = new THREE.Texture(info.im); tex.needsUpdate = true; tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
-    const h = 2.5, w = Math.min(4.3, h * info.w / info.h), hh = w * info.h / info.w;
+    const h = 2.6, w = Math.min(4.4, h * info.w / info.h), hh = w * info.h / info.w;
     const ang = i / lista.length * Math.PI * 2;
     const g = new THREE.Group(); g.position.set(Math.sin(ang) * R, 1.3, Math.cos(ang) * R); g.rotation.y = ang;
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, hh), new THREE.MeshBasicMaterial({ map:tex, side:THREE.DoubleSide, transparent:true }));
@@ -1361,12 +1400,20 @@ function cenaCarrossel(){
   const piso = []; for(let i = -12; i <= 12; i++){ piso.push(new THREE.Vector3(i, -.35, -12), new THREE.Vector3(i, -.35, 12), new THREE.Vector3(-12, -.35, i), new THREE.Vector3(12, -.35, i)); }
   cena.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(piso), new THREE.LineBasicMaterial({ color:COR.menta, transparent:true, opacity:.06 })));
   let atual = 0, rot = 0, desde = 0;
-  function legenda(){ if(!lista.length) return; $("leg-n").textContent = (atual + 1) + " / " + lista.length; $("leg-t").textContent = lista[atual].txt; }
+  function legenda(){
+    if(!lista.length) return;
+    $("leg-n").textContent = (atual + 1) + " / " + lista.length;
+    [...$("recursos").children].forEach((li, i) => {
+      li.classList.toggle("on", i === atual);
+      // reinicia a barrinha de tempo do item da frente
+      const b = li.querySelector("i"); b.style.animation = "none"; void b.offsetWidth; b.style.animation = "";
+    });
+  }
   return { cena, cam, reg:[0, 0, W, H],
     entrar(t){ atual = 0; desde = t; legenda(); },
     avancar(t){ if(!lista.length) return; atual = (atual + 1) % lista.length; desde = t; legenda(); },
     tick(t, dt){
-      if(t - desde > 5) this.avancar(t);
+      if(t - desde > TROCA) this.avancar(t);
       const alvo = lista.length ? -atual / lista.length * Math.PI * 2 : 0;
       let dif = alvo - rot; dif = Math.atan2(Math.sin(dif), Math.cos(dif));
       rot += dif * Math.min(1, dt * 2.6);
@@ -1667,7 +1714,7 @@ function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual 
    10 dos 14 slides, nesta ordem: o vídeo real logo depois da sala em 3D, que é
    quando ele pesa mais. Os outros 4 (como funciona, o que detecta, painel e
    próximo passo) continuam no arquivo para as perguntas: número + Enter. */
-const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s7","s9","s8","s13"];
+const CURTO_IDS = ["s1","s2","s3","s4","s10","s10b","s11","s7","s9","s8","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
 try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}
@@ -1745,7 +1792,7 @@ let parado; addEventListener("pointermove", () => { $("barra").classList.remove(
 // arrastar gira a sala no slide 4; em outros slides, deslizar troca de slide
 let toque = null;
 palco.addEventListener("pointerdown", e => {
-  if(e.target.closest("button,video,a")) return;
+  if(e.target.closest("button,video,a,.recursos")) return;
   toque = { x:e.clientX, y:e.clientY, t:performance.now() };
   if(slides[atual].id === "s4" && CENAS.sala){ CENAS.sala.orb.arrastando = true; palco.setPointerCapture(e.pointerId); }
 });
