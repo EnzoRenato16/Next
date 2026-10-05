@@ -506,6 +506,17 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     </div>
   </section>
 
+  <!-- 9 -->
+  <section class="slide" id="s9" data-cena="cadeia" aria-label="Cadeia de hash">
+    <p class="olho" data-r>Auditável</p>
+    <h2 data-r style="--d:1">Cada alerta vira um elo. Apagar um deixa rastro em todos os seguintes.</h2>
+    <div class="rodape">
+      <p class="veredito" id="veredito">SHA-256(momento | aluno | tipo | local | hash anterior), calculado agora neste navegador.<br><b class="menta">A cadeia fecha: 6 de 6 elos conferidos.</b></p>
+      <div class="botoes"><button class="botao" id="adulterar" type="button">Adulterar a queda #61</button>
+        <button class="botao claro" id="desfazer" type="button">Desfazer</button></div>
+    </div>
+  </section>
+
   <!-- 12 -->
   <section class="slide" id="s11" aria-label="O painel">
     <div class="lado">
@@ -562,17 +573,6 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
           <p>"Estou ciente" vira uma linha na cadeia de hash, com o horário.</p></div>
         <img id="d-email" alt="O e-mail que a coordenação recebeu numa queda real do laboratório">
       </div>
-    </div>
-  </section>
-
-  <!-- 9 -->
-  <section class="slide" id="s9" data-cena="cadeia" aria-label="Cadeia de hash">
-    <p class="olho" data-r>Auditável</p>
-    <h2 data-r style="--d:1">Cada alerta vira um elo. Apagar um deixa rastro em todos os seguintes.</h2>
-    <div class="rodape">
-      <p class="veredito" id="veredito">SHA-256(momento | aluno | tipo | local | hash anterior), calculado agora neste navegador.<br><b class="menta">A cadeia fecha: 6 de 6 elos conferidos.</b></p>
-      <div class="botoes"><button class="botao" id="adulterar" type="button">Adulterar a queda #61</button>
-        <button class="botao claro" id="desfazer" type="button">Desfazer</button></div>
     </div>
   </section>
 
@@ -719,8 +719,8 @@ const NOTAS = [
   "Arrastem a sala. Cada pessoa vira 17 pontos. Primeiro uma queda: o esqueleto fica vermelho, a nota da rede sobe, e em pouco mais de um segundo o alerta chega ao painel. Depois uma corrida, que vira aviso em âmbar, sem sirene. Depois uma briga, dois impulsos encostados, alerta grave com sirene. Corrida e briga são regra, e a tela diz isso. Os botões embaixo pulam direto para cada uma.",
   "O sistema inteiro, gravado no laboratório. O heitor se cadastra pela câmera de baixo, a caixa passa a chamar ele pelo nome, ele cai, o esqueleto fica vermelho, e o painel registra a queda #79 com o nome dele e ciente em 12 segundos.",
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
-  "O painel é uma entrega à parte, e cada cartão tem um porquê. No topo, o banco que está em uso e a câmera vendo. Depois a cadeia íntegra, os quatro números do dia, a série por dia, o horário de pico, por tipo e por local, o mapa de calor, as pessoas reconhecidas e os últimos eventos com o hash de cada elo. E quando cai alguém, o alarme toma a tela e o e-mail chega junto.",
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
+  "O painel é uma entrega à parte, e começa pela cadeia que acabamos de ver. No topo, o banco que está em uso e a câmera vendo. Depois a cadeia íntegra, os quatro números do dia, a série por dia, o horário de pico, por tipo e por local, o mapa de calor, as pessoas reconhecidas e os últimos eventos com o hash de cada elo. E quando cai alguém, o alarme toma a tela e o e-mail chega junto.",
   "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
   "E a LGPD, artigo por artigo. Escola é dado de criança, e rosto é dado sensível. O vídeo não sai da sala; rosto só com cadastro e prova de vida; o prazo se cumpre sozinho, 365 dias para o cadastro e 7 para a foto; um clique revoga; e quem abriu cada foto fica registrado. Não é promessa: é código rodando.",
   "O trabalho está dividido no chip. O modelo de IA roda na NPU, com 40% do trabalho. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
@@ -1698,7 +1698,7 @@ function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual 
    o deck tem 12 slides, todos nesta ordem: o vídeo real logo depois da sala em 3D, que é
    quando ele pesa mais. Os outros 3 (como funciona, o que detecta
    e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
-const CURTO_IDS = ["s1","s3","s4","s10","s10b","s11","s9","s8","s8b","s12","s12b","s13"];
+const CURTO_IDS = ["s1","s3","s4","s10","s10b","s9","s11","s8","s8b","s12","s12b","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
 try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}

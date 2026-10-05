@@ -177,8 +177,9 @@ pelo duplo clique as fontes de `vendor/fontes` não carregam.
 
 **Modo 5 minutos, ligado por padrão** (o pitch tem 5 min). O deck completo e o
 modo 5 minutos têm os MESMOS 12 slides, na mesma ordem:
-`s1 s3 s4 s10 s10b s11 s9 s8 s8b s12 s12b s13` (dados, Auditix IA, sala 360,
-vídeo, A e B, painel, cadeia, privacidade, LGPD, AIBOX, custo, equipe).
+`s1 s3 s4 s10 s10b s9 s11 s8 s8b s12 s12b s13` (dados, Auditix IA, sala 360,
+vídeo, A e B, cadeia, painel, privacidade, LGPD, AIBOX, custo, equipe). A cadeia
+vem antes do painel porque o primeiro cartão do painel é ela.
 `M` alterna com o deck completo (lembrado no navegador); número + Enter abre
 qualquer slide para as perguntas, e → volta ao roteiro dali; cronômetro na
 barra, âmbar aos 4:20 e rubi aos 5:00, `T` zera. Para mudar o roteiro, edite
