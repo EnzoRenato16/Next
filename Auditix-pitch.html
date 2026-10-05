@@ -353,6 +353,7 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
 .listas li span{color:var(--fraco)}
 
 /* ---------- 13. fim ---------- */
+#s12 .chip{align-self:start}
 /* ---------- custo ---------- */
 #s12b{gap:24px}
 #s12b h2{font-size:64px;max-width:1500px}
@@ -617,6 +618,36 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     </div>
   </section>
 
+  <!-- 12 -->
+  <section class="slide" id="s12" aria-label="AIBOX e próximos passos">
+    <p class="olho" data-r>Na AIBOX: NPU e CPU dividindo o trabalho</p>
+    <h2 data-r style="--d:1">O modelo de IA roda na NPU. A CPU fica com as regras e o vídeo.</h2>
+    <div class="grade">
+      <div class="chip" data-r style="--d:2">
+        <span class="nome">Qualcomm QCS6490 · divisão do trabalho</span>
+        <div class="bloco"><h4>NPU Hexagon<small>modelo de IA</small></h4><div class="barra"><i style="--v:40%"></i></div><span class="pct menta">40%</span></div>
+        <div class="bloco"><h4>CPU<small>regras, rastreio, vídeo e rede</small></h4><div class="barra"><i style="--v:60%;--cor:var(--ambar)"></i></div><span class="pct ambar">60%</span></div>
+        <div class="bloco"><h4>GPU Adreno<small>gráfico</small></h4><div class="barra"><i style="--v:1.5%"></i></div><span class="pct">livre</span></div>
+        <div class="bloco"><h4>Vídeo<small>decodificador H.264</small></h4><div class="barra"><i style="--v:1.5%;--cor:var(--ambar)"></i></div><span class="pct ambar">testado</span></div>
+        <p class="corpo" style="font-size:18px">40% do trabalho na NPU. O resto, a detecção por parâmetros (queda, corrida, briga) e a entrada e saída, na CPU.</p>
+      </div>
+      <div class="listas" data-r style="--d:3">
+        <div><h3 class="menta">Já roda na AIBOX</h3><ul>
+          <li>Modelo de IA na NPU <span>40% do trabalho</span></li>
+          <li>Queda, corrida e briga, com alerta no painel</li>
+          <li>Reconhecimento facial <span>com a câmera de cadastro separada</span></li>
+          <li>Batimento: a caixa avisa quando ficou cega</li>
+          <li>Partida automática <span>quando a caixa liga</span></li>
+          <li>Sem internet <span>grava local se a nuvem cair</span></li>
+        </ul></div>
+        <div class="depois"><h3 class="ambar">Próximo passo</h3><ul>
+          <li>Mais pessoas detectadas por sala <span>quem está no fundo também</span></li>
+          <li>Vídeo decodificado no hardware</li>
+        </ul></div>
+      </div>
+    </div>
+  </section>
+
   <!-- custo -->
   <section class="slide" id="s12b" aria-label="Custo">
     <p class="olho" data-r>Quanto custa, por sala</p>
@@ -692,6 +723,7 @@ const NOTAS = [
   "A prova. Cliquem em adulterar: trocamos a queda por nada aconteceu, que é o que alguém faria para esconder um alerta. A corrente quebra ali e em todos os elos seguintes.",
   "Privacidade. A caixa não manda foto, manda pontos. O rosto cadastrado vira 128 números girados com uma chave fora do banco. E a foto, quando existe, sobe com a cabeça em mosaico.",
   "E a LGPD, artigo por artigo. Escola é dado de criança, e rosto é dado sensível. O vídeo não sai da sala; rosto só com cadastro e prova de vida; o prazo se cumpre sozinho, 365 dias para o cadastro e 7 para a foto; um clique revoga; e quem abriu cada foto fica registrado. Não é promessa: é código rodando.",
+  "O trabalho está dividido no chip. O modelo de IA roda na NPU, com 40% do trabalho. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
   "Quanto custa. A câmera a escola já tem. O software não cobra licença, o servidor é o PC da coordenação e o e-mail sai pelo e-mail comum. O hardware novo é a AIBOX. E na implantação, uns 8 mil reais por empresa para um programador entender as necessidades da escola e ajustar o sistema. No mês, de zero a uns 25 dólares, só se a escola quiser o banco na nuvem.",
   "Auditix IA, grupo 11. Obrigado."
 ];
@@ -1663,10 +1695,10 @@ function contar(){
 }
 function mostrarNotas(){ $("notas").innerHTML = "<b>roteiro · slide " + (atual + 1) + "</b>"; $("notas").append(NOTAS[atual] || ""); }
 /* ---- MODO 5 MINUTOS ----------------------------------------------------
-   o deck tem 11 slides, todos nesta ordem: o vídeo real logo depois da sala em 3D, que é
+   o deck tem 12 slides, todos nesta ordem: o vídeo real logo depois da sala em 3D, que é
    quando ele pesa mais. Os outros 3 (como funciona, o que detecta
    e próximo passo) continuam no arquivo para as perguntas: número + Enter. */
-const CURTO_IDS = ["s1","s3","s4","s10","s10b","s11","s9","s8","s8b","s12b","s13"];
+const CURTO_IDS = ["s1","s3","s4","s10","s10b","s11","s9","s8","s8b","s12","s12b","s13"];
 const CURTO = CURTO_IDS.map(id => slides.findIndex(s => s.id === id)).filter(i => i >= 0);
 let curto = true;
 try{ curto = localStorage.getItem("auditix.pitch.modo") !== "completo"; }catch(e){}
