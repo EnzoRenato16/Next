@@ -713,14 +713,14 @@ h2{font-size:76px;line-height:1.02;max-width:1400px}
     <h2 data-r style="--d:1">Usa a câmera que a escola já tem. O software não cobra licença.</h2>
     <div class="custos">
       <div class="zero" data-r style="--d:2"><small>Câmera IP</small><b>R$ 0</b><p>A escola já tem. Se faltar, uma Intelbras VIPC 1230 B G2 sai de <strong>R$ 258 a R$ 455</strong> no varejo.</p></div>
-      <div class="ver" data-r style="--d:3"><small>AIBOX</small><b>DATEN</b><p>O único hardware novo. Fica na sala, ao lado da câmera, e faz toda a análise.</p></div>
+      <div class="ver" data-r style="--d:3"><small>AIBOX</small><b>custo da AIBOX</b><p>O único hardware novo, com preço da DATEN. Fica na sala, ao lado da câmera, e faz toda a análise.</p></div>
       <div class="zero" data-r style="--d:4"><small>Software Auditix</small><b>R$ 0</b><p>Código do grupo, em cima de bibliotecas e modelos abertos. Sem licença por câmera nem por aluno.</p></div>
-      <div class="zero" data-r style="--d:5"><small>Servidor</small><b>R$ 0</b><p>O PC que a coordenação já usa. Ele grava os alertas e serve o painel.</p></div>
+      <div class="zero" data-r style="--d:5"><small>Servidor e e-mail</small><b>R$ 0</b><p>O PC da coordenação grava os alertas e serve o painel. O alarme sai pelo e-mail da escola.</p></div>
       <div data-r style="--d:6"><small>Banco na nuvem</small><b>R$ 0<em>a US$ 25/mês</em></b><p>SQLite no próprio PC custa zero. Postgres na AWS São Paulo (db.t4g.micro) é opcional.</p></div>
-      <div class="zero" data-r style="--d:7"><small>E-mail do alarme</small><b>R$ 0</b><p>Sai pelo e-mail comum da escola. Sem serviço pago de mensagens.</p></div>
+      <div class="ver" data-r style="--d:7"><small>Programador</small><b>R$ 8.000<em>por empresa</em></b><p>Uma pessoa para entender as necessidades de cada escola e ajustar o sistema a ela, na implantação.</p></div>
     </div>
-    <div class="total" data-r style="--d:8"><b>Além da AIBOX: <span>R$ 0 por mês</span> no mínimo, e no máximo uns US$ 25 se a escola quiser o banco na nuvem.</b></div>
-    <p class="fonte" data-r style="--d:9;max-width:none">Câmera: lojas online (Magazine Luiza), out. 2026. Banco: instância db.t4g.micro sob demanda em sa-east-1, sem armazenamento (bytebase.com/dbcost, a partir da tabela da AWS). O modelo de pose (YOLO11) é AGPL: sem custo enquanto o código do Auditix continuar aberto.</p>
+    <div class="total" data-r style="--d:8"><b>Além da AIBOX: <span>R$ 8.000 uma vez</span> por empresa, e de R$ 0 a US$ 25 por mês com o banco na nuvem.</b></div>
+    <p class="fonte" data-r style="--d:9;max-width:none">Câmera: lojas online (Magazine Luiza), out. 2026. Programador: estimativa do grupo. Banco: instância db.t4g.micro sob demanda em sa-east-1, sem armazenamento (bytebase.com/dbcost, a partir da tabela da AWS). O modelo de pose (YOLO11) é AGPL: sem custo enquanto o código do Auditix continuar aberto.</p>
   </section>
 
   <!-- 13 -->
@@ -785,7 +785,7 @@ const NOTAS = [
   "As funcionalidades mínimas A e B. À esquerda, a aplicação iniciando na AIBOX e o teste da câmera: 138 quadros em 5 segundos pelo RTSP. À direita, a sala com várias pessoas rastreadas ao mesmo tempo.",
   "O painel é uma entrega à parte, e cada cartão tem um porquê. No topo, o banco que está em uso e a câmera vendo. Depois a cadeia íntegra, os quatro números do dia, a série por dia, o horário de pico, por tipo e por local, o mapa de calor, as pessoas reconhecidas e os últimos eventos com o hash de cada elo. E quando cai alguém, o alarme toma a tela e o e-mail chega junto.",
   "O trabalho está dividido no chip. O modelo de IA roda na NPU, com 40% do trabalho. A CPU fica com o resto: a detecção por parâmetros de queda, corrida e briga, o rastreio, o vídeo e a rede. O próximo passo é detectar mais pessoas por sala.",
-  "Quanto custa. A câmera a escola já tem. O software não cobra licença, o servidor é o PC da coordenação e o e-mail sai pelo e-mail comum. O único hardware novo é a AIBOX. No mês, de zero a uns 25 dólares, se a escola quiser o banco na nuvem.",
+  "Quanto custa. A câmera a escola já tem. O software não cobra licença, o servidor é o PC da coordenação e o e-mail sai pelo e-mail comum. O hardware novo é a AIBOX. E na implantação, uns 8 mil reais por empresa para um programador entender as necessidades da escola e ajustar o sistema. No mês, de zero a uns 25 dólares, só se a escola quiser o banco na nuvem.",
   "Auditix IA, grupo 11. Obrigado."
 ];
 
