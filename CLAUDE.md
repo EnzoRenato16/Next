@@ -170,13 +170,16 @@ As três causas de "não responde", em ordem de frequência:
 ## O pitch (`Auditix-pitch.html`)
 
 Deck em HTML com three.js (`vendor/three/three.min.js`, r160, versionado: o
-laboratório não tem internet). 14 slides num palco 1920x1080 escalado; setas
+laboratório não tem internet). 11 slides num palco 1920x1080 escalado; setas
 trocam, `F` tela cheia, `N` roteiro de fala, `R` repete o evento da sala (slide 4: queda, corrida ou briga) ou
 desfaz a adulteração (slide da cadeia). Abrir com `pc pitch` (serve em 127.0.0.1:8090):
 pelo duplo clique as fontes de `vendor/fontes` não carregam.
 
-**Modo 5 minutos, ligado por padrão** (o pitch tem 5 min): 11 slides na ordem
-`s1 s3 s4 s10 s10b s11 s9 s8 s8b s12b s13`: os dois dados de abertura (violência e queda) juntos no `s1`, vídeo real depois da sala em 3D, o painel, e a LGPD num slide próprio (`s8b`), e o custo (`s12b`) antes da equipe.
+**Modo 5 minutos, ligado por padrão** (o pitch tem 5 min). Desde que "como
+funciona", "o que detecta" e o slide da AIBOX saíram, o deck completo e o modo
+5 minutos têm os MESMOS 11 slides, na mesma ordem:
+`s1 s3 s4 s10 s10b s11 s9 s8 s8b s12b s13` (dados, Auditix IA, sala 360,
+vídeo, A e B, painel, cadeia, privacidade, LGPD, custo, equipe).
 `M` alterna com o deck completo (lembrado no navegador); número + Enter abre
 qualquer slide para as perguntas, e → volta ao roteiro dali; cronômetro na
 barra, âmbar aos 4:20 e rubi aos 5:00, `T` zera. Para mudar o roteiro, edite
