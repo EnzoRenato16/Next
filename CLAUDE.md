@@ -486,6 +486,78 @@ antes continua sendo reconhecido.
 > ruído — nada quebra, ninguém é reconhecido. O servidor avisa com `[bio]
 > ATENCAO` na partida quando isso acontece.
 
+## A final do NEXT: quem é cadastrado e quem não é (PENDENTE, nada feito ainda)
+
+Passamos em terceiro. O desafio da final: numa sala com umas 20 pessoas, dizer
+quem se cadastrou na facial e quem não, mantendo queda, corrida e briga.
+
+**O que o professor respondeu (out/2026):** não vai ter internet, só a do
+evento, e bem instável. Não há tempo de cadastrar no dia: o grupo chega
+cadastrado. Falta perguntar se é o mesmo laboratório e as mesmas câmeras, se dá
+para chegar antes, e a que distância as pessoas ficam.
+
+**O gargalo é pixel, não modelo.** A caixa lê o fluxo secundário em 640x360
+(`CAM_LARG`/`CAM_ALT` em `aibox/gstcam.py`). Com a lente de ~99° da VIP 1230 D
+G2, o rosto tem uns 44 px a 1 m e 11 px a 4 m (estimativa, medir no
+laboratório), e o YuNet não acha abaixo de ~40. Em 1920x1080 seria 131 px a 1 m
+e 33 px a 4 m. NPU, treino ou API paga não recuperam rosto de 11 px.
+
+Plano, em ordem:
+
+1. medir no laboratório o rosto em pixels a 2, 4 e 6 m, nas duas câmeras
+2. rosto lido do fluxo principal (`subtype=0`), recortado na cabeça que o YOLO
+   já acha (olhos, nariz, orelhas); a queda continua no fluxo leve
+3. três estados por trilha: cadastrado (nome), não cadastrado, ainda não sei;
+   decidir só depois de várias leituras boas do mesmo rosto
+4. limiar calibrado com vídeo do laboratório (o 0,363 é da OpenCV para rosto
+   bom); colegas de outros grupos fazem o papel de não cadastrado
+5. cadastro com várias poses, também pela câmera da sala
+6. depois: `qtivdec` (decodificador por hardware), YOLO na NPU, e um modelo de
+   rosto mais forte (AdaFace, MIT) que só cabe com a CPU livre
+
+**Não treinar classificador com as pessoas do grupo:** ele não tem a opção
+"nenhuma delas" e enfia todo visitante numa classe. Comparar vetor com cadastro,
+como já é.
+
+**No dia, banco SÓ local.** Cadastro feito no Postgres da AWS não existe no
+SQLite do fallback: com a internet do evento caindo, o grupo some. Rodar sem
+`DATABASE_URL`, cadastrar nesse `auditix.db`, levar `chave-bio.txt` junto e
+cópia num pen drive. O e-mail de alarme não sai sem internet; sirene e painel
+sim.
+
+**Nuvem descartada para a final** (sem internet, LGPD, e não resolve pixel):
+
+- AWS Rekognition: US$ 0,001 por rosto consultado; busca só o maior rosto da
+  foto, então é uma chamada por pessoa
+- Azure Face: identificação exige aprovação da Microsoft
+- SageMaker Edge Manager: a AWS desligou em 26/04/2024
+- "guardar fotos e mandar quando a internet voltar": guarda rosto de quem não
+  consentiu e chega depois da apresentação
+- InsightFace (buffalo_l): modelo só para pesquisa, comercial sob cotação
+
+**LGPD:** em ago/2026 a ANPD suspendeu o reconhecimento facial de alunos da rede
+estadual do Paraná (Nota Técnica nº 4/2026): faltou necessidade,
+proporcionalidade e alternativa menos invasiva. Resposta pronta: finalidade é
+segurança, não chamada; consentimento do responsável (art. 14); quem não se
+cadastrou não deixa nada (conferir se `/api/reconhecer` descarta o vetor antes
+de afirmar no pitch).
+
+**Material que o Enzo mandou, ainda não aproveitado:**
+
+- post sobre a **Decisions API da OpenAI** (beta desde 06/10/2026, `gpt-6-luna`,
+  US$ 0,10 por milhão de tokens de entrada, saída grátis). Não serve para
+  identificar: não compara com cadastro e a política da OpenAI proíbe base de
+  rostos sem consentimento. Ideia guardada: segunda opinião sobre briga e
+  corrida mandando só o desenho do esqueleto, sem rosto. Precisa de internet.
+- **github.com/gpscorreia/face-liveness-python**: prova de vida por desafios
+  sorteados (pisque, vire à esquerda, vire à direita) com MediaPipe Face
+  Landmarker, piscada pelas notas `eyeBlinkLeft`/`eyeBlinkRight` > 0,4.
+  **Sem licença: só a ideia, nada de código.** Não reconhece ninguém e precisa de
+  uma pessoa colaborando perto da câmera, então não serve para a sala. Duas
+  ideias para o cadastro: sortear a ordem dos desafios (ordem fixa deixa passar
+  vídeo gravado) e dar prova de vida ao balcão da caixa, que hoje não tem porque
+  o YuNet dá só 5 pontos (testar se o MediaPipe instala na caixa).
+
 ## Regras do projeto que não se quebram
 
 - **Linha do banco nunca é apagada** — quebraria a cadeia de hash. A tabela
