@@ -558,6 +558,17 @@ de afirmar no pitch).
   vídeo gravado) e dar prova de vida ao balcão da caixa, que hoje não tem porque
   o YuNet dá só 5 pontos (testar se o MediaPipe instala na caixa).
 
+- post do **VIGIA** (TCC da Uniamérica, out/2026): YOLOv8n acha pessoas e, com
+  duas ou mais, uma R3D-18 olha 16 quadros e diz violência ou não; treinada no
+  **RWF-2000** (2.000 vídeos de câmera de vigilância), 90% de acurácia, AUC 0,95,
+  11 de 12 cenários encenados certos, 14 ms por análise **em GPU de PC**. Serve
+  para tirar a briga de "regra" e virar modelo treinado, como a queda. Não
+  copiar a R3D-18 para a caixa (vídeo inteiro em 3D, pesada para a CPU ARM sem
+  NPU); o caminho do nosso jeito é passar o YOLO11-pose nos vídeos do RWF-2000 e
+  treinar uma rede pequena sobre os pontos de DUAS pessoas, como fizemos com a
+  queda. Conferir a licença do RWF-2000 (github mchengny) e lembrar que os
+  vídeos vêm do YouTube. Não ajuda no desafio da facial: fica para depois dele.
+
 ## Regras do projeto que não se quebram
 
 - **Linha do banco nunca é apagada** — quebraria a cadeia de hash. A tabela
