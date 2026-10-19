@@ -31,9 +31,11 @@ sys.path.insert(0, RAIZ)
 from aibox.sala import abrir_camera, carregar_env  # noqa: E402
 
 
-def mandar(base, nome, vetores):
-    corpo = json.dumps({"nome": nome, "tipo": "sface",
-                        "descritores": vetores}).encode("utf-8")
+def mandar(base, nome, vetores, acrescentar=False):
+    dados = {"nome": nome, "tipo": "sface", "descritores": vetores}
+    if acrescentar:
+        dados["acrescentar"] = True
+    corpo = json.dumps(dados).encode("utf-8")
     pedido = urllib.request.Request(
         base.rstrip("/") + "/api/cadastro", data=corpo,
         headers={"Content-Type": "application/json"}, method="POST")
@@ -61,6 +63,9 @@ def main():
     p.add_argument("--amostras", type=int, default=6)
     p.add_argument("--intervalo", type=float, default=1.5,
                    help="segundos entre uma amostra e a seguinte")
+    p.add_argument("--acrescentar", action="store_true",
+                   help="junta com as amostras que a pessoa ja tem (por exemplo, "
+                        "as das fotos) em vez de substituir")
     a = p.parse_args()
 
     from daten.app.recognizer import FaceEngine
@@ -120,7 +125,7 @@ def main():
               "cadastrar — o reconhecimento sairia fragil. Tente de novo.")
         return 1
 
-    r = mandar(a.servidor, a.nome.strip(), vetores)
+    r = mandar(a.servidor, a.nome.strip(), vetores, a.acrescentar)
     if r.get("erro"):
         print(f"\n[cadastro] o servidor recusou: {r['erro']}")
         return 1

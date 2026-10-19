@@ -50,6 +50,10 @@ treino/local/
 # banco justamente para nao estar dentro dele.
 chave-bio.txt
 
+# Fotos para o cadastro de rosto (aibox/cadastrar_fotos.py): rosto do grupo,
+# e o repositorio e publico. Apagar depois de cadastrar.
+fotos-cadastro/
+
 # Relatorio: fotos do laboratorio e o PDF tem o rosto dos integrantes
 relatorio/img/lab-*
 relatorio/*.pdf

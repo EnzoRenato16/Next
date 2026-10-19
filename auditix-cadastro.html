@@ -55,6 +55,8 @@ td{padding:9px 8px 9px 0;border-top:1px solid var(--linha);vertical-align:middle
 td.n{font-variant-numeric:tabular-nums;color:var(--fraco)}
 .vazio{color:var(--fraco);padding:18px 0;text-align:center}
 .nota{color:var(--fraco);font-size:13px;margin-top:14px}
+/* :not([hidden]) de proposito: um display solto venceria o hidden */
+#juntar:not([hidden]){display:block}
 .aviso{color:var(--ambar)}
 .erro{color:var(--rubi)}
 button.remover{background:none;color:var(--rubi);border:1px solid var(--linha);
@@ -88,6 +90,9 @@ button.remover{background:none;color:var(--rubi);border:1px solid var(--linha);
     </div>
     <p class="dica" id="dica">Carregando os modelos…</p>
     <input type="text" id="nome" maxlength="80" placeholder="nome de quem está na frente" disabled>
+    <label class="nota" id="juntar" hidden><input type="checkbox" id="acrescentar" checked>
+      Juntar com as amostras que a pessoa já tem (as das fotos, por exemplo).
+      Desmarcado, o cadastro novo substitui o antigo.</label>
     <div class="linha">
       <button id="ligar">Ligar a câmera</button>
       <button id="salvar" class="claro" disabled>Salvar cadastro</button>
@@ -184,6 +189,7 @@ function aplicarModo(m){
   modo = (m === 'caixa' && BALCAO) ? 'caixa' : 'pc';
   const cx = modo === 'caixa';
   $('notaCaixa').hidden = !cx;
+  $('juntar').hidden = !cx;
   $('notaVida').hidden = cx;
   $('notaFoto').hidden = cx;
   $('p1').textContent = cx ? '1. um rosto, perto' : '1. enquadrar';
@@ -264,7 +270,8 @@ async function cadastrarCaixa(){
   $('salvar').disabled = true;
   try{
     const r = await fetch(BALCAO + '/cadastrar', { method:'POST',
-      headers:{'Content-Type':'application/json'}, body: JSON.stringify({ nome }) });
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ nome, acrescentar: $('acrescentar').checked }) });
     const j = await r.json();
     if(!r.ok) throw new Error(j.erro || ('HTTP ' + r.status));
     faseAntes = j.fase;

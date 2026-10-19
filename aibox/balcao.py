@@ -61,9 +61,11 @@ ROSTO_MIN = float(os.environ.get("BALCAO_ROSTO_MIN", "0.15"))
 FASES_OCUPADAS = ("colhendo", "gravando")
 
 
-def _mandar(base, nome, vetores, espera=8):
-    corpo = json.dumps({"nome": nome, "tipo": "sface",
-                        "descritores": vetores}).encode("utf-8")
+def _mandar(base, nome, vetores, espera=8, acrescentar=False):
+    dados = {"nome": nome, "tipo": "sface", "descritores": vetores}
+    if acrescentar:
+        dados["acrescentar"] = True
+    corpo = json.dumps(dados).encode("utf-8")
     pedido = urllib.request.Request(
         base.rstrip("/") + "/api/cadastro", data=corpo,
         headers={"Content-Type": "application/json"}, method="POST")
@@ -154,7 +156,7 @@ class Balcao:
         with self._trava:
             self._visto = time.monotonic()
 
-    def cadastrar(self, nome):
+    def cadastrar(self, nome, acrescentar=False):
         nome = (nome or "").strip()
         if not nome or len(nome) > 80:
             return 400, "o nome tem de ter de 1 a 80 letras"
@@ -162,6 +164,7 @@ class Balcao:
             if self.estado["fase"] in FASES_OCUPADAS:
                 return 409, f"ja cadastrando {self.estado['nome']}"
             self._vetores = []
+            self._acrescentar = bool(acrescentar)
             self._proxima = 0.0
             self._comecou = time.monotonic()
             self.estado.update(fase="colhendo", nome=nome, amostras=0, resultado=None,
@@ -311,7 +314,12 @@ class Balcao:
             return
 
         self._por(fase="gravando", mensagem=f"Gravando o cadastro de {nome}…")
-        r = self._mandar(self.servidor, nome, self._vetores)
+        # So passa o acrescentar quando ele vale: um `mandar` trocado (o dos
+        # testes) continua recebendo os tres argumentos de sempre.
+        if getattr(self, "_acrescentar", False):
+            r = self._mandar(self.servidor, nome, self._vetores, acrescentar=True)
+        else:
+            r = self._mandar(self.servidor, nome, self._vetores)
         self._vetores = []
         if r.get("erro"):
             self._por(fase="erro", mensagem=f"O servidor recusou: {r['erro']}")
@@ -376,7 +384,8 @@ def _fabricar(b):
             except ValueError:
                 return self._json(400, {"erro": "corpo nao e JSON"})
             if self.path.startswith("/cadastrar"):
-                codigo, msg = b.cadastrar(corpo.get("nome"))
+                codigo, msg = b.cadastrar(corpo.get("nome"),
+                                          acrescentar=bool(corpo.get("acrescentar")))
                 return self._json(codigo, b.ver_estado() if codigo == 200
                                   else {"erro": msg})
             if self.path.startswith("/cancelar"):

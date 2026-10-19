@@ -398,6 +398,26 @@ A câmera só abre quando a tela pede, e fecha 20 s depois que ninguém olha.
 YuNet dá 5. A tela diz isso. Rosto menor que `BALCAO_ROSTO_MIN` (15% da altura)
 não é colhido.
 
+**Cadastrar por fotos (`aibox/cadastrar_fotos.py`, roda no PC).** Uma subpasta
+por pessoa em `fotos-cadastro/` (no `.gitignore`: rosto do grupo, repositório
+público), o nome da pasta vira o nome. Mesmo motor da caixa (YuNet + SFace),
+grava como `sface`. `--conferir` só olha. Ele recusa foto com dois rostos, sem
+rosto, rosto menor que 80 px e foto que não abre (HEIC do iPhone: exportar JPG),
+e **tira a foto cujo rosto destoa das outras da pasta** (foto de outra pessoa no
+lugar errado). Gira a foto deitada escolhendo o giro de **maior nota** do YuNet:
+o primeiro giro que acha rosto não serve, porque ele acha rosto até de cabeça
+para baixo, com os olhos no lugar errado (0,74 contra 0,91 de pé, no teste).
+Precisa de `pip install opencv-python numpy` no Python do PC.
+
+**Juntar em vez de substituir (`acrescentar`).** Recadastrar o mesmo nome
+substitui (quem mudou o cabelo refaz). Com `acrescentar: true` no
+`/api/cadastro`, as amostras novas se somam às que a pessoa já tem no mesmo
+motor, até `CADASTRO_TOTAL_MAX` = 24 (cada envio continua até 12). É o que deixa
+cadastrar por fotos em casa e completar pela câmera da sala sem a segunda vez
+apagar a primeira. Vale em `cadastrar_fotos.py --acrescentar`, `cadastrar.py
+--acrescentar` e na caixinha "Juntar" da tela `/cadastro` no modo caixa, que vem
+marcada. Grava linha nova e desativa a antiga, nunca edita.
+
 > **Defeito pego no teste antes de chegar ao laboratório:** ligar a câmera
 > sobrescrevia a fase "colhendo" que o pedido de cadastro tinha acabado de
 > marcar. O primeiro pedido se perdia, e o segundo, de outra pessoa, era aceito
@@ -511,7 +531,8 @@ Plano, em ordem:
    decidir só depois de várias leituras boas do mesmo rosto
 4. limiar calibrado com vídeo do laboratório (o 0,363 é da OpenCV para rosto
    bom); colegas de outros grupos fazem o papel de não cadastrado
-5. cadastro com várias poses, também pela câmera da sala
+5. cadastro com várias poses: fotos em casa (`cadastrar_fotos.py`) e depois uma
+   passada pela câmera da sala com "Juntar" marcado (FEITO o caminho, falta cadastrar)
 6. depois: `qtivdec` (decodificador por hardware), YOLO na NPU, e um modelo de
    rosto mais forte (AdaFace, MIT) que só cabe com a CPU livre
 

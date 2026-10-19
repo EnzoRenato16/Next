@@ -165,6 +165,11 @@ CADASTRO_DIAS = float(os.environ.get("CADASTRO_DIAS", "365"))
 # Um descritor de rosto tem 128 numeros, e o cadastro guarda ate 6 amostras.
 # O teto existe para o endpoint nao virar porta de entrada de payload grande.
 CADASTRO_MAX = 12
+# Teto de amostras de UMA pessoa somando os envios com acrescentar=True (fotos
+# de casa + passada pela camera da sala). Cada envio continua limitado a
+# CADASTRO_MAX; o total existe para o reconhecimento nao comparar contra uma
+# lista sem fim.
+CADASTRO_TOTAL_MAX = 24
 
 
 # ---- biometria cancelavel --------------------------------------------------
@@ -688,6 +693,12 @@ class Cadastro(BaseModel):
     # amostras existem porque um rosto visto de dois angulos da dois pontos
     # diferentes, e comparar contra o mais proximo erra menos que contra a media.
     descritores: list[list[float]]
+    # JUNTAR EM VEZ DE SUBSTITUIR. O padrao continua substituindo (quem mudou o
+    # cabelo refaz o cadastro e o rosto antigo para de valer). Com True, as
+    # amostras novas se somam as que a pessoa ja tem no mesmo motor: e o que
+    # deixa cadastrar por fotos em casa e depois completar pela camera da sala
+    # sem a segunda vez apagar a primeira.
+    acrescentar: bool = False
 
 
 class Remocao(BaseModel):
@@ -1497,7 +1508,23 @@ def gravar_cadastro(c: Cadastro) -> dict:
     agora = agora_iso()
     vence = (datetime.now(timezone.utc)
              + timedelta(days=CADASTRO_DIAS)).strftime("%Y-%m-%d %H:%M:%S")
+    novos = [proteger(d) for d in c.descritores]
     with cursor(escrita=True) as (cur, m):
+        anteriores = []
+        if c.acrescentar:
+            cur.execute(f"""SELECT descritores, protegido FROM cadastros
+                            WHERE nome = {m} AND tipo = {m} AND ativo = 1
+                            ORDER BY id DESC LIMIT 1""", (nome, tipo))
+            linha = cur.fetchone()
+            if linha:
+                guardados = json.loads(linha[0])
+                # Linha antiga ainda crua (anterior a chave) e girada aqui, para
+                # nao misturar dois sistemas de eixos no mesmo cadastro.
+                anteriores = guardados if linha[1] else [proteger(d) for d in guardados]
+            if len(anteriores) + len(novos) > CADASTRO_TOTAL_MAX:
+                raise HTTPException(
+                    413, f"{nome} ja tem {len(anteriores)} amostras; com mais "
+                         f"{len(novos)} passa de {CADASTRO_TOTAL_MAX}")
         # Recadastrar o mesmo nome SUBSTITUI. Sem isto, uma pessoa que refaz o
         # cadastro por ter mudado o cabelo passaria a ter duas fichas, e a
         # antiga continuaria valendo — com o rosto que ela nao tem mais.
@@ -1510,14 +1537,16 @@ def gravar_cadastro(c: Cadastro) -> dict:
             f"""INSERT INTO cadastros (nome, descritores, criado, vence, ativo,
                                       protegido, tipo)
                 VALUES ({m}, {m}, {m}, {m}, 1, 1, {m})""",
-            # GIRADOS ANTES DE ENCOSTAR NO DISCO. O descritor cru existe na
-            # memoria desta requisicao e acaba com ela; o que fica gravado esta
-            # no sistema de eixos da chave, que nao mora no banco.
-            (nome, json.dumps([proteger(d) for d in c.descritores]), agora,
-             vence, tipo),
+            # GIRADOS ANTES DE ENCOSTAR NO DISCO (os `novos`, la em cima). O
+            # descritor cru existe na memoria desta requisicao e acaba com ela;
+            # o que fica gravado esta no sistema de eixos da chave, que nao
+            # mora no banco.
+            (nome, json.dumps(anteriores + novos), agora, vence, tipo),
         )
-    return {"nome": nome, "amostras": len(c.descritores), "vence": vence,
-            "tipo": tipo}
+    # A linha antiga fica (ativo = 0), como toda linha deste banco: juntar e
+    # gravar uma linha nova com tudo, nunca editar a que ja existia.
+    return {"nome": nome, "amostras": len(anteriores) + len(novos),
+            "novas": len(novos), "vence": vence, "tipo": tipo}
 
 
 @app.get("/api/cadastros")
