@@ -8,6 +8,8 @@
 #   bash aibox/arena.sh                     roda ate o Ctrl+C (que mostra o resultado)
 #   bash aibox/arena.sh --segundos 180      para sozinho em 3 minutos
 #   bash aibox/arena.sh --calibrar          imprime a nota de cada leitura
+#
+# Camera que manda H.265 (comum nas de 4 MP): CAM_CODEC=h265 no .env.
 set -u
 cd "$(dirname "$0")/.." || exit 1
 
@@ -32,9 +34,19 @@ if [ "$falta" -eq 1 ] || [ "$(ls daten/models/*.onnx 2>/dev/null | wc -l)" -lt 2
 fi
 echo "  modelos: ok"
 
+# A galeria conferida e a MESMA que a arena.py vai ler: --galeria nos
+# argumentos, senao GALERIA do .env, senao arena/galeria.json.
+gal=""
+prox=0
+for x in "$@"; do
+  if [ "$prox" -eq 1 ]; then gal="$x"; prox=0; fi
+  case "$x" in --galeria) prox=1 ;; --galeria=*) gal="${x#--galeria=}" ;; esac
+done
+[ -z "$gal" ] && gal=$(grep '^GALERIA=' .env 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '\r"')
+[ -n "$gal" ] && export GALERIA="$gal"
 "$P" aibox/galeria.py || exit 1
 if ! "$P" -c "from aibox import galeria; import sys; sys.exit(0 if galeria.ler()['pessoas'] else 1)" 2>/dev/null; then
-  echo "  !! a galeria esta vazia: ninguem para reconhecer"
+  echo "  !! a galeria ${GALERIA:-arena/galeria.json} esta vazia: ninguem para reconhecer"
   exit 1
 fi
 
@@ -45,6 +57,13 @@ fi
 if ! grep -q '^CAMERA_ARENA=' .env 2>/dev/null && [[ " $* " != *" --camera "* ]]; then
   echo "  !! falta CAMERA_ARENA no .env (ou passe --camera rtsp://...)"
   exit 1
+fi
+
+# subtype=1 e o fluxo secundario (640x360 na Intelbras): a arena aumentaria
+# para 1920x1080 sem ganhar um pixel de rosto, e gastaria CPU com isso.
+if grep -q '^CAMERA_ARENA.*subtype=1' .env 2>/dev/null || [[ " $* " == *"subtype=1"* ]]; then
+  echo "  !! a camera da arena esta no fluxo secundario (subtype=1): use subtype=0,"
+  echo "     o principal. Rosto pequeno nao se recupera depois."
 fi
 
 ip=$(hostname -I 2>/dev/null | awk '{print $1}')

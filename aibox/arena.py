@@ -56,24 +56,36 @@ def _num(nome, padrao):
     return float(os.environ.get(nome, padrao))
 
 
-# Os limiares sao do SFace (cosseno, MAIOR = mais parecido). 0,363 e o valor da
-# OpenCV para rosto bom; na camera da arena o rosto e pior, e o certo e
-# calibrar no local com --calibrar (ver LEIA no fim do arquivo).
-LIMIAR = _num("ARENA_LIMIAR", "0.36")           # para dizer QUEM e
-LIMIAR_BAIXO = _num("ARENA_LIMIAR_BAIXO", "0.26")  # abaixo disso: ninguem
-MARGEM = _num("ARENA_MARGEM", "0.05")           # folga sobre o segundo nome
-MINIMO = int(_num("ARENA_MINIMO", "3"))         # leituras para autorizar
-MINIMO_DESC = int(_num("ARENA_MINIMO_DESC", "5"))  # para chamar de desconhecido
-MAXIMO = int(_num("ARENA_MAXIMO", "14"))        # depois disso, decide de vez
+def configurar():
+    """Le os limiares do ambiente. Roda no import e DE NOVO no main, depois do
+    carregar_env: sem a segunda vez, o ARENA_LIMIAR escrito no .env da caixa
+    era ignorado calado, e a calibracao do laboratorio nao valia nada."""
+    global LIMIAR, LIMIAR_BAIXO, MARGEM, MINIMO, MINIMO_DESC, MAXIMO
+    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN
+    # Os limiares sao do SFace (cosseno, MAIOR = mais parecido). 0,363 e o valor
+    # da OpenCV para rosto bom; na camera da arena o rosto e pior, e o certo e
+    # calibrar no local com --calibrar (ver LEIA no fim do arquivo).
+    LIMIAR = _num("ARENA_LIMIAR", "0.36")           # para dizer QUEM e
+    LIMIAR_BAIXO = _num("ARENA_LIMIAR_BAIXO", "0.26")  # abaixo disso: ninguem
+    MARGEM = _num("ARENA_MARGEM", "0.05")           # folga sobre o segundo nome
+    MINIMO = int(_num("ARENA_MINIMO", "3"))         # leituras para autorizar
+    MINIMO_DESC = int(_num("ARENA_MINIMO_DESC", "5"))  # para chamar de desconhecido
+    MAXIMO = int(_num("ARENA_MAXIMO", "14"))        # depois disso, decide de vez
+    MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC", "0.45")
+    ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
+    NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
+
+
+configurar()
 JANELA = 8                                      # media das ultimas leituras
-MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC", "0.45")
-ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
-NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
 PERDIDA_S = 3.0          # trilha sem rosto ha mais que isso deixa a tela
 SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
 # Reabrir camera e uma tentativa a cada 30 s, nunca em laco: a Intelbras
 # bloqueia o IP depois de tentativas seguidas (armadilha 5 do CLAUDE.md).
+# Sem resposta, a espera dobra a cada tentativa, ate 5 min: insistir de 30 em
+# 30 s mantem o bloqueio de pe.
 REABRIR_S = 30.0
+REABRIR_MAX_S = 300.0
 
 
 # --------------------------------------------------------------- qualidade
@@ -117,8 +129,6 @@ class Trilha:
         self.nome = None
         self.nota = 0.0
         self.numero = None      # numero do desconhecido
-        self.visto = 0.0
-        self.caixa = None
         self.motivo = ""        # por que a ultima leitura nao valeu
 
 
@@ -131,6 +141,10 @@ class Juiz:
         self.nomes, self.M, self.dono = list(nomes), M, np.asarray(dono, int)
         self.trilhas = {}
         self.grupos = []        # desconhecidos: {"numero", "soma", "n"}
+        # Quem ja foi identificado alguma vez. O placar conta daqui, e nao so da
+        # trilha de agora: se a trilha recomecar (ver _outro_rosto), a
+        # pessoa ja identificada nao some do placar.
+        self.identificados = set()
         self.eventos = []
 
     def trilha(self, ident, camera=0):
@@ -155,7 +169,6 @@ class Juiz:
         t.vetores.append(v)
         t.notas, t.vetores = t.notas[-JANELA:], t.vetores[-JANELA:]
         t.n += 1
-        t.visto = agora
         return self._decidir(t, agora)
 
     def _decidir(self, t, agora):
@@ -173,13 +186,27 @@ class Juiz:
 
         autoriza = (melhor >= LIMIAR and melhor - segundo >= MARGEM
                     and votos >= 0.5)
+        if t.estado == "autorizado" and self._outro_rosto(t):
+            # O RASTREADOR PASSOU A TRILHA PARA OUTRA PESSOA. Ele cola o rosto
+            # no mais proximo do quadro anterior, e duas pessoas que se cruzam
+            # podem trocar de trilha. Sem isto, quem herdasse a trilha de um
+            # autorizado ficava com o nome dele ate o fim, e nenhum alerta
+            # tocava: o erro mais caro da prova. A trilha recomeca do zero, e
+            # quem ja foi identificado continua no placar.
+            ev = [dict(tipo="troca", nome=t.nome, trilha=t.id, quando=agora)]
+            t.estado, t.nome, t.nota, t.n = "analisando", None, 0.0, 0
+            t.notas, t.vetores = [], []
+            self.eventos.extend(ev)
+            return ev
         if t.n >= MINIMO and autoriza:
             novo = ("autorizado", quem)
         elif t.n >= MINIMO_DESC and melhor < LIMIAR_BAIXO:
             novo = ("desconhecido", None)
         elif t.n >= MAXIMO:
             # Tempo de sobra e ainda na duvida: quem nao chegou a ser
-            # reconhecido com folga NAO e tratado como autorizado.
+            # reconhecido com folga NAO e tratado como autorizado. Se for um
+            # autorizado com rosto ruim, ele sai da conta de alertas quando for
+            # reconhecido (era_desconhecido).
             novo = ("autorizado", quem) if autoriza else ("desconhecido", None)
         else:
             return []
@@ -189,6 +216,7 @@ class Juiz:
             if t.estado != "autorizado" or t.nome != novo[1]:
                 antes = (t.estado, t.numero)
                 t.estado, t.nome, t.numero = "autorizado", novo[1], None
+                self.identificados.add(t.nome)
                 ev.append(dict(tipo="autorizado", nome=t.nome,
                                nota=round(melhor, 3), trilha=t.id, quando=agora,
                                era_desconhecido=antes[1] if antes[0] == "desconhecido" else None))
@@ -204,6 +232,18 @@ class Juiz:
                                nota=round(melhor, 3), trilha=t.id, quando=agora))
         self.eventos.extend(ev)
         return ev
+
+    def _outro_rosto(self, t):
+        """A trilha autorizada tem a janela inteira de leituras boas em que o
+        nome dela nunca ganhou e ficou abaixo do LIMIAR_BAIXO? Leitura ruim da
+        mesma pessoa nao chega aqui: o portao de qualidade (nota, tamanho, de
+        frente) ja tirou, e rosto bom da mesma pessoa nao fica tanto tempo tao
+        longe do cadastro dela."""
+        if len(t.notas) < JANELA:
+            return False
+        i = self.nomes.index(t.nome)
+        return all(x[i] < LIMIAR_BAIXO or int(np.argmax(x)) != i for x in t.notas) \
+            and float(np.mean([x[i] for x in t.notas])) < LIMIAR_BAIXO
 
     def _agrupar(self, t):
         """Este desconhecido ja foi visto (outra trilha, mesma pessoa)?"""
@@ -225,8 +265,7 @@ class Juiz:
     def resumo(self):
         """O placar de agora. Contado pelo ESTADO de cada trilha, e nao pelos
         eventos: um desconhecido que depois foi reconhecido sai da conta."""
-        autorizados = sorted({t.nome for t in self.trilhas.values()
-                              if t.estado == "autorizado"})
+        autorizados = sorted(self.identificados)
         desconhecidos = sorted({t.numero for t in self.trilhas.values()
                                 if t.estado == "desconhecido"})
         return dict(autorizados=autorizados, total_autorizados=len(self.nomes),
@@ -279,6 +318,7 @@ class Camera:
         self.aberta_em = 0.0
         self.acabou = False
         self.quadros = 0
+        self.espera = REABRIR_S
         self.rast = Rastreador(f"c{indice}")
         self.abrir()
 
@@ -286,7 +326,7 @@ class Camera:
         self.aberta_em = time.monotonic()
         if str(self.fonte).startswith("rtsp"):
             from aibox.gstcam import Gst
-            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps)
+            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True)
         else:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
@@ -302,6 +342,7 @@ class Camera:
                 self.acabou = True
             return None
         self.ultimo = time.monotonic()
+        self.espera = REABRIR_S
         self.quadros += 1
         return q
 
@@ -315,9 +356,11 @@ class Camera:
     def talvez_reabrir(self, agora):
         if self.arquivo or self.acabou:
             return
-        if agora - max(self.ultimo, self.aberta_em) > REABRIR_S:
-            print(f"[arena] camera {self.indice} sem imagem ha {REABRIR_S:.0f} s; "
-                  "reabrindo (uma tentativa)", flush=True)
+        if agora - max(self.ultimo, self.aberta_em) > self.espera:
+            print(f"[arena] camera {self.indice} sem imagem ha {self.espera:.0f} s; "
+                  "reabrindo (uma tentativa). Se o terminal mostrou 403, a camera "
+                  "bloqueou o IP: Ctrl+C e nao tente nada por uns 30 min", flush=True)
+            self.espera = min(self.espera * 2, REABRIR_MAX_S)
             try:
                 self.cap.release()
             except Exception:
@@ -504,6 +547,7 @@ def relogio(s):
 def main():
     from aibox.sala import carregar_env
     carregar_env()
+    configurar()
     p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")
     p.add_argument("--camera", action="append",
                    help="rtsp://..., numero da webcam ou arquivo de video; "
@@ -514,7 +558,7 @@ def main():
                    help="teto de quadros por segundo lidos da camera (0 = sem teto)")
     p.add_argument("--deteccao", type=int, default=int(_num("ARENA_DETECCAO", "0")),
                    help="largura em que o YuNet procura rosto (0 = quadro cheio)")
-    p.add_argument("--galeria", default=galeria.PADRAO)
+    p.add_argument("--galeria", default=os.environ.get("GALERIA") or galeria.PADRAO)
     p.add_argument("--porta", type=int, default=int(_num("ARENA_PORTA", "8080")))
     p.add_argument("--tela", type=int, default=1280, help="largura da imagem na pagina")
     p.add_argument("--segundos", type=float, default=0)
@@ -585,12 +629,17 @@ def main():
             vistos = []
             for l, ident, cx in zip(linhas, ids, caixas):
                 t = juiz.trilha(ident, cam.indice)
-                t.visto, t.caixa = t0, cx
                 boa, motivo = leitura_boa(l)
                 t.motivo = motivo
                 if boa:
                     v = motor.embedding(img, l)
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
+                        if ev["tipo"] == "troca":
+                            txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o rosto "
+                                   f"deixou de ser {ev['nome']}, analisando de novo")
+                            print(f"[arena] {txt}", flush=True)
+                            log.append(txt)
+                            continue
                         txt = (f"{relogio(t0 - inicio)} AUTORIZADO {ev['nome']} ({ev['nota']:.2f})"
                                + (f", era o desconhecido #{ev['era_desconhecido']}"
                                   if ev.get("era_desconhecido") else "")
@@ -625,7 +674,7 @@ def main():
             ms=float(np.mean(tempos)) if tempos else 0.0,
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1])
         jpeg = None
-        if tela.clientes and quadro_tela:
+        if trabalhou and tela.clientes and quadro_tela:
             partes = [quadro_tela[k] for k in sorted(quadro_tela)]
             if len(partes) > 1:
                 alt = min(x.shape[0] for x in partes)

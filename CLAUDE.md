@@ -564,15 +564,38 @@ IP fixo, um comando só. O notebook abre `http://IP_DA_CAIXA:8080`.
   do YuNet ≥ 0,80, largura ≥ 32 px, de pé, quase de frente). AUTORIZADO com 3
   leituras, média ≥ `ARENA_LIMIAR` (0,36), folga de 0,05 sobre o segundo nome e
   maioria dos votos. DESCONHECIDO com 5 leituras e média < 0,26. No meio,
-  "analisando". Desconhecido que volta (trilha nova) é comparado com os já
-  vistos e não vira segundo alerta. Desconhecido que depois é reconhecido sai
-  da conta. **Autorizado nunca cai para desconhecido** por virar o rosto.
+  "analisando", até 14 leituras: aí quem não foi autorizado com folga vira
+  desconhecido (de propósito: na dúvida, alerta). Desconhecido que volta
+  (trilha nova) é comparado com os já vistos e não vira segundo alerta.
+  Desconhecido que depois é reconhecido sai da conta. **Autorizado não cai
+  para desconhecido** por virar o rosto.
+- **Mas a trilha pode trocar de dono.** O rastreador cola o rosto no mais
+  próximo do quadro anterior, e duas pessoas que se cruzam trocam de trilha.
+  Se as 8 últimas leituras BOAS da trilha autorizada nunca deram o nome dela e
+  a média ficou abaixo de 0,26, a trilha recomeça ("o rosto deixou de ser X"),
+  e o estranho que herdou a trilha leva o alerta dele. Quem já foi identificado
+  continua no placar (`Juiz.identificados`).
+- **Os limiares do `.env` valem** (`ARENA_LIMIAR` e cia.): `configurar()` relê
+  depois do `carregar_env`. Antes da revisão eram lidos no import e o `.env`
+  era ignorado calado, o que jogaria fora a calibração do laboratório.
+- **Câmeras de 4 MP:** `CAM_CODEC=h265` se a câmera mandar H.265 (o cano de
+  H.264 não negocia e dá "sem imagem"). A arena pede 1920x1080 com faixa
+  preta em vez de esticar (rosto esticado não bate com as fotos). O
+  `arena.sh` avisa se `CAMERA_ARENA` estiver no fluxo secundário
+  (`subtype=1`): aumentar 640x360 não cria pixel de rosto.
+- Câmera sem resposta: reabre em 30 s, depois 60, 120, até 5 min. Insistir
+  de 30 em 30 mantinha o bloqueio 403 de pé (armadilha 5).
+- **A galeria guarda os 128 números CRUS**, sem o giro da `CHAVE_BIO` que o
+  servidor faz. A chave teria de morar na mesma caixa, então o giro não
+  protegeria nada ali. Por isso a regra é outra: só os autorizados da prova, e
+  `arena/` apagada da caixa e do PC depois do evento.
 - **Ctrl+C mostra o resultado** (autorizados X de N, alertas, câmeras, tempo
   por quadro) e grava `arena/resultados/*.json`, sem imagem.
 - `--calibrar` imprime a nota de cada leitura: é como escolher o limiar no
   laboratório, com colegas fazendo o papel de desconhecido.
-- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (23 casos,
-  incluindo o "parecido perigoso"). Ensaio com vídeo montado de duas fotos:
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (29 casos,
+  incluindo o "parecido perigoso", a troca de trilha e o `.env`; passa com 20
+  sementes diferentes). Ensaio com vídeo montado de duas fotos:
   1 de 1 autorizado, 1 alerta, 74 ms por quadro neste PC (a caixa é mais lenta:
   medir).
 - **Porta 8080 ocupada = serviço da sala rodando:** `bash aibox/servico.sh

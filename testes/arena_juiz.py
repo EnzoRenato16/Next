@@ -122,8 +122,39 @@ j = novo_juiz()
 for k in range(arena.MINIMO):
     j.ler("c1-4", parecido(pessoas["Carla"], 0.6), k)
 for k in range(30):
-    j.ler("c1-4", unit(rng.normal(size=128)), 10 + k)       # leituras ruins
-ok("Carla continua autorizada", j.trilhas["c1-4"].estado == "autorizado")
+    j.ler("c1-4", parecido(pessoas["Carla"], 0.42), 10 + k)  # leituras fracas, dela
+ok("Carla continua autorizada", j.trilhas["c1-4"].estado == "autorizado"
+   and j.trilhas["c1-4"].nome == "Carla", f"{j.trilhas['c1-4'].estado}")
+ok("e nenhuma troca foi acusada", not any(e["tipo"] == "troca" for e in j.eventos))
+
+print("\n== a trilha do autorizado passa para outra pessoa ==")
+# Duas pessoas se cruzam e o rastreador entrega a trilha da Carla para um
+# estranho. Ele nao pode herdar o nome dela.
+j = novo_juiz()
+for k in range(arena.MINIMO):
+    j.ler("c1-5", parecido(pessoas["Carla"], 0.6), k)
+intruso = unit(rng.normal(size=128))
+for k in range(arena.JANELA + arena.MINIMO_DESC):
+    j.ler("c1-5", parecido(intruso, 0.6), 10 + k)
+t = j.trilhas["c1-5"]
+ok("a troca e acusada", any(e["tipo"] == "troca" and e["nome"] == "Carla"
+                             for e in j.eventos))
+ok("o estranho vira desconhecido, nao Carla", t.estado == "desconhecido",
+   f"{t.estado} {t.nome}")
+ok("e Carla continua no placar, porque ja foi identificada",
+   j.resumo()["autorizados"] == ["Carla"], str(j.resumo()["autorizados"]))
+ok("e o alerta do estranho conta", j.resumo()["desconhecidos"] == [1])
+
+print("\n== o .env vale ==")
+# carregar_env roda dentro do main, depois do import: os limiares tem de ser
+# relidos ali, senao o ARENA_LIMIAR calibrado no laboratorio e ignorado.
+antes = arena.LIMIAR
+os.environ["ARENA_LIMIAR"] = "0.31"
+arena.configurar()
+ok("ARENA_LIMIAR lido depois do import vale", arena.LIMIAR == 0.31, str(arena.LIMIAR))
+del os.environ["ARENA_LIMIAR"]
+arena.configurar()
+ok("e sem ele volta ao padrao", arena.LIMIAR == antes)
 
 print("\n== o placar ==")
 j = novo_juiz()
