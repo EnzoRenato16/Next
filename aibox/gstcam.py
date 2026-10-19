@@ -43,7 +43,14 @@ ALT = int(os.environ.get("CAM_ALT", "360"))
 DECODIFICADOR = os.environ.get("GST_DECODIFICADOR", "avdec_h264").strip() or "avdec_h264"
 
 
-def _comando(url):
+def _comando(url, largura=None, altura=None, fps=None):
+    largura, altura = largura or LARG, altura or ALT
+    # TETO DE QUADROS, opcional. O videorate joga fora quadro DEPOIS de
+    # decodificar e ANTES de converter e escalar: a decodificacao continua, mas
+    # converter um quadro de 4 MP que ninguem vai olhar deixa de custar. Quem
+    # usa e a arena, que le a camera em resolucao cheia.
+    teto = (["!", "videorate", "drop-only=true", f"max-rate={int(fps)}"]
+            if fps else [])
     return [
         "gst-launch-1.0", "-q",          # -q cala o status: a saida e binaria
         "rtspsrc", "location=" + url,
@@ -53,7 +60,7 @@ def _comando(url):
         # rasgado, o que o detector le como corpo torto — alarme falso com
         # causa na rede, que e o pior tipo para diagnosticar.
         "protocols=tcp", "latency=100",
-        "!", "rtph264depay", "!", "h264parse", "!", DECODIFICADOR,
+        "!", "rtph264depay", "!", "h264parse", "!", DECODIFICADOR, *teto,
         # A FILA VAZA DE PROPOSITO (leaky=downstream, 2 quadros). Sem ela, o
         # GStreamer BLOQUEIA quando o cano enche, e como a analise e mais lenta
         # que a camera o cano vive cheio: o que se analisa passa a ser o
@@ -61,7 +68,7 @@ def _comando(url):
         # acusar uma queda que ja terminou.
         "!", "queue", "leaky=downstream", "max-size-buffers=2",
         "!", "videoconvert", "!", "videoscale",
-        "!", f"video/x-raw,format=BGR,width={LARG},height={ALT}",
+        "!", f"video/x-raw,format=BGR,width={largura},height={altura}",
         "!", "fdsink",
     ]
 
@@ -69,8 +76,11 @@ def _comando(url):
 class Gst:
     """Um cv2.VideoCapture que por dentro e um processo do GStreamer."""
 
-    def __init__(self, url):
-        self.n = LARG * ALT * 3
+    def __init__(self, url, largura=None, altura=None, fps=None):
+        # Sem argumentos, o tamanho de sempre (CAM_LARG x CAM_ALT): e o que a
+        # sala usa. A arena pede outro, porque rosto precisa de pixel.
+        self.larg, self.alt = largura or LARG, altura or ALT
+        self.n = self.larg * self.alt * 3
         # stderr NAO e silenciado de proposito. Se a senha estiver errada, o
         # GStreamer escreve "Unauthorized (401)" ali — e quem esta instalando
         # precisa VER isso. Um leitor que falha calado faz a pessoa procurar o
@@ -79,7 +89,8 @@ class Gst:
         # este filho nasce nos pequenos: decodificar e leve e cabe neles, e nao
         # disputa com a inferencia. Sem a variavel, nao muda nada.
         from aibox import nucleos
-        self.p = subprocess.Popen(_comando(url), stdout=subprocess.PIPE,
+        self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps),
+                                  stdout=subprocess.PIPE,
                                   preexec_fn=(nucleos.soltar_nos_pequenos
                                               if os.name == "posix" else None))
 
@@ -116,7 +127,7 @@ class Gst:
                     self.vivo = False
                     return
                 b += pedaco
-            q = np.frombuffer(b, np.uint8).reshape(ALT, LARG, 3)
+            q = np.frombuffer(b, np.uint8).reshape(self.alt, self.larg, 3)
             with self._trava:
                 if self.ultimo is not None:
                     self.perdidos += 1

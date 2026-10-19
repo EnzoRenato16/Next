@@ -3,6 +3,11 @@
   python aibox/cadastrar_fotos.py fotos-cadastro
   python aibox/cadastrar_fotos.py fotos-cadastro --conferir      # so olha, nao manda
   python aibox/cadastrar_fotos.py fotos-cadastro/enzo --nome "Enzo Renato"
+  python aibox/cadastrar_fotos.py fotos-cadastro --galeria arena/galeria.json
+
+COM --galeria, nao fala com servidor nenhum: grava os numeros num arquivo que
+vai para a AIBOX e e o que o modo arena le (ver aibox/galeria.py e
+aibox/arena.py). E o caminho para o NEXT, onde a caixa compara sozinha.
 
 Uma subpasta por pessoa, e o nome da pasta vira o nome do cadastro:
 
@@ -171,6 +176,8 @@ def main():
                    help="junta com as amostras que a pessoa ja tem em vez de substituir")
     p.add_argument("--conferir", action="store_true",
                    help="so confere as fotos, nao manda nada para o servidor")
+    p.add_argument("--galeria", metavar="ARQUIVO",
+                   help="grava no arquivo da arena em vez de mandar ao servidor")
     a = p.parse_args()
 
     if not os.path.isdir(a.pasta):
@@ -220,6 +227,16 @@ def main():
             print(f"   ok: {len(vetores)} fotos boas (nada foi mandado, --conferir)")
             continue
 
+        if a.galeria:
+            from aibox import galeria
+            try:
+                total = galeria.gravar(nome, [[float(x) for x in v] for v in vetores],
+                                       a.acrescentar, a.galeria)
+                print(f"   NA GALERIA: {nome}, {total} amostras no total ({a.galeria}).")
+            except ValueError as e:
+                print(f"   NAO GRAVEI: {e}")
+                falhou += 1
+            continue
         r = mandar(a.servidor, nome, [[float(x) for x in v] for v in vetores],
                    a.acrescentar)
         if r.get("erro"):

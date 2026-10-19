@@ -539,6 +539,45 @@ para chegar antes, e a que distância as pessoas ficam.
   Excelente; **viabilidade caiu para Adequado**. Pedem custos, implantação,
   manutenção e escala, métricas técnicas e uma demonstração curta e confiável.
 
+**O que vale nota (áudio do professor, 19/10):** a definição final é **só na
+arena**, e a arena é **só identificação** (cadastrado ou não; sem queda, briga
+nem corrida). O estande das 12h às 15h é divulgação do projeto completo, mas é
+obrigatório: faltar tira ponto.
+
+### Modo arena (`aibox/arena.py`, `bash aibox/arena.sh`)
+
+Feito para a regra da arena: **tudo na caixa**, sem servidor no notebook, sem
+IP fixo, um comando só. O notebook abre `http://IP_DA_CAIXA:8080`.
+
+- **Só rosto, sem YOLO:** a CPU inteira para o rosto em resolução cheia
+  (`ARENA_LARG`/`ARENA_ALT`, padrão 1920x1080; `ARENA_FPS`=6 joga fora quadro
+  antes de converter, pelo `videorate` do `gstcam`). Câmera em `CAMERA_ARENA`
+  (e `CAMERA_ARENA2`) no `.env`, ou `--camera`. Aceita arquivo de vídeo para
+  ensaio.
+- **Galeria local** (`aibox/galeria.py`, `arena/galeria.json`, no
+  `.gitignore`): só os autorizados da prova, gerada por
+  `cadastrar_fotos.py --galeria arena/galeria.json` no PC e copiada com
+  `pc galeria`, ou na caixa com `cadastrar.py --galeria arena/galeria.json
+  --acrescentar`. **A caixa tem o cadastro na mão aqui**, ao contrário do
+  sistema da escola: apagar depois do evento.
+- **O juiz decide por trilha, não por quadro.** Leitura só de rosto bom (nota
+  do YuNet ≥ 0,80, largura ≥ 32 px, de pé, quase de frente). AUTORIZADO com 3
+  leituras, média ≥ `ARENA_LIMIAR` (0,36), folga de 0,05 sobre o segundo nome e
+  maioria dos votos. DESCONHECIDO com 5 leituras e média < 0,26. No meio,
+  "analisando". Desconhecido que volta (trilha nova) é comparado com os já
+  vistos e não vira segundo alerta. Desconhecido que depois é reconhecido sai
+  da conta. **Autorizado nunca cai para desconhecido** por virar o rosto.
+- **Ctrl+C mostra o resultado** (autorizados X de N, alertas, câmeras, tempo
+  por quadro) e grava `arena/resultados/*.json`, sem imagem.
+- `--calibrar` imprime a nota de cada leitura: é como escolher o limiar no
+  laboratório, com colegas fazendo o papel de desconhecido.
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (23 casos,
+  incluindo o "parecido perigoso"). Ensaio com vídeo montado de duas fotos:
+  1 de 1 autorizado, 1 alerta, 74 ms por quadro neste PC (a caixa é mais lenta:
+  medir).
+- **Porta 8080 ocupada = serviço da sala rodando:** `bash aibox/servico.sh
+  parar` antes da arena.
+
 **O gargalo é pixel, não modelo.** A caixa lê o fluxo secundário em 640x360
 (`CAM_LARG`/`CAM_ALT` em `aibox/gstcam.py`). Com a lente de ~99° da VIP 1230 D
 G2, o rosto tem uns 44 px a 1 m e 11 px a 4 m (estimativa, medir no

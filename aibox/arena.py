@@ -1,0 +1,691 @@
+"""Modo arena: quem esta autorizado e quem nao esta, tudo dentro da AIBOX.
+
+  bash aibox/arena.sh                       (o jeito do dia: confere e roda)
+  $P aibox/arena.py --camera rtsp://...     (direto)
+  $P aibox/arena.py --camera teste.mp4      (ensaio com video gravado)
+
+O QUE A ARENA DO NEXT COBRA (guia oficial, 24/10/2026): em ate cinco minutos,
+com o setup incluido, reconhecer as pessoas cadastradas e apontar as duas que
+nao sao, em qualquer ordem e posicao, sem operador escolhendo resultado, e no
+fim mostrar quantos autorizados foram identificados, quantos alertas de
+desconhecido houve, como estao as cameras e a latencia. O notebook so pode ser
+terminal e tela; o processamento e aqui.
+
+POR ISSO ESTE MODO E SO ROSTO. Sem o YOLO de pose, que a sala usa para queda,
+a CPU inteira fica para o rosto em resolucao cheia, que e o que decide a prova
+(rosto pequeno nao se reconhece, e nenhum modelo recupera pixel que nao
+existe). A analise de queda continua sendo o sala.py, que e o que vai para o
+estande.
+
+COMO DECIDE, e por que nao num quadro so:
+
+1. YuNet acha os rostos; um rastreador simples cola cada rosto no rosto do
+   quadro anterior (mesma pessoa andando).
+2. So rosto BOM vira leitura: grande o bastante, de pe, quase de frente e com
+   nota alta do detector. Rosto de lado nao e prova de nada.
+3. Cada leitura compara os 128 numeros do SFace com a galeria inteira.
+4. A trilha so vira AUTORIZADO depois de MINIMO leituras com media acima do
+   LIMIAR, folga sobre o segundo colocado e a maioria dos votos no mesmo nome.
+   So vira DESCONHECIDO depois de MINIMO_DESC leituras com a media LONGE de
+   todo mundo. No meio disso fica ANALISANDO, e a tela diz isso.
+5. O mesmo desconhecido que sai e volta (trilha nova) nao vira um segundo
+   alerta: o rosto dele e comparado com os desconhecidos ja vistos.
+
+O erro mais caro e chamar de autorizado quem nao e (o "meliante" da prova).
+Por isso autorizado exige folga e votos, e na duvida a trilha fica analisando.
+"""
+import argparse
+import json
+import os
+import signal
+import sys
+import threading
+import time
+import unicodedata
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+import numpy as np
+
+RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, RAIZ)
+
+from aibox import galeria  # noqa: E402
+
+
+def _num(nome, padrao):
+    return float(os.environ.get(nome, padrao))
+
+
+# Os limiares sao do SFace (cosseno, MAIOR = mais parecido). 0,363 e o valor da
+# OpenCV para rosto bom; na camera da arena o rosto e pior, e o certo e
+# calibrar no local com --calibrar (ver LEIA no fim do arquivo).
+LIMIAR = _num("ARENA_LIMIAR", "0.36")           # para dizer QUEM e
+LIMIAR_BAIXO = _num("ARENA_LIMIAR_BAIXO", "0.26")  # abaixo disso: ninguem
+MARGEM = _num("ARENA_MARGEM", "0.05")           # folga sobre o segundo nome
+MINIMO = int(_num("ARENA_MINIMO", "3"))         # leituras para autorizar
+MINIMO_DESC = int(_num("ARENA_MINIMO_DESC", "5"))  # para chamar de desconhecido
+MAXIMO = int(_num("ARENA_MAXIMO", "14"))        # depois disso, decide de vez
+JANELA = 8                                      # media das ultimas leituras
+MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC", "0.45")
+ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
+NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
+PERDIDA_S = 3.0          # trilha sem rosto ha mais que isso deixa a tela
+SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
+# Reabrir camera e uma tentativa a cada 30 s, nunca em laco: a Intelbras
+# bloqueia o IP depois de tentativas seguidas (armadilha 5 do CLAUDE.md).
+REABRIR_S = 30.0
+
+
+# --------------------------------------------------------------- qualidade
+def de_pe(l):
+    """Olhos lado a lado e acima do nariz (colunas do YuNet: 4-5 olho direito,
+    6-7 olho esquerdo, 8-9 nariz)."""
+    dx, dy = abs(l[6] - l[4]), abs(l[7] - l[5])
+    return dx > dy and (l[5] + l[7]) / 2 < l[9]
+
+
+def de_frente(l, folga=0.35):
+    """Nariz perto do meio dos olhos. Rosto virado poe o nariz quase em cima
+    de um olho, e o vetor de rosto de lado nao se parece com o de frente."""
+    entre = abs(l[6] - l[4])
+    if entre < 1:
+        return False
+    return abs(l[8] - (l[4] + l[6]) / 2) / entre <= folga
+
+
+def leitura_boa(l):
+    if float(l[14]) < NOTA_MIN:
+        return False, "nota baixa"
+    if float(l[2]) < ROSTO_MIN:
+        return False, "rosto pequeno"
+    if not de_pe(l):
+        return False, "torto"
+    if not de_frente(l):
+        return False, "de lado"
+    return True, ""
+
+
+# ----------------------------------------------------------------- o juiz
+class Trilha:
+    def __init__(self, ident, camera):
+        self.id = ident
+        self.camera = camera
+        self.notas = []         # por leitura: vetor com a nota de cada pessoa
+        self.vetores = []       # os rostos lidos (para juntar desconhecidos)
+        self.n = 0
+        self.estado = "analisando"
+        self.nome = None
+        self.nota = 0.0
+        self.numero = None      # numero do desconhecido
+        self.visto = 0.0
+        self.caixa = None
+        self.motivo = ""        # por que a ultima leitura nao valeu
+
+
+class Juiz:
+    """Decide por trilha, e nao por quadro. Nao sabe nada de camera nem de
+    tela: recebe vetores, devolve eventos. E isso que deixa testar a decisao
+    sem rosto de verdade (testes/arena_juiz.py)."""
+
+    def __init__(self, nomes, M, dono):
+        self.nomes, self.M, self.dono = list(nomes), M, np.asarray(dono, int)
+        self.trilhas = {}
+        self.grupos = []        # desconhecidos: {"numero", "soma", "n"}
+        self.eventos = []
+
+    def trilha(self, ident, camera=0):
+        t = self.trilhas.get(ident)
+        if t is None:
+            t = self.trilhas[ident] = Trilha(ident, camera)
+        return t
+
+    def _por_pessoa(self, v):
+        nota = np.full(len(self.nomes), -1.0, np.float32)
+        if len(self.M):
+            np.maximum.at(nota, self.dono, self.M @ v)
+        return nota
+
+    def ler(self, ident, v, agora=0.0, camera=0):
+        """Uma leitura boa de rosto, ja como vetor de 128. Devolve os eventos
+        que ela causou (lista vazia quase sempre)."""
+        v = np.asarray(v, np.float32)
+        v = v / (np.linalg.norm(v) + 1e-9)
+        t = self.trilha(ident, camera)
+        t.notas.append(self._por_pessoa(v))
+        t.vetores.append(v)
+        t.notas, t.vetores = t.notas[-JANELA:], t.vetores[-JANELA:]
+        t.n += 1
+        t.visto = agora
+        return self._decidir(t, agora)
+
+    def _decidir(self, t, agora):
+        if not self.nomes:
+            media, melhor, segundo, votos = None, -1.0, -1.0, 0.0
+        else:
+            media = np.mean(t.notas, axis=0)
+            ordem = np.argsort(media)[::-1]
+            i = int(ordem[0])
+            melhor = float(media[i])
+            segundo = float(media[ordem[1]]) if len(ordem) > 1 else -1.0
+            votos = float(np.mean([int(np.argmax(x)) == i and x[i] >= LIMIAR_BAIXO
+                                   for x in t.notas]))
+        quem = self.nomes[i] if self.nomes else None
+
+        autoriza = (melhor >= LIMIAR and melhor - segundo >= MARGEM
+                    and votos >= 0.5)
+        if t.n >= MINIMO and autoriza:
+            novo = ("autorizado", quem)
+        elif t.n >= MINIMO_DESC and melhor < LIMIAR_BAIXO:
+            novo = ("desconhecido", None)
+        elif t.n >= MAXIMO:
+            # Tempo de sobra e ainda na duvida: quem nao chegou a ser
+            # reconhecido com folga NAO e tratado como autorizado.
+            novo = ("autorizado", quem) if autoriza else ("desconhecido", None)
+        else:
+            return []
+
+        ev = []
+        if novo[0] == "autorizado":
+            if t.estado != "autorizado" or t.nome != novo[1]:
+                antes = (t.estado, t.numero)
+                t.estado, t.nome, t.numero = "autorizado", novo[1], None
+                ev.append(dict(tipo="autorizado", nome=t.nome,
+                               nota=round(melhor, 3), trilha=t.id, quando=agora,
+                               era_desconhecido=antes[1] if antes[0] == "desconhecido" else None))
+            t.nota = melhor
+        elif t.estado == "analisando":
+            # UMA VEZ DESCONHECIDO, SO VOLTA SE FOR RECONHECIDO. Autorizado
+            # nao vira desconhecido por ter virado o rosto um instante.
+            t.estado, t.nome, t.nota = "desconhecido", None, melhor
+            numero, novo_alerta = self._agrupar(t)
+            t.numero = numero
+            if novo_alerta:
+                ev.append(dict(tipo="desconhecido", numero=numero,
+                               nota=round(melhor, 3), trilha=t.id, quando=agora))
+        self.eventos.extend(ev)
+        return ev
+
+    def _agrupar(self, t):
+        """Este desconhecido ja foi visto (outra trilha, mesma pessoa)?"""
+        m = np.mean(t.vetores, axis=0)
+        m = m / (np.linalg.norm(m) + 1e-9)
+        melhor, alvo = -1.0, None
+        for g in self.grupos:
+            c = g["soma"] / (np.linalg.norm(g["soma"]) + 1e-9)
+            s = float(c @ m)
+            if s > melhor:
+                melhor, alvo = s, g
+        if alvo is not None and melhor >= MESMO_DESCONHECIDO:
+            alvo["soma"] = alvo["soma"] + m
+            return alvo["numero"], False
+        g = {"numero": len(self.grupos) + 1, "soma": m.copy()}
+        self.grupos.append(g)
+        return g["numero"], True
+
+    def resumo(self):
+        """O placar de agora. Contado pelo ESTADO de cada trilha, e nao pelos
+        eventos: um desconhecido que depois foi reconhecido sai da conta."""
+        autorizados = sorted({t.nome for t in self.trilhas.values()
+                              if t.estado == "autorizado"})
+        desconhecidos = sorted({t.numero for t in self.trilhas.values()
+                                if t.estado == "desconhecido"})
+        return dict(autorizados=autorizados, total_autorizados=len(self.nomes),
+                    desconhecidos=desconhecidos)
+
+
+# ------------------------------------------------------------- rastreador
+class Rastreador:
+    """Cola o rosto deste quadro no rosto mais proximo do quadro anterior.
+
+    Simples de proposito: a arena tem poucas pessoas, andando devagar. Um
+    rastreador mais esperto aqui so traria mais coisa para dar errado no dia.
+    Se ele errar e partir uma pessoa em duas trilhas, o juiz junta os
+    desconhecidos pelo rosto, e o autorizado aparece pelo nome do mesmo jeito."""
+
+    def __init__(self, prefixo):
+        self.prefixo = prefixo
+        self.vivas = {}         # id -> (cx, cy, largura, visto)
+        self.proximo = 1
+
+    def associar(self, caixas, agora):
+        livres = {k: v for k, v in self.vivas.items() if agora - v[3] <= PERDIDA_S}
+        ids = []
+        for (x, y, w, h) in caixas:
+            cx, cy = x + w / 2, y + h / 2
+            alvo, perto = None, float("inf")
+            for k, (px, py, pw, _) in livres.items():
+                d = ((cx - px) ** 2 + (cy - py) ** 2) ** 0.5
+                if d < max(w, pw) * 1.2 and d < perto:
+                    alvo, perto = k, d
+            if alvo is None:
+                alvo = f"{self.prefixo}-{self.proximo}"
+                self.proximo += 1
+            else:
+                livres.pop(alvo)
+            self.vivas[alvo] = (cx, cy, w, agora)
+            ids.append(alvo)
+        self.vivas = {k: v for k, v in self.vivas.items() if agora - v[3] <= 30}
+        return ids
+
+
+# ---------------------------------------------------------------- cameras
+class Camera:
+    def __init__(self, indice, fonte, largura, altura, fps):
+        self.indice, self.fonte = indice, fonte
+        self.largura, self.altura, self.fps = largura, altura, fps
+        self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
+        self.cap = None
+        self.ultimo = 0.0
+        self.aberta_em = 0.0
+        self.acabou = False
+        self.quadros = 0
+        self.rast = Rastreador(f"c{indice}")
+        self.abrir()
+
+    def abrir(self):
+        self.aberta_em = time.monotonic()
+        if str(self.fonte).startswith("rtsp"):
+            from aibox.gstcam import Gst
+            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps)
+        else:
+            import cv2
+            f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
+            self.cap = cv2.VideoCapture(f)
+
+    def ler(self):
+        """(quadro ou None). Arquivo que acabou marca `acabou`."""
+        ok, q = self.cap.read()
+        if ok is None:
+            return None
+        if not ok:
+            if self.arquivo:
+                self.acabou = True
+            return None
+        self.ultimo = time.monotonic()
+        self.quadros += 1
+        return q
+
+    def estado(self, agora):
+        if self.acabou:
+            return "fim do video"
+        if agora - max(self.ultimo, self.aberta_em) > SEM_IMAGEM_S:
+            return "sem imagem"
+        return "ok" if self.ultimo else "abrindo"
+
+    def talvez_reabrir(self, agora):
+        if self.arquivo or self.acabou:
+            return
+        if agora - max(self.ultimo, self.aberta_em) > REABRIR_S:
+            print(f"[arena] camera {self.indice} sem imagem ha {REABRIR_S:.0f} s; "
+                  "reabrindo (uma tentativa)", flush=True)
+            try:
+                self.cap.release()
+            except Exception:
+                pass
+            self.abrir()
+
+    def fechar(self):
+        try:
+            self.cap.release()
+        except Exception:
+            pass
+
+
+# ------------------------------------------------------------------ tela
+def ascii(s):
+    """O putText do OpenCV nao desenha acento; a pagina desenha (vem no JSON)."""
+    return unicodedata.normalize("NFKD", str(s)).encode("ascii", "ignore").decode()
+
+
+VERDE, RUBI, AMBAR, BRANCO = (95, 191, 95), (70, 70, 235), (40, 190, 235), (240, 240, 240)
+
+
+def desenhar(cv2, img, juiz, vistos, largura_tela):
+    escala = min(1.0, largura_tela / img.shape[1])
+    tela = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA) \
+        if escala < 1 else img.copy()
+    for ident, (x, y, w, h), motivo in vistos:
+        t = juiz.trilhas.get(ident)
+        if t is not None and t.estado == "autorizado":
+            cor, txt = VERDE, f"AUTORIZADO: {ascii(t.nome)} ({t.nota:.2f})"
+        elif t is not None and t.estado == "desconhecido":
+            cor, txt = RUBI, f"DESCONHECIDO #{t.numero}"
+        else:
+            n = t.n if t else 0
+            cor = AMBAR
+            txt = f"analisando {n}/{MINIMO}" + (f" ({motivo})" if motivo else "")
+        p1 = (int(x * escala), int(y * escala))
+        p2 = (int((x + w) * escala), int((y + h) * escala))
+        cv2.rectangle(tela, p1, p2, cor, 2)
+        cv2.putText(tela, txt, (p1[0], max(16, p1[1] - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, cor, 2, cv2.LINE_AA)
+    return tela
+
+
+PAGINA = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Auditix IA na arena</title><style>
+:root{color-scheme:dark;--verde:#5FBFA0;--rubi:#E8707F;--ambar:#E5C07B;
+      --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;--fraco:#8FB3A7}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fundo);color:var(--texto);
+     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 18px;
+       border-bottom:1px solid var(--linha)}
+h1{margin:0;font-size:21px}h1 i{font-style:normal;color:var(--verde)}
+.sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px}
+@media (max-width:900px){main{grid-template-columns:1fr}}
+.palco{background:#000;border:1px solid var(--linha);border-radius:12px;overflow:hidden;line-height:0}
+.palco img{width:100%;height:auto}
+.n{background:var(--caixa);border:1px solid var(--linha);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+.n b{display:block;font-size:40px;line-height:1.1;font-variant-numeric:tabular-nums}
+.n span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
+#aut b{color:var(--verde)} #desc b{color:var(--rubi)}
+.nomes{margin-top:6px;font-size:14px}
+.cam{display:flex;justify-content:space-between;font-size:14px}
+.ok{color:var(--verde)} .mal{color:var(--rubi)}
+ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
+.morto{opacity:.4}
+</style>
+<header><h1>Audit<i>ix</i> IA</h1><span class="sub">arena · identificação na AI BOX</span>
+<span class="sub" id="tempo"></span></header>
+<main>
+  <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras"></div>
+  <aside>
+    <div class="n" id="aut"><b id="nAut">--</b><span>autorizados identificados</span>
+      <div class="nomes" id="nomes"></div></div>
+    <div class="n" id="desc"><b id="nDesc">--</b><span>alertas de desconhecido</span></div>
+    <div class="n"><span>câmeras</span><div id="cams"></div></div>
+    <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
+      <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div></div>
+    <div class="n"><span>últimos eventos</span><ol id="ev"></ol></div>
+  </aside>
+</main>
+<script>
+const $ = i => document.getElementById(i);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+setInterval(async () => {
+  try{
+    const e = await (await fetch('/estado')).json();
+    $('nAut').textContent = e.autorizados.length + ' de ' + e.total_autorizados;
+    $('nomes').innerHTML = e.autorizados.map(esc).join('<br>') || '—';
+    $('nDesc').textContent = e.desconhecidos.length;
+    $('cams').innerHTML = e.cameras.map(c => '<div class="cam"><span>câmera ' + c.indice +
+      '</span><b class="' + (c.estado === 'ok' ? 'ok' : 'mal') + '" style="font-size:15px">' +
+      esc(c.estado) + ' · ' + c.qps.toFixed(1) + '/s</b></div>').join('');
+    $('qps').textContent = e.qps.toFixed(1) + ' quadros/s';
+    $('ms').textContent = Math.round(e.ms) + ' ms';
+    $('tempo').textContent = e.tempo;
+    $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
+    document.body.classList.remove('morto');
+  }catch(_){ document.body.classList.add('morto'); }
+}, 700);
+</script>
+""".encode("utf-8")
+
+
+class Tela:
+    """MJPEG + JSON, servidos pela caixa. O mesmo jeito do aibox/vivo.py."""
+
+    def __init__(self, porta):
+        self.jpeg, self.estado, self.clientes = None, {}, 0
+        self._trava = threading.Lock()
+        tela = self
+
+        class Mao(BaseHTTPRequestHandler):
+            protocol_version = "HTTP/1.1"
+
+            def log_message(self, *_):
+                pass
+
+            def do_GET(self):
+                if self.path.startswith("/video"):
+                    return self._video()
+                if self.path.startswith("/estado"):
+                    with tela._trava:
+                        corpo = json.dumps(tela.estado).encode()
+                    tipo = "application/json"
+                else:
+                    corpo, tipo = PAGINA, "text/html; charset=utf-8"
+                self.send_response(200)
+                self.send_header("Content-Type", tipo)
+                self.send_header("Content-Length", str(len(corpo)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(corpo)
+
+            def _video(self):
+                self.protocol_version = "HTTP/1.0"
+                self.send_response(200)
+                self.send_header("Content-Type", "multipart/x-mixed-replace; boundary=quadro")
+                self.send_header("Cache-Control", "no-store")
+                self.send_header("Connection", "close")
+                self.end_headers()
+                tela.clientes += 1
+                ultimo = None
+                try:
+                    while True:
+                        q = tela.jpeg
+                        if q is None or q is ultimo:
+                            time.sleep(0.02)
+                            continue
+                        ultimo = q
+                        self.wfile.write(b"--quadro\r\nContent-Type: image/jpeg\r\n"
+                                         b"Content-Length: " + str(len(q)).encode() +
+                                         b"\r\n\r\n" + q + b"\r\n")
+                except Exception:
+                    pass
+                finally:
+                    tela.clientes = max(0, tela.clientes - 1)
+
+        self._srv = ThreadingHTTPServer(("0.0.0.0", porta), Mao)
+        self._srv.daemon_threads = True
+        threading.Thread(target=self._srv.serve_forever, daemon=True).start()
+
+    def publicar(self, estado, jpeg=None):
+        with self._trava:
+            self.estado = estado
+            if jpeg is not None:
+                self.jpeg = jpeg
+
+    def fechar(self):
+        try:
+            self._srv.shutdown()
+        except Exception:
+            pass
+
+
+# ------------------------------------------------------------------ laco
+def relogio(s):
+    return f"{int(s // 60):02d}:{int(s % 60):02d}"
+
+
+def main():
+    from aibox.sala import carregar_env
+    carregar_env()
+    p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")
+    p.add_argument("--camera", action="append",
+                   help="rtsp://..., numero da webcam ou arquivo de video; "
+                        "repita para usar duas cameras")
+    p.add_argument("--largura", type=int, default=int(_num("ARENA_LARG", "1920")))
+    p.add_argument("--altura", type=int, default=int(_num("ARENA_ALT", "1080")))
+    p.add_argument("--fps", type=int, default=int(_num("ARENA_FPS", "6")),
+                   help="teto de quadros por segundo lidos da camera (0 = sem teto)")
+    p.add_argument("--deteccao", type=int, default=int(_num("ARENA_DETECCAO", "0")),
+                   help="largura em que o YuNet procura rosto (0 = quadro cheio)")
+    p.add_argument("--galeria", default=galeria.PADRAO)
+    p.add_argument("--porta", type=int, default=int(_num("ARENA_PORTA", "8080")))
+    p.add_argument("--tela", type=int, default=1280, help="largura da imagem na pagina")
+    p.add_argument("--segundos", type=float, default=0)
+    p.add_argument("--calibrar", action="store_true",
+                   help="imprime a nota de cada leitura (para escolher o limiar no local)")
+    a = p.parse_args()
+
+    fontes = a.camera or [c for c in (os.environ.get("CAMERA_ARENA"),
+                                      os.environ.get("CAMERA_ARENA2")) if c]
+    if not fontes:
+        print("[arena] nenhuma camera: use --camera ou CAMERA_ARENA no .env")
+        return 2
+
+    nomes, M, dono = galeria.matriz(a.galeria)
+    if not nomes:
+        print(f"[arena] a galeria {a.galeria} esta vazia: ninguem para reconhecer.")
+        return 2
+
+    import cv2
+    from daten.app import config as dcfg
+    from daten.app.recognizer import FaceEngine
+    motor = FaceEngine()
+    juiz = Juiz(nomes, M, dono)
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
+            for i, f in enumerate(fontes)]
+    try:
+        tela = Tela(a.porta)
+    except OSError:
+        print(f"[arena] a porta {a.porta} esta ocupada. O servico da sala esta "
+              "rodando? Pare com: bash aibox/servico.sh parar  (ou use --porta 8090)")
+        for c in cams:
+            c.fechar()
+        return 2
+
+    print(f"[arena] autorizados na galeria: {', '.join(nomes)}")
+    print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
+          f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido")
+    print(f"[arena] imagem ao vivo: http://<IP da caixa>:{a.porta}", flush=True)
+
+    parar = threading.Event()
+    for s in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(s, lambda *_: parar.set())
+
+    inicio = time.monotonic()
+    log, tempos, ultimo_status = [], [], 0.0
+    qps_cam = {c.indice: [] for c in cams}
+    vistos_por_cam = {c.indice: [] for c in cams}
+    quadro_tela = {}
+
+    while not parar.is_set():
+        agora = time.monotonic()
+        if a.segundos and agora - inicio >= a.segundos:
+            break
+        if all(c.acabou for c in cams):
+            break
+        trabalhou = False
+        for cam in cams:
+            img = cam.ler()
+            if img is None:
+                cam.talvez_reabrir(agora)
+                continue
+            trabalhou = True
+            t0 = time.monotonic()
+            dcfg.DETECT_WIDTH = a.deteccao or img.shape[1]
+            linhas = motor.detect(img)
+            caixas = [tuple(float(x) for x in l[:4]) for l in linhas]
+            ids = cam.rast.associar(caixas, t0)
+            vistos = []
+            for l, ident, cx in zip(linhas, ids, caixas):
+                t = juiz.trilha(ident, cam.indice)
+                t.visto, t.caixa = t0, cx
+                boa, motivo = leitura_boa(l)
+                t.motivo = motivo
+                if boa:
+                    v = motor.embedding(img, l)
+                    for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
+                        txt = (f"{relogio(t0 - inicio)} AUTORIZADO {ev['nome']} ({ev['nota']:.2f})"
+                               + (f", era o desconhecido #{ev['era_desconhecido']}"
+                                  if ev.get("era_desconhecido") else "")
+                               if ev["tipo"] == "autorizado" else
+                               f"{relogio(t0 - inicio)} ALERTA desconhecido #{ev['numero']}")
+                        print("[arena] " + txt, flush=True)
+                        log.append(txt)
+                    if a.calibrar and juiz.trilhas[ident].notas:
+                        n = juiz.trilhas[ident].notas[-1]
+                        top = sorted(zip(nomes, n), key=lambda x: -x[1])[:2]
+                        print(f"   {ident} leitura {juiz.trilhas[ident].n}: "
+                              + ", ".join(f"{k} {s:.2f}" for k, s in top), flush=True)
+                vistos.append((ident, cx, motivo))
+            ms = (time.monotonic() - t0) * 1000
+            tempos.append(ms)
+            tempos = tempos[-30:]
+            qps_cam[cam.indice].append(time.monotonic())
+            vistos_por_cam[cam.indice] = vistos
+            if tela.clientes:
+                quadro_tela[cam.indice] = desenhar(cv2, img, juiz, vistos, a.tela)
+
+        agora = time.monotonic()
+        for k in qps_cam:
+            qps_cam[k] = [x for x in qps_cam[k] if agora - x <= 5]
+        r = juiz.resumo()
+        estado = dict(
+            autorizados=r["autorizados"], total_autorizados=r["total_autorizados"],
+            desconhecidos=r["desconhecidos"],
+            cameras=[dict(indice=c.indice, estado=c.estado(agora),
+                          qps=len(qps_cam[c.indice]) / 5.0) for c in cams],
+            qps=sum(len(v) for v in qps_cam.values()) / 5.0,
+            ms=float(np.mean(tempos)) if tempos else 0.0,
+            tempo=relogio(agora - inicio), eventos=log[-8:][::-1])
+        jpeg = None
+        if tela.clientes and quadro_tela:
+            partes = [quadro_tela[k] for k in sorted(quadro_tela)]
+            if len(partes) > 1:
+                alt = min(x.shape[0] for x in partes)
+                partes = [cv2.resize(x, (int(x.shape[1] * alt / x.shape[0]), alt))
+                          for x in partes]
+            ok, buf = cv2.imencode(".jpg", np.hstack(partes) if len(partes) > 1 else partes[0],
+                                   [cv2.IMWRITE_JPEG_QUALITY, 70])
+            jpeg = buf.tobytes() if ok else None
+        tela.publicar(estado, jpeg)
+
+        if agora - ultimo_status >= 5:
+            ultimo_status = agora
+            cam_txt = "  ".join(f"cam{c['indice']} {c['estado']} {c['qps']:.1f}/s"
+                                for c in estado["cameras"])
+            print(f"[arena {estado['tempo']}] autorizados {len(r['autorizados'])}/"
+                  f"{r['total_autorizados']} ({', '.join(r['autorizados']) or '-'})"
+                  f" | desconhecidos {len(r['desconhecidos'])} | {cam_txt}"
+                  f" | {estado['ms']:.0f} ms", flush=True)
+        if not trabalhou:
+            time.sleep(0.01)
+
+    # ------------------------------------------------------------- o fim
+    agora = time.monotonic()
+    r = juiz.resumo()
+    resultado = dict(
+        quando=time.strftime("%Y-%m-%d %H:%M:%S"),
+        duracao_s=round(agora - inicio, 1),
+        autorizados_identificados=r["autorizados"],
+        total_na_galeria=r["total_autorizados"],
+        alertas_de_desconhecido=len(r["desconhecidos"]),
+        cameras=[dict(indice=c.indice, estado=c.estado(agora), quadros=c.quadros)
+                 for c in cams],
+        tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
+        limiares=dict(limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO, margem=MARGEM,
+                      minimo=MINIMO, minimo_desc=MINIMO_DESC),
+        eventos=log)
+    print("\n================ RESULTADO DA ARENA ================")
+    print(f"  autorizados identificados: {len(r['autorizados'])} de "
+          f"{r['total_autorizados']}  ({', '.join(r['autorizados']) or 'nenhum'})")
+    print(f"  alertas de desconhecido:   {len(r['desconhecidos'])}")
+    for c in resultado["cameras"]:
+        print(f"  camera {c['indice']}: {c['estado']}, {c['quadros']} quadros analisados")
+    if tempos:
+        print(f"  tempo medio por quadro:    {resultado['tempo_medio_por_quadro_ms']} ms")
+    print(f"  duracao:                   {relogio(resultado['duracao_s'])}")
+    print("====================================================")
+    pasta = os.path.join(RAIZ, "arena", "resultados")
+    try:
+        os.makedirs(pasta, exist_ok=True)
+        arq = os.path.join(pasta, time.strftime("arena-%Y%m%d-%H%M%S.json"))
+        with open(arq, "w", encoding="utf-8") as f:
+            json.dump(resultado, f, ensure_ascii=False, indent=1)
+        print(f"  (salvo em {arq}, sem imagem nenhuma)")
+    except OSError as e:
+        print(f"  (nao consegui salvar o resultado: {e})")
+    for c in cams:
+        c.fechar()
+    tela.fechar()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

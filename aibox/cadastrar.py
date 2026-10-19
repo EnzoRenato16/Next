@@ -63,6 +63,9 @@ def main():
     p.add_argument("--amostras", type=int, default=6)
     p.add_argument("--intervalo", type=float, default=1.5,
                    help="segundos entre uma amostra e a seguinte")
+    p.add_argument("--galeria", metavar="ARQUIVO",
+                   help="grava na galeria da arena (arquivo nesta caixa) em vez "
+                        "de mandar ao servidor; ex.: arena/galeria.json")
     p.add_argument("--acrescentar", action="store_true",
                    help="junta com as amostras que a pessoa ja tem (por exemplo, "
                         "as das fotos) em vez de substituir")
@@ -124,6 +127,17 @@ def main():
         print(f"\n[cadastro] so {len(vetores)} amostra(s). Poucas demais para "
               "cadastrar — o reconhecimento sairia fragil. Tente de novo.")
         return 1
+
+    if a.galeria:
+        from aibox import galeria
+        try:
+            total = galeria.gravar(a.nome, vetores, a.acrescentar, a.galeria)
+        except ValueError as e:
+            print(f"\n[cadastro] nao gravei: {e}")
+            return 1
+        print(f"\n[cadastro] PRONTO. {a.nome.strip()}: {total} amostras na galeria "
+              f"da arena ({a.galeria}).")
+        return 0
 
     r = mandar(a.servidor, a.nome.strip(), vetores, a.acrescentar)
     if r.get("erro"):

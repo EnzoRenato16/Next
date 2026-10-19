@@ -23,6 +23,7 @@ if /i "%1"=="internet" goto internet
 if /i "%1"=="rede"     goto rede
 if /i "%1"=="enviar"   goto enviar
 if /i "%1"=="modelos"  goto modelos
+if /i "%1"=="galeria"  goto galeria
 if /i "%1"=="entrar"   goto entrar
 if /i "%1"=="servidor" goto servidor
 if /i "%1"=="pitch"    goto pitch
@@ -35,6 +36,7 @@ echo   pc internet   so volta para o DHCP e FICA la (para navegar, baixar)
 echo   pc rede       so volta para o IP fixo (192.168.50.72)
 echo   pc enviar     copia o codigo (aibox e daten\app) para a caixa
 echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
+echo   pc galeria    copia a galeria da arena (arena\galeria.json) para a caixa
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
 echo   pc pitch      abre a apresentacao (Auditix-pitch.html) no navegador
@@ -160,6 +162,28 @@ if errorlevel 1 (
 echo.
 echo    PRONTO. Conferindo o tamanho do lado de la (o SFace tem que dar ~38 MB):
 ssh %CAIXA% "ls -la ~/auditix/daten/models/"
+goto fim
+
+:galeria
+echo.
+echo -- copiando a galeria da arena (quem esta autorizado) --
+REM Gerada no PC com:  python aibox\cadastrar_fotos.py fotos-cadastro --galeria arena\galeria.json
+REM So os 128 numeros de cada autorizado, nenhuma foto. Na caixa, o modo arena
+REM (bash aibox/arena.sh) compara contra ela sem precisar deste PC.
+if not exist arena\galeria.json (
+  echo    !! nao achei arena\galeria.json. Gere com cadastrar_fotos.py --galeria primeiro.
+  goto fim
+)
+ssh %CAIXA% "mkdir -p ~/auditix/arena"
+scp arena\galeria.json %CAIXA%:~/auditix/arena/galeria.json
+if errorlevel 1 (
+  echo.
+  echo    !! nao copiou. A caixa respondeu? Rode  pc rede  e tente de novo.
+  goto fim
+)
+echo.
+echo    PRONTO. Conferindo do lado de la:
+ssh %CAIXA% "cd ~/auditix && /opt/eduvision/venv/bin/python aibox/galeria.py"
 goto fim
 
 :entrar

@@ -53,6 +53,8 @@ chave-bio.txt
 # Fotos para o cadastro de rosto (aibox/cadastrar_fotos.py): rosto do grupo,
 # e o repositorio e publico. Apagar depois de cadastrar.
 fotos-cadastro/
+# Galeria e resultados do modo arena: os 128 numeros de quem e autorizado.
+arena/
 
 # Relatorio: fotos do laboratorio e o PDF tem o rosto dos integrantes
 relatorio/img/lab-*
