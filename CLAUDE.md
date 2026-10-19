@@ -516,6 +516,29 @@ evento, e bem instável. Não há tempo de cadastrar no dia: o grupo chega
 cadastrado. Falta perguntar se é o mesmo laboratório e as mesmas câmeras, se dá
 para chegar antes, e a que distância as pessoas ficam.
 
+**Como vai ser (guia oficial da arena e grupo da turma, lidos em 19/10/2026):**
+
+- **Sábado 24/10/2026, ARCA (Vila Leopoldina).** Estande A24, 12h às 15h
+  (pitch e demonstração). Concentração 16h a 16h30. **Arena 17h às 17h45.**
+  Premiação a partir das 18h.
+- **Arena: até 5 min no total, setup incluído** (guia sugere 2 min de acesso e
+  3 de prova, sem prorrogação). Notebook só como terminal por SSH com o usuário
+  do grupo; **o processamento tem de rodar na AI BOX**. AI BOX e câmeras fixas
+  da organização: não mexer, sem sudo, sem mudar configuração da estação.
+- **Teste:** 4 cadastrados e 2 desconhecidos pelo guia; o professor falou em 3
+  e 2 no grupo da turma (número final a confirmar). Os desconhecidos são um de
+  outra equipe e um da plateia. Ordem e posição mudam. **Só os autorizados
+  previstos podem estar cadastrados**, nada de ajuste manual nem treino na hora.
+- **Ao final, mostrar:** autorizados identificados, alertas de desconhecidos,
+  estado das câmeras e latência/estabilidade. Erro não se esconde.
+- **Câmeras novas de 4 MP** (compradas em 19/10; marca, caminho RTSP e
+  resolução a confirmar). Duas previstas, número final anunciado no dia.
+- **Prazo de teste: quarta 21/10 à noite**, quando o professor recolhe totens
+  e AI BOX para levar ao evento. Câmeras ficam no teatro da FIAP.
+- **Feedback da banca para nós (3º, 32/40):** aderência e pitch subiram para
+  Excelente; **viabilidade caiu para Adequado**. Pedem custos, implantação,
+  manutenção e escala, métricas técnicas e uma demonstração curta e confiável.
+
 **O gargalo é pixel, não modelo.** A caixa lê o fluxo secundário em 640x360
 (`CAM_LARG`/`CAM_ALT` em `aibox/gstcam.py`). Com a lente de ~99° da VIP 1230 D
 G2, o rosto tem uns 44 px a 1 m e 11 px a 4 m (estimativa, medir no
