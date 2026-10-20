@@ -651,6 +651,14 @@ CINZA = (150, 150, 150)
 def rotulo(juiz, ident, motivo):
     t = juiz.trilhas.get(ident)
     if t is not None and t.estado == "autorizado":
+        # O NOME SO FICA NA TELA ENQUANTO A ULTIMA LEITURA O CONFIRMA. Quem
+        # ocupa o lugar de um autorizado herda a trilha, e o juiz so percebe a
+        # troca depois de 8 leituras: no teste da pagina (21/10) o nome de um
+        # ficou 1 a 2 s em cima do rosto de outro. O placar nao muda com isso.
+        if t.notas and t.nome in juiz.nomes:
+            x, i = t.notas[-1], juiz.nomes.index(t.nome)
+            if x[i] < LIMIAR_BAIXO or int(np.argmax(x)) != i:
+                return AMBAR, "conferindo"
         return VERDE, f"AUTORIZADO: {ascii(t.nome)} ({t.nota:.2f})"
     if t is not None and t.estado == "desconhecido":
         return RUBI, f"DESCONHECIDO #{t.numero}"
@@ -685,6 +693,7 @@ PAGINA = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
 :root{color-scheme:dark;--verde:#5FBFA0;--rubi:#E8707F;--ambar:#E5C07B;
       --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;--fraco:#8FB3A7}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--fundo);color:var(--texto);
      font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 18px;
