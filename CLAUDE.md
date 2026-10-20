@@ -725,6 +725,9 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   última análise; a identificação continua no fluxo principal e não muda
   (ensaio igual com e sem). Caixa com mais de 0,8 s some (`MARCA_MAX_S`).
   A página mostra `leituras/s` (análise) e `quadros/s` (vídeo) separados.
+  **Na HAIZ o `stream=1` não abriu (vídeo 0/s) e a página ficou PRETA**:
+  agora, sem quadro do fluxo leve por 2 s, a página volta aos quadros
+  analisados sozinha. Testar o fluxo leve no PC: `achar_rtsp.py IP --fluxo 1`.
   30 leituras por segundo não existe nesta CPU com rosto em 4 MP.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.

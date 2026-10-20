@@ -1,6 +1,7 @@
 """Qual e o caminho RTSP desta camera?  Roda no PC, NAO na caixa.
 
   python aibox\\achar_rtsp.py 192.168.50.109 --usuario admin
+  python aibox\\achar_rtsp.py 192.168.50.109 --usuario admin --fluxo 1   (o leve)
 
 (a senha e perguntada na hora e nao aparece na tela nem fica em lugar nenhum)
 
@@ -21,9 +22,9 @@ import time
 from urllib.parse import quote
 
 CAMINHOS = [
-    ("Hikvision, fluxo principal", "{c}/Streaming/Channels/101"),
-    ("Dahua e Intelbras, fluxo principal", "{c}/cam/realmonitor?channel=1&subtype=0"),
-    ("Xiongmai (XMEye)", "/user={u}&password={s}&channel=1&stream=0.sdp"),
+    ("Hikvision", "{c}/Streaming/Channels/10{h}"),
+    ("Dahua e Intelbras", "{c}/cam/realmonitor?channel=1&subtype={f}"),
+    ("Xiongmai (XMEye)", "/user={u}&password={s}&channel=1&stream={f}.sdp"),
     ("ONVIF generico", "{c}/onvif1"),
     ("H.264 generico", "{c}/h264"),
     ("live generico", "{c}/live/ch00_0"),
@@ -37,7 +38,11 @@ def main():
     p.add_argument("--usuario", default="admin")
     p.add_argument("--pausa", type=float, default=4.0,
                    help="segundos entre uma tentativa e outra (camera bloqueia quem insiste)")
+    p.add_argument("--fluxo", type=int, default=0, choices=(0, 1),
+                   help="0 = principal (identificacao), 1 = leve (o video da "
+                        "pagina, CAMERA_ARENA_VIDEO)")
     a = p.parse_args()
+    nome_env = "CAMERA_ARENA_VIDEO" if a.fluxo else "CAMERA_ARENA2"
     senha = getpass.getpass(f"senha de {a.usuario}@{a.ip}: ")
 
     import os
@@ -49,12 +54,12 @@ def main():
     for i, (nome, molde) in enumerate(CAMINHOS):
         if i:
             time.sleep(a.pausa)
-        caminho = molde.format(c="", u=a.usuario, s=senha)
+        caminho = molde.format(c="", u=a.usuario, s=senha, f=a.fluxo, h=a.fluxo + 1)
         if molde.startswith("/user="):
             url = f"rtsp://{a.ip}:{a.porta}{caminho}"
         else:
             url = f"rtsp://{cred}{a.ip}:{a.porta}{caminho}"
-        mostrar = molde.format(c="", u=a.usuario, s="***")
+        mostrar = molde.format(c="", u=a.usuario, s="***", f=a.fluxo, h=a.fluxo + 1)
         print(f"- {nome}: {mostrar} ... ", end="", flush=True)
         cap = cv2.VideoCapture(url, cv2.CAP_FFMPEG)
         ok, quadro = cap.read() if cap.isOpened() else (False, None)
@@ -70,12 +75,15 @@ def main():
         print(f"\n  caminho:  {mostrar}")
         print(f"  imagem:   {larg}x{alt}")
         print(f"  codec:    {codec}  (hevc/h265 = precisa de CAM_CODEC=h265 na caixa)")
+        if a.fluxo and codec.lower() in ("hevc", "h265", "hev1", "hvc1"):
+            print("  ATENCAO: o fluxo leve e H.265 e o principal e H.264; a caixa usa um")
+            print("  codec so (CAM_CODEC). Avise antes de ligar o video fluido.")
         print("\n  Na caixa, no .env (aspas simples, e troque SENHA pela senha):")
         if molde.startswith("/user="):
-            print(f"  CAMERA_ARENA2=rtsp://{a.ip}:{a.porta}"
-                  + molde.format(c="", u=a.usuario, s="SENHA"))
+            print(f"  {nome_env}=rtsp://{a.ip}:{a.porta}"
+                  + molde.format(c="", u=a.usuario, s="SENHA", f=a.fluxo, h=a.fluxo + 1))
         else:
-            print(f"  CAMERA_ARENA2=rtsp://{a.usuario}:SENHA@{a.ip}:{a.porta}{caminho}")
+            print(f"  {nome_env}=rtsp://{a.usuario}:SENHA@{a.ip}:{a.porta}{caminho}")
         return 0
     print("\nNenhum abriu. Confira usuario e senha na pagina da camera, e procure")
     print("o caminho em Config > Rede > Avancado (RTSP). Nao insista em seguida:")

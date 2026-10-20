@@ -499,6 +499,12 @@ class VideoFluido:
     def marcar(self, marcas):
         self.marcas, self.marcado = marcas, time.monotonic()
 
+    def ao_vivo(self, agora):
+        """Chegou quadro do fluxo leve nos ultimos 2 s? Se nao, a pagina volta
+        a mostrar os quadros analisados: na HAIZ (21/10) o stream=1 nao abriu
+        e a pagina ficou PRETA, com a identificacao rodando por tras."""
+        return agora - self.ultimo <= 2.0
+
     def qps(self, agora):
         self.vistos = [x for x in self.vistos if agora - x <= 5]
         return len(self.vistos) / 5.0
@@ -905,7 +911,7 @@ def main():
             if fluido is not None:
                 fluido.marcar([(cx, *rotulo(juiz, ident, motivo))
                                for ident, cx, motivo in vistos])
-            elif tela.clientes:
+            if (fluido is None or not fluido.ao_vivo(t0)) and tela.clientes:
                 quadro_tela[cam.indice] = desenhar(cv2, img, juiz, vistos, a.tela)
 
         agora = time.monotonic()
@@ -922,7 +928,9 @@ def main():
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
             video_qps=fluido.qps(agora) if fluido is not None else None)
         jpeg = None
-        if trabalhou and tela.clientes and quadro_tela:
+        if fluido is not None and fluido.ao_vivo(agora):
+            quadro_tela.clear()         # a pagina esta no video fluido
+        elif trabalhou and tela.clientes and quadro_tela:
             partes = [quadro_tela[k] for k in sorted(quadro_tela)]
             if len(partes) > 1:
                 alt = min(x.shape[0] for x in partes)
