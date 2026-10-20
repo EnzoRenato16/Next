@@ -608,7 +608,7 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   Mostra também o tamanho do rosto em px e, uma vez por segundo, o rosto
   DESCARTADO e o motivo (nota baixa, rosto pequeno, torto, de lado): é como
   achar, sem ninguém da galeria, a distância em que a câmera deixa de ler.
-- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (39 casos,
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (41 casos,
   incluindo o "parecido perigoso", a troca de trilha, o `.env` e dois
   desconhecidos parecidos na tela ao mesmo tempo; passa com 41 sementes, e com
   `ARENA_TOPK=3`). Ensaio com vídeo montado de duas fotos:
@@ -679,6 +679,15 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   lado (17 entre 0,55 e 0,75, o resto perfil de verdade). Alerta #4 teve
   "mais parecido #3: 0,50", abaixo do 0,60 de juntar: se era a mesma
   pessoa, o 0,60 está alto para rosto de 75-86 px.
+- **Rastreador: rosto que muda mais de 1,6x de largura é outra trilha**
+  (`TAMANHO_MAX`). Achado no log do Samuel (20/10, sala cheia, ~5 rostos):
+  um estranho de 54 px ao fundo sumiu, o Samuel entrou no mesmo ponto com
+  179 px, herdou a trilha, e o placar tirou o alerta do estranho ("AUTORIZADO
+  Samuel, era o desconhecido #5"). Comparar os vetores não separa esse caso
+  do dono que começa longe e ilegível, por isso a trava é no rastreador.
+  Samuel na HAIZ, antes da passada: 0,61 a 0,74 de frente (114 a 227 px),
+  autorizado em 3 trilhas; de costas não há rosto. O `--calibrar` agora
+  diz quanto cada leitura estava virada, para medir o `ARENA_FRENTE`.
 - **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Trilha que ainda era
   vista depois que a outra começou (as duas no mesmo quadro) nunca é juntada:
   são duas pessoas. Uma janela de 1,5 s no lugar disso dava DOIS alertas para

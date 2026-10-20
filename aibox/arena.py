@@ -111,6 +111,7 @@ def configurar(motor="sface"):
 configurar()
 JANELA = 8                                      # media das ultimas leituras
 PERDIDA_S = 3.0          # trilha sem rosto ha mais que isso deixa a tela
+TAMANHO_MAX = 1.6        # rosto que muda mais que isso de largura: outra trilha
 SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
 # Reabrir camera e uma tentativa a cada 30 s, nunca em laco: a Intelbras
 # bloqueia o IP depois de tentativas seguidas (armadilha 5 do CLAUDE.md).
@@ -361,6 +362,15 @@ class Rastreador:
             cx, cy = x + w / 2, y + h / 2
             alvo, perto = None, float("inf")
             for k, (px, py, pw, _) in livres.items():
+                # ROSTO QUE TRIPLICA DE TAMANHO E OUTRA PESSOA. Na HAIZ (20/10,
+                # sala cheia), um estranho de 54 px ao fundo sumiu e o Samuel
+                # entrou na frente, no mesmo ponto da imagem, com 179 px: o raio
+                # (que cresce com o rosto maior) pegou, o Samuel herdou a trilha
+                # do estranho, e o alerta dele sumiu do placar ("era o
+                # desconhecido #5"). Entre um quadro e outro o rosto nao muda
+                # tanto; quem chega perto de verdade so ganha trilha nova.
+                if max(w, pw) > TAMANHO_MAX * min(w, pw):
+                    continue
                 d = ((cx - px) ** 2 + (cy - py) ** 2) ** 0.5
                 if d < max(w, pw) * 1.2 and d < perto:
                     alvo, perto = k, d
@@ -759,7 +769,8 @@ def main():
                         top = sorted(zip(nomes, n), key=lambda x: -x[1])[:2]
                         print(f"   {ident} leitura {juiz.trilhas[ident].n}: "
                               + ", ".join(f"{k} {s:.2f}" for k, s in top)
-                              + f" ({float(l[2]):.0f} px)", flush=True)
+                              + f" ({float(l[2]):.0f} px, virado {virado(l):.2f})",
+                              flush=True)
                 vistos.append((ident, cx, motivo))
             ms = (time.monotonic() - t0) * 1000
             tempos.append(ms)

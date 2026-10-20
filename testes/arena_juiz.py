@@ -231,6 +231,14 @@ b = r.associar([(120, 105, 60, 60)], 0.25)
 c = r.associar([(600, 100, 60, 60)], 0.5)
 ok("o mesmo rosto andando continua na mesma trilha", a == b, f"{a} {b}")
 ok("rosto longe e trilha nova", c != a)
+# HAIZ, 20/10: estranho de 54 px some ao fundo e o Samuel entra no mesmo ponto
+# com 179 px. Nao pode herdar a trilha (o alerta do estranho sumia do placar).
+r = arena.Rastreador("c1")
+a = r.associar([(500, 300, 54, 60)], 0.0)
+b = r.associar([(470, 260, 179, 200)], 0.4)
+c = r.associar([(475, 262, 185, 205)], 0.6)
+ok("rosto que triplica de tamanho e outra trilha", a != b, f"{a} {b}")
+ok("e o rosto grande continua na trilha dele", b == c, f"{b} {c}")
 
 print("\n== nota pela media das melhores fotos (ARENA_TOPK) ==")
 # Um estranho que acerta UMA foto da Ana por sorte (0,5) e erra as outras.
