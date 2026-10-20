@@ -494,7 +494,10 @@ class VideoFluido:
             self.cap = cv2.VideoCapture(f)
         else:
             from aibox.gstcam import Gst
-            self.cap = Gst(self.fonte, self.larg, self.alt, self.fps, bordas=False)
+            # O codec do fluxo leve pode ser outro: na HAIZ o principal e H.264
+            # e o leve (704x480) e H.265. CAMERA_ARENA_VIDEO_CODEC=h265.
+            self.cap = Gst(self.fonte, self.larg, self.alt, self.fps, bordas=False,
+                           codec=os.environ.get("CAMERA_ARENA_VIDEO_CODEC") or None)
 
     def marcar(self, marcas):
         self.marcas, self.marcado = marcas, time.monotonic()

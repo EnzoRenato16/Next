@@ -728,6 +728,9 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   **Na HAIZ o `stream=1` não abriu (vídeo 0/s) e a página ficou PRETA**:
   agora, sem quadro do fluxo leve por 2 s, a página volta aos quadros
   analisados sozinha. Testar o fluxo leve no PC: `achar_rtsp.py IP --fluxo 1`.
+  **Causa:** o fluxo leve da HAIZ é **H.265, 704x480** (o principal é
+  H.264). `CAMERA_ARENA_VIDEO_CODEC=h265` vale só para essa conexão
+  (`Gst(..., codec=)`); o `CAM_CODEC` continua sendo o da identificação.
   30 leituras por segundo não existe nesta CPU com rosto em 4 MP.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.

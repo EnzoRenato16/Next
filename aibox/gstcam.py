@@ -43,20 +43,24 @@ ALT = int(os.environ.get("CAM_ALT", "360"))
 DECODIFICADOR = os.environ.get("GST_DECODIFICADOR", "avdec_h264").strip() or "avdec_h264"
 
 
-def _codec():
+def _codec(codec=None):
     """(depay, parse, decodificador) do codec da camera. CAM_CODEC=h265 para
     camera que manda H.265: muita camera de 4 MP vem assim de fabrica, e o cano
     de H.264 com ela nao negocia e da "sem imagem". Lido na hora, e nao no
-    import, para valer o que o carregar_env acabou de ler do .env."""
-    if os.environ.get("CAM_CODEC", "h264").strip().lower() in ("h265", "hevc"):
+    import, para valer o que o carregar_env acabou de ler do .env.
+
+    `codec` passa por cima do CAM_CODEC para UMA conexao: na HAIZ (21/10) o
+    fluxo principal e H.264 e o leve (stream=1) e H.265, e o video fluido da
+    arena le o leve."""
+    if (codec or os.environ.get("CAM_CODEC", "h264")).strip().lower() in ("h265", "hevc"):
         dec = os.environ.get("GST_DECODIFICADOR", "").strip() or "avdec_h265"
         return "rtph265depay", "h265parse", dec
     return "rtph264depay", "h264parse", DECODIFICADOR
 
 
-def _comando(url, largura=None, altura=None, fps=None, bordas=False):
+def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None):
     largura, altura = largura or LARG, altura or ALT
-    depay, parse, dec = _codec()
+    depay, parse, dec = _codec(codec)
     # BORDAS, opcional (a arena usa). Com o tamanho pedido diferente da
     # proporcao da camera (4:3, ou 2688x1520), o videoscale ESTICA o quadro, e
     # rosto esticado da numeros diferentes das fotos do cadastro. Com
@@ -104,7 +108,7 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False):
 class Gst:
     """Um cv2.VideoCapture que por dentro e um processo do GStreamer."""
 
-    def __init__(self, url, largura=None, altura=None, fps=None, bordas=False):
+    def __init__(self, url, largura=None, altura=None, fps=None, bordas=False, codec=None):
         # Sem argumentos, o tamanho de sempre (CAM_LARG x CAM_ALT): e o que a
         # sala usa. A arena pede outro, porque rosto precisa de pixel.
         self.larg, self.alt = largura or LARG, altura or ALT
@@ -117,7 +121,7 @@ class Gst:
         # este filho nasce nos pequenos: decodificar e leve e cabe neles, e nao
         # disputa com a inferencia. Sem a variavel, nao muda nada.
         from aibox import nucleos
-        self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps, bordas),
+        self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps, bordas, codec),
                                   stdout=subprocess.PIPE,
                                   preexec_fn=(nucleos.soltar_nos_pequenos
                                               if os.name == "posix" else None))
