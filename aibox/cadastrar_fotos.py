@@ -58,6 +58,8 @@ MINIMO, MAXIMO = 3, 12
 # outra pessoa. Cadastrar a pessoa errada e o erro que ninguem percebe depois:
 # o nome fica certo e a cara e de outro.
 DESTOA = 0.25
+# A arena exige 0,05 de folga sobre o segundo nome (ARENA_MARGEM).
+FOLGA_MIN = 0.05
 
 
 def ler(caminho):
@@ -135,6 +137,33 @@ def separar_destoantes(vetores):
     return fora
 
 
+def apontar_confusas(pessoas_lidas):
+    """Qual FOTO se parece mais com outra pessoa do que com o proprio dono?
+
+    Cada foto e comparada com as outras fotos do dono e com as de cada outra
+    pessoa, pelo melhor par, como o juiz da arena faz. Foto com folga menor
+    que FOLGA_MIN sai melhor da galeria: alem de confundir o dono, ela puxa
+    a leitura do OUTRO para o nome errado."""
+    print("\n== fotos que confundem (cada uma contra as outras pastas)")
+    u = [(n, o, [unitario(v) for v in vs]) for n, o, vs in pessoas_lidas]
+    achou = 0
+    for i, (nome, origem, vs) in enumerate(u):
+        for k, v in enumerate(vs):
+            proprio = max((float(v @ w) for j, w in enumerate(vs) if j != k), default=-1)
+            rival, nota_rival = None, -1.0
+            for i2, (n2, _, vs2) in enumerate(u):
+                if i2 != i:
+                    m = max(float(v @ w) for w in vs2)
+                    if m > nota_rival:
+                        rival, nota_rival = n2, m
+            if proprio - nota_rival < FOLGA_MIN:
+                achou += 1
+                print(f"   ! {nome}/{origem[k]}: {proprio:.2f} com as fotos dele, "
+                      f"{nota_rival:.2f} com {rival}. Tire esta foto da pasta.")
+    if not achou:
+        print("   nenhuma: toda foto fica mais perto do dono, com folga")
+
+
 def mandar(base, nome, vetores, acrescentar):
     pedido = {"nome": nome, "tipo": "sface", "descritores": vetores}
     if acrescentar:
@@ -192,6 +221,7 @@ def main():
     motor = FaceEngine()
 
     falhou = 0
+    conferidos = []                          # (nome, [arquivo], [vetor])
     for nome, arquivos in lista:
         print(f"\n== {nome}: {len(arquivos)} foto(s)")
         vetores, origem = [], []
@@ -225,6 +255,7 @@ def main():
             continue
         if a.conferir:
             print(f"   ok: {len(vetores)} fotos boas (nada foi mandado, --conferir)")
+            conferidos.append((nome, origem, vetores))
             continue
 
         if a.galeria:
@@ -246,6 +277,8 @@ def main():
             print(f"   CADASTRADO: {r['nome']}, {r['amostras']} amostras no total, "
                   f"tipo {r['tipo']}, vence em {r['vence']}.")
 
+    if a.conferir and len(conferidos) > 1:
+        apontar_confusas(conferidos)
     if not a.conferir:
         print("\nAs fotos continuam na pasta. Depois de conferir que todo mundo foi "
               "reconhecido, apague-as: o sistema so precisa dos numeros.")
