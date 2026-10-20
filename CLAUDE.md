@@ -670,6 +670,15 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   análises/s, pior com mais rostos na tela. O lado do DONO na HAIZ ainda não
   foi medido. Rodadas 05:02 e 05:05: mais 154 leituras, máximo 0,23, 0
   aprovados; mas nas 05:02 **3 pessoas viraram 1 alerta**.
+- **Seis rodadas de estranhos na HAIZ (20/10, 0454 a 0550): 2.129 leituras
+  boas, máximo 0,26, 0 aprovados.** Rodada 0550 (já com `ARENA_FRENTE` 0,55
+  e o log novo): 911 leituras, p99 0,21; quem ficou sentado 2:40 a 46-65 px
+  deu UM alerta só. **156 a 181 ms por quadro, 5,4 análises/s**, contra
+  296 a 545 nas rodadas anteriores com o mesmo código: a diferença é carga
+  na caixa (outros grupos?), não o Arena. Descartes: 75 nota baixa, 53 de
+  lado (17 entre 0,55 e 0,75, o resto perfil de verdade). Alerta #4 teve
+  "mais parecido #3: 0,50", abaixo do 0,60 de juntar: se era a mesma
+  pessoa, o 0,60 está alto para rosto de 75-86 px.
 - **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Trilha que ainda era
   vista depois que a outra começou (as duas no mesmo quadro) nunca é juntada:
   são duas pessoas. Uma janela de 1,5 s no lugar disso dava DOIS alertas para
