@@ -23,6 +23,7 @@ precisa saber que o motor por baixo e outro. Trocar o mundo em volta de um
 codigo que funciona e melhor que reescreve-lo.
 """
 import os
+import re
 import subprocess
 import threading
 
@@ -41,6 +42,15 @@ ALT = int(os.environ.get("CAM_ALT", "360"))
 # para serem jogados fora (CPU medida em 744% de 800%). Vem desligado ate ser
 # medido: GST_DECODIFICADOR=qtivdec no .env, e compare fps e cpu no --mostrar.
 DECODIFICADOR = os.environ.get("GST_DECODIFICADOR", "avdec_h264").strip() or "avdec_h264"
+
+
+def sem_senha(url):
+    """O endereco da camera para MOSTRAR: senha trocada por ***. Na HAIZ a
+    senha vai dentro do endereco (password=... no padrao Xiongmai, ou
+    usuario:senha@), e o cadastrar.py imprimia o endereco inteiro (21/10):
+    a senha saiu na tela e foi colada no chat."""
+    s = re.sub(r"(password=)[^&]*", r"\1***", str(url))
+    return re.sub(r"(rtsp://[^:/@]+:)[^@]*@", r"\1***@", s)
 
 
 def _codec(codec=None):

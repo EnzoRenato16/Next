@@ -429,6 +429,7 @@ def _fabricar(b):
 
 def main():
     from aibox.sala import carregar_env
+    from aibox.gstcam import sem_senha
     carregar_env()
     camera = os.environ.get("CAMERA_CADASTRO") or os.environ.get("CAMERA_RTSP")
     servidor = os.environ.get("SERVIDOR", "http://127.0.0.1:8000")
@@ -436,7 +437,7 @@ def main():
         print("[balcao] falta CAMERA_CADASTRO (ou CAMERA_RTSP) no .env da caixa.")
         return 2
     b = Balcao(camera, servidor, PORTA)
-    print(f"[balcao] camera de cadastro: {camera}")
+    print(f"[balcao] camera de cadastro: {sem_senha(camera)}")
     print(f"[balcao] no PC, abra:  {servidor.rstrip('/')}/cadastro?caixa=<ip-da-caixa>:{PORTA}")
     print("[balcao] (Ctrl+C para parar)")
     try:

@@ -29,6 +29,7 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 
 from aibox.sala import abrir_camera, carregar_env  # noqa: E402
+from aibox.gstcam import sem_senha  # noqa: E402
 
 
 def mandar(base, nome, vetores, acrescentar=False):
@@ -100,7 +101,7 @@ def main():
     print(f"[cadastro] motor: {modelo} ({motor.backend})")
 
     fonte = int(a.camera) if str(a.camera).isdigit() else a.camera
-    print(f"[cadastro] camera: {fonte}")
+    print(f"[cadastro] camera: {sem_senha(fonte)}")
     cap = abrir_camera(fonte)
     if not cap.isOpened():
         print("[cadastro] nao consegui abrir a camera.")
