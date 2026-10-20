@@ -641,6 +641,13 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   amostra com cosseno < 0,25 contra a média do que a pessoa já tem fica de
   fora. Achado no teste: sem isso, outra pessoa na frente da câmera entrava na
   galeria com o nome errado e só o `conferir` via depois.
+- **Câmera nova da arena: HAIZ, `192.168.50.109:554`** (20/10). Página em
+  `/doc/page/main.html`, com cara de Hikvision. Usuário e senha diferentes das
+  Intelbras (passados pela organização; ficam só no `.env` da caixa, nunca no
+  Git). O `gstcam` agora aceita usuário e senha DENTRO do endereço
+  (`rtsp://usuario:senha@ip/...`) e aí não usa o `CAM_USER`/`CAM_PW`. O
+  caminho RTSP se descobre no PC com `python aibox\achar_rtsp.py IP`, que
+  tenta os caminhos comuns um por vez, com pausa, e diz resolução e codec.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

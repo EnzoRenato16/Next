@@ -69,11 +69,20 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False):
     # usa e a arena, que le a camera em resolucao cheia.
     teto = (["!", "videorate", "drop-only=true", f"max-rate={int(fps)}"]
             if fps else [])
+    # USUARIO E SENHA: os do .env (CAM_USER/CAM_PW) servem a todas as cameras,
+    # MENOS a que traz os seus no proprio endereco (rtsp://usuario:senha@ip/...).
+    # A camera HAIZ da arena tem senha diferente das Intelbras do laboratorio.
+    # Senha com @ continua tendo de ir pelo .env: dentro do endereco ela parte
+    # a URL no lugar errado (armadilha 3).
+    from urllib.parse import urlsplit
+    if urlsplit(url).username:
+        cred = []
+    else:
+        cred = ["user-id=" + os.environ.get("CAM_USER", ""),
+                "user-pw=" + os.environ.get("CAM_PW", "")]
     return [
         "gst-launch-1.0", "-q",          # -q cala o status: a saida e binaria
-        "rtspsrc", "location=" + url,
-        "user-id=" + os.environ.get("CAM_USER", ""),
-        "user-pw=" + os.environ.get("CAM_PW", ""),
+        "rtspsrc", "location=" + url, *cred,
         # TCP e nao UDP: em rede de escola o UDP perde pacote e o quadro chega
         # rasgado, o que o detector le como corpo torto — alarme falso com
         # causa na rede, que e o pior tipo para diagnosticar.
