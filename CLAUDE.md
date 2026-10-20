@@ -608,6 +608,14 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   pastas aponta o ARQUIVO da foto que confunde. O "pior par" entre pessoas
   assusta mais do que pesa: Daniel x Lucas deu 0,43 no pior par e +0,41 de
   folga no teste que importa.
+- **O limiar 0,36 é BAIXO para a nossa galeria (medido em 20/10).** Enzo, fora
+  da galeria, num vídeo de celular de perto: 0,28 a 0,34 contra o Lucas quase o
+  tempo todo, picos de 0,38 a 0,40. Com 0,36 ele virou desconhecido e depois
+  "subiu" para Lucas (janela de 8 leituras com média 0,37). Com
+  `ARENA_LIMIAR=0.45` e `ARENA_LIMIAR_BAIXO=0.38`: 0 de 4 e 1 alerta logo no
+  começo. Falta o outro lado: o dono tem de passar de 0,45 na câmera da caixa.
+  Se não passar com folga, `ARENA_TOPK=3` (nota = média das 3 fotos mais
+  parecidas, e não só a melhor) derruba mais o estranho que o dono.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

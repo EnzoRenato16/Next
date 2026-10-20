@@ -61,7 +61,7 @@ def configurar():
     carregar_env: sem a segunda vez, o ARENA_LIMIAR escrito no .env da caixa
     era ignorado calado, e a calibracao do laboratorio nao valia nada."""
     global LIMIAR, LIMIAR_BAIXO, MARGEM, MINIMO, MINIMO_DESC, MAXIMO
-    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN
+    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, TOPK
     # Os limiares sao do SFace (cosseno, MAIOR = mais parecido). 0,363 e o valor
     # da OpenCV para rosto bom; na camera da arena o rosto e pior, e o certo e
     # calibrar no local com --calibrar (ver LEIA no fim do arquivo).
@@ -74,6 +74,11 @@ def configurar():
     MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC", "0.45")
     ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
     NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
+    # A nota de cada pessoa e a media das TOPK fotos mais parecidas dela (1 =
+    # so a melhor). Estranho costuma acertar UMA foto por sorte, e o dono se
+    # parece com varias: no laboratorio (20/10), um estranho chegou a 0,40
+    # contra a melhor foto, acima do limiar de 0,36.
+    TOPK = max(1, int(_num("ARENA_TOPK", "1")))
 
 
 configurar()
@@ -139,6 +144,7 @@ class Juiz:
 
     def __init__(self, nomes, M, dono):
         self.nomes, self.M, self.dono = list(nomes), M, np.asarray(dono, int)
+        self._linhas = [np.where(self.dono == i)[0] for i in range(len(self.nomes))]
         self.trilhas = {}
         self.grupos = []        # desconhecidos: {"numero", "soma", "n"}
         # Quem ja foi identificado alguma vez. O placar conta daqui, e nao so da
@@ -155,8 +161,16 @@ class Juiz:
 
     def _por_pessoa(self, v):
         nota = np.full(len(self.nomes), -1.0, np.float32)
-        if len(self.M):
-            np.maximum.at(nota, self.dono, self.M @ v)
+        if not len(self.M):
+            return nota
+        s = self.M @ v
+        if TOPK == 1:
+            np.maximum.at(nota, self.dono, s)
+            return nota
+        for i, idx in enumerate(self._linhas):
+            if len(idx):
+                melhores = np.sort(s[idx])[-TOPK:]
+                nota[i] = float(melhores.mean())
         return nota
 
     def ler(self, ident, v, agora=0.0, camera=0):
@@ -595,6 +609,9 @@ def main():
 
     print(f"[arena] autorizados na galeria: {', '.join(nomes)}")
     print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
+          f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido, "
+          f"nota = media das {TOPK} melhores fotos" if TOPK > 1 else
+          f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
           f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido")
     print(f"[arena] imagem ao vivo: http://<IP da caixa>:{a.porta}", flush=True)
 

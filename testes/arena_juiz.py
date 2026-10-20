@@ -188,5 +188,27 @@ c = r.associar([(600, 100, 60, 60)], 0.5)
 ok("o mesmo rosto andando continua na mesma trilha", a == b, f"{a} {b}")
 ok("rosto longe e trilha nova", c != a)
 
+print("\n== nota pela media das melhores fotos (ARENA_TOPK) ==")
+# Um estranho que acerta UMA foto da Ana por sorte (0,5) e erra as outras.
+sorte = [parecido(pessoas["Ana"], 0.75)] + [unit(rng.normal(size=128)) for _ in range(5)]
+Mt = np.array([unit(v) for v in sorte + [parecido(pessoas["Bruno"], 0.75)
+                                         for _ in range(6)]], np.float32)
+dt = [0] * 6 + [1] * 6
+leitura = unit(Mt[0] * 0.5 + np.sqrt(1 - 0.25) * unit(rng.normal(size=128)))
+topk_antes = os.environ.pop("ARENA_TOPK", None)
+arena.configurar()
+um = arena.Juiz(["Ana", "Bruno"], Mt, dt)._por_pessoa(leitura)[0]
+os.environ["ARENA_TOPK"] = "3"
+arena.configurar()
+tres = arena.Juiz(["Ana", "Bruno"], Mt, dt)._por_pessoa(leitura)[0]
+del os.environ["ARENA_TOPK"]
+arena.configurar()
+ok("a sorte numa foto so pesa menos com a media das 3 melhores", tres < um - 0.1,
+   f"melhor foto {um:.2f}, media das 3 {tres:.2f}")
+ok("e sem a variavel volta a ser a melhor foto", arena.TOPK == 1)
+if topk_antes is not None:
+    os.environ["ARENA_TOPK"] = topk_antes
+    arena.configurar()
+
 print("\nRESULTADO", "ok" if not falhas else f"{falhas} FALHA(S)")
 sys.exit(1 if falhas else 0)
