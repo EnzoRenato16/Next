@@ -91,6 +91,32 @@ for k in range(arena.MINIMO_DESC):
 ok("outra pessoa desconhecida vira o #2", j.resumo()["desconhecidos"] == [1, 2],
    str(j.resumo()["desconhecidos"]))
 
+print("\n== dois desconhecidos parecidos AO MESMO TEMPO sao dois ==")
+# Na camera HAIZ, tres estranhos viraram um alerta. Quem esta na tela junto
+# com outro desconhecido e outra pessoa, por mais que os rostos se parecam.
+j = novo_juiz()
+gemeo = unit(rng.normal(size=128))
+while max(abs(float(gemeo @ v)) for v in pessoas.values()) > 0.1:   # longe da galeria
+    gemeo = unit(rng.normal(size=128))
+for k in range(arena.MINIMO_DESC):
+    j.ler("c1-30", parecido(gemeo, 0.9), k * 0.2)
+    j.ler("c1-31", parecido(gemeo, 0.9), k * 0.2 + 0.1)
+ok("viram dois alertas", j.resumo()["desconhecidos"] == [1, 2],
+   str(j.resumo()["desconhecidos"]))
+for k in range(arena.MINIMO_DESC):
+    j.ler("c1-32", parecido(gemeo, 0.9), 20 + k * 0.2)
+ok("e quem volta DEPOIS, sozinho, continua sendo um deles",
+   len(j.resumo()["desconhecidos"]) == 2 and j.trilhas["c1-32"].numero in (1, 2),
+   f"{j.resumo()['desconhecidos']} {j.trilhas['c1-32'].numero}")
+ok("e isso aparece como 'juntou', com a nota", any(
+    e["tipo"] == "juntou" and e["parecido"] is not None for e in j.eventos))
+
+print("\n== limite de juntar desconhecidos por motor ==")
+arena.configurar("arcface")
+ok("ArcFace junta so com 0,60", arena.MESMO_DESCONHECIDO == 0.60, str(arena.MESMO_DESCONHECIDO))
+arena.configurar("sface")
+ok("SFace continua 0,45", arena.MESMO_DESCONHECIDO == 0.45, str(arena.MESMO_DESCONHECIDO))
+
 print("\n== o parecido perigoso ==")
 # Um desconhecido que lembra a Carla (cosseno 0,3 com ela): nao pode virar
 # autorizado. E o "meliante" da prova.
@@ -134,7 +160,9 @@ j = novo_juiz()
 for k in range(arena.MINIMO):
     j.ler("c1-5", parecido(pessoas["Carla"], 0.6), k)
 intruso = unit(rng.normal(size=128))
-for k in range(arena.JANELA + arena.MINIMO_DESC):
+while max(abs(float(intruso @ v)) for v in pessoas.values()) > 0.1:  # longe da galeria
+    intruso = unit(rng.normal(size=128))
+for k in range(arena.JANELA + arena.MAXIMO):     # tempo de sobra para o juiz decidir
     j.ler("c1-5", parecido(intruso, 0.6), 10 + k)
 t = j.trilhas["c1-5"]
 ok("a troca e acusada", any(e["tipo"] == "troca" and e["nome"] == "Carla"
@@ -194,7 +222,7 @@ sorte = [parecido(pessoas["Ana"], 0.75)] + [unit(rng.normal(size=128)) for _ in 
 Mt = np.array([unit(v) for v in sorte + [parecido(pessoas["Bruno"], 0.75)
                                          for _ in range(6)]], np.float32)
 dt = [0] * 6 + [1] * 6
-leitura = unit(Mt[0] * 0.5 + np.sqrt(1 - 0.25) * unit(rng.normal(size=128)))
+leitura = parecido(Mt[0], 0.5)              # cosseno 0,5 com a foto de sorte
 topk_antes = os.environ.pop("ARENA_TOPK", None)
 arena.configurar()
 um = arena.Juiz(["Ana", "Bruno"], Mt, dt)._por_pessoa(leitura)[0]

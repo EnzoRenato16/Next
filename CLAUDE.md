@@ -599,9 +599,10 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   por quadro) e grava `arena/resultados/*.json`, sem imagem.
 - `--calibrar` imprime a nota de cada leitura: é como escolher o limiar no
   laboratório, com colegas fazendo o papel de desconhecido.
-- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (29 casos,
-  incluindo o "parecido perigoso", a troca de trilha e o `.env`; passa com 20
-  sementes diferentes). Ensaio com vídeo montado de duas fotos:
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (36 casos,
+  incluindo o "parecido perigoso", a troca de trilha, o `.env` e dois
+  desconhecidos parecidos na tela ao mesmo tempo; passa com 41 sementes, e com
+  `ARENA_TOPK=3`). Ensaio com vídeo montado de duas fotos:
   1 de 1 autorizado, 1 alerta, 74 ms por quadro neste PC (a caixa é mais lenta:
   medir).
 - **Porta 8080 ocupada = serviço da sala rodando:** `bash aibox/servico.sh
@@ -658,7 +659,14 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   janela de 8 leituras 0,23. Com o limiar 0,34: **0 aprovados, 4 alertas para
   4 pessoas**. Na caixa: **283 a 402 ms por quadro** (mediana 342), 2,6 a 3,6
   análises/s, pior com mais rostos na tela. O lado do DONO na HAIZ ainda não
-  foi medido.
+  foi medido. Rodadas 05:02 e 05:05: mais 154 leituras, máximo 0,23, 0
+  aprovados; mas nas 05:02 **3 pessoas viraram 1 alerta**.
+- **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Quem está na tela
+  AO MESMO TEMPO (`JUNTOS_S`=1,5 s) nunca é juntado: são duas pessoas. (2) O
+  limite é por motor: `ARENA_MESMO_DESC` (SFace, 0,45) e
+  `ARENA_MESMO_DESC_ARCFACE` (0,60). (3) Toda junção aparece no terminal
+  ("o mesmo desconhecido #k voltou (parecido 0,xx)") e todo alerta diz o mais
+  parecido, para calibrar esse limite na caixa como o outro.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

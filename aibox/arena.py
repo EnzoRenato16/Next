@@ -66,6 +66,16 @@ def _num(nome, padrao):
 #   arcface: o mesmo estranho chegou a 0,24; no LFW, o estranho mais parecido
 #     de 2.800 deu 0,34 e o dono no pior momento (5%), 0,36.
 PADROES = {"sface": ("0.36", "0.26"), "arcface": ("0.34", "0.26")}
+# Quanto a media de uma trilha desconhecida precisa lembrar um desconhecido ja
+# visto para ser a MESMA pessoa voltando. No LFW o ArcFace da 0,61 ou mais para
+# a mesma pessoa e no maximo 0,32 para pessoas diferentes; mas na camera HAIZ
+# (20/10) tres estranhos viraram UM alerta com 0,45: do alto, com a mesma luz e
+# o mesmo angulo, rostos diferentes ficam mais parecidos. ARENA_MESMO_DESC vale
+# so para o SFace; ARENA_MESMO_DESC_ARCFACE so para o ArcFace.
+MESMO_PADRAO = {"sface": "0.45", "arcface": "0.60"}
+# Duas trilhas vistas a menos disso uma da outra estavam NA TELA AO MESMO
+# TEMPO, e por isso sao duas pessoas, por mais que os rostos se parecam.
+JUNTOS_S = 1.5
 MOTOR = "sface"
 
 
@@ -85,7 +95,7 @@ def configurar(motor="sface"):
     MINIMO = int(_num("ARENA_MINIMO", "3"))         # leituras para autorizar
     MINIMO_DESC = int(_num("ARENA_MINIMO_DESC", "5"))  # para chamar de desconhecido
     MAXIMO = int(_num("ARENA_MAXIMO", "14"))        # depois disso, decide de vez
-    MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC", "0.45")
+    MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC" + sufixo, MESMO_PADRAO[motor])
     ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
     NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
     # A nota de cada pessoa e a media das TOPK fotos mais parecidas dela (1 =
@@ -148,6 +158,7 @@ class Trilha:
         self.nome = None
         self.nota = 0.0
         self.numero = None      # numero do desconhecido
+        self.visto = -1e9       # ultima vez na tela (segundos desde o inicio)
         self.motivo = ""        # por que a ultima leitura nao valeu
 
 
@@ -197,6 +208,7 @@ class Juiz:
         t.vetores.append(v)
         t.notas, t.vetores = t.notas[-JANELA:], t.vetores[-JANELA:]
         t.n += 1
+        t.visto = max(t.visto, agora)
         return self._decidir(t, agora)
 
     def _decidir(self, t, agora):
@@ -253,11 +265,15 @@ class Juiz:
             # UMA VEZ DESCONHECIDO, SO VOLTA SE FOR RECONHECIDO. Autorizado
             # nao vira desconhecido por ter virado o rosto um instante.
             t.estado, t.nome, t.nota = "desconhecido", None, melhor
-            numero, novo_alerta = self._agrupar(t)
+            numero, novo_alerta, parecido, com = self._agrupar(t, agora)
             t.numero = numero
             if novo_alerta:
                 ev.append(dict(tipo="desconhecido", numero=numero,
-                               nota=round(melhor, 3), trilha=t.id, quando=agora))
+                               nota=round(melhor, 3), trilha=t.id, quando=agora,
+                               parecido=parecido, com=com))
+            else:
+                ev.append(dict(tipo="juntou", numero=numero, trilha=t.id,
+                               quando=agora, parecido=parecido))
         self.eventos.extend(ev)
         return ev
 
@@ -273,22 +289,32 @@ class Juiz:
         return all(x[i] < LIMIAR_BAIXO or int(np.argmax(x)) != i for x in t.notas) \
             and float(np.mean([x[i] for x in t.notas])) < LIMIAR_BAIXO
 
-    def _agrupar(self, t):
-        """Este desconhecido ja foi visto (outra trilha, mesma pessoa)?"""
+    def _agrupar(self, t, agora):
+        """Este desconhecido ja foi visto (outra trilha, mesma pessoa)?
+        Devolve (numero, alerta_novo, nota_do_mais_parecido, numero_dele).
+
+        Desconhecido com trilha na tela AGORA nao entra na conta: quem esta ao
+        mesmo tempo na imagem e outra pessoa, e juntar os dois apagava um
+        alerta (na HAIZ, tres estranhos viraram um)."""
         m = np.mean(t.vetores, axis=0)
         m = m / (np.linalg.norm(m) + 1e-9)
         melhor, alvo = -1.0, None
         for g in self.grupos:
+            if any(tid != t.id and self.trilhas[tid].visto >= agora - JUNTOS_S
+                   for tid in g["trilhas"]):
+                continue
             c = g["soma"] / (np.linalg.norm(g["soma"]) + 1e-9)
             s = float(c @ m)
             if s > melhor:
                 melhor, alvo = s, g
+        com = alvo["numero"] if alvo is not None else None
         if alvo is not None and melhor >= MESMO_DESCONHECIDO:
             alvo["soma"] = alvo["soma"] + m
-            return alvo["numero"], False
-        g = {"numero": len(self.grupos) + 1, "soma": m.copy()}
+            alvo["trilhas"].append(t.id)
+            return alvo["numero"], False, round(melhor, 3), com
+        g = {"numero": len(self.grupos) + 1, "soma": m.copy(), "trilhas": [t.id]}
         self.grupos.append(g)
-        return g["numero"], True
+        return g["numero"], True, round(melhor, 3) if alvo is not None else None, com
 
     def resumo(self):
         """O placar de agora. Contado pelo ESTADO de cada trilha, e nao pelos
@@ -667,11 +693,19 @@ def main():
             vistos = []
             for l, ident, cx in zip(linhas, ids, caixas):
                 t = juiz.trilha(ident, cam.indice)
+                t.visto = max(t.visto, t0 - inicio)
                 boa, motivo = leitura_boa(l)
                 t.motivo = motivo
                 if boa:
                     v = medir(img, l)
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
+                        if ev["tipo"] == "juntou":
+                            txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o mesmo "
+                                   f"desconhecido #{ev['numero']} voltou "
+                                   f"(parecido {ev['parecido']:.2f}, minimo {MESMO_DESCONHECIDO:.2f})")
+                            print(f"[arena] {txt}", flush=True)
+                            log.append(txt)
+                            continue
                         if ev["tipo"] == "troca":
                             txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o rosto "
                                    f"deixou de ser {ev['nome']}, analisando de novo")
@@ -682,7 +716,9 @@ def main():
                                + (f", era o desconhecido #{ev['era_desconhecido']}"
                                   if ev.get("era_desconhecido") else "")
                                if ev["tipo"] == "autorizado" else
-                               f"{relogio(t0 - inicio)} ALERTA desconhecido #{ev['numero']}")
+                               f"{relogio(t0 - inicio)} ALERTA desconhecido #{ev['numero']}"
+                               + (f" (o mais parecido era o #{ev['com']}: {ev['parecido']:.2f})"
+                                  if ev.get("parecido") is not None else ""))
                         print("[arena] " + txt, flush=True)
                         log.append(txt)
                     if a.calibrar and juiz.trilhas[ident].notas:
@@ -748,6 +784,7 @@ def main():
         tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
         limiares=dict(motor=MOTOR, limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO,
                       margem=MARGEM, minimo=MINIMO, minimo_desc=MINIMO_DESC,
+                      mesmo_desconhecido=MESMO_DESCONHECIDO,
                       topk=TOPK),
         eventos=log)
     print("\n================ RESULTADO DA ARENA ================")
