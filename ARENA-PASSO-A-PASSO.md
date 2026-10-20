@@ -171,6 +171,22 @@ $P aibox/galeria.py
 
 Errou alguém? `$P aibox/galeria.py remover "Nome Errado"`.
 
+### 5C. Ensaio sem a caixa (webcam do PC)
+
+Dá para testar a galeria antes de conseguir a caixa, com a webcam do PC. No
+PC do laboratório o leitor padrão de câmera do Windows falha (erro
+`-1072873854`); as duas primeiras linhas trocam pelo leitor antigo e valem só
+para aquela janela do PowerShell:
+
+```powershell
+$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"
+$env:OPENCV_LOG_LEVEL="ERROR"
+python aibox\arena.py --camera 0 --galeria arena\galeria.json --calibrar --porta 8099
+```
+
+Abrir `http://127.0.0.1:8099`. A webcam vê melhor que a câmera da sala: o
+limiar final sai do passo 6, na caixa.
+
 ## 6. Calibrar (o passo mais importante, 10 min)
 
 ```bash
