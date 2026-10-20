@@ -75,3 +75,8 @@ ppt/midia/*
 *.mov
 *.avi
 *.mkv
+
+# ArcFace pequeno da InsightFace (licenca nao comercial): fica fora do Git.
+# Regra so para ESTE arquivo: uma regra daten/models/*.onnx ja barrou os
+# modelos versionados uma vez sem avisar.
+daten/models/w600k_mbf.onnx

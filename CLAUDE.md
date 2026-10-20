@@ -616,6 +616,16 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   começo. Falta o outro lado: o dono tem de passar de 0,45 na câmera da caixa.
   Se não passar com folga, `ARENA_TOPK=3` (nota = média das 3 fotos mais
   parecidas, e não só a melhor) derruba mais o estranho que o dono.
+- **SFace contra ArcFace pequeno (`aibox/comparar_modelos.py`).** O
+  `w600k_mbf.onnx` (13 MB, buffalo_s da InsightFace, licença NÃO comercial,
+  fora do Git) roda pelo `cv2.dnn` do OpenCV 4.10, igual ao ONNX Runtime
+  (cosseno 1,0), ~11 ms por rosto no PC. Medido no LFW (3.000 pares de cada,
+  mesmo YuNet e mesmo portão da arena): com rosto de 96 px os dois quase
+  empatam (99,3% contra 98,7% dos donos aceitos com 0,1% de estranhos
+  aprovados); com rosto de 38 px o ArcFace erra metade (99,0% contra 97,8%).
+  Estranho no SFace chega a 0,40 (bate com o Enzo); no ArcFace, a 0,34, com
+  mediana 0,00. Ganho real, mas moderado: só trocar se os vídeos do grupo
+  mostrarem folga bem maior, e só com teste na caixa.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
