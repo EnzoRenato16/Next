@@ -652,6 +652,13 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   (Hikvision e Dahua respondem `451 Parameter Not Understood`), **2880x1620,
   H.264**. Com `password=` no caminho o `gstcam` também não usa o
   `CAM_USER`/`CAM_PW`.
+- **Primeira calibração na HAIZ (20/10, ~2 min, `calib-0454.log`):** 4
+  estranhos (3 passando + 1 sentado), 622 leituras boas contra a galeria
+  ArcFace. Nota do estranho: mediana 0,14, p99 0,24, **máximo 0,26**; pior
+  janela de 8 leituras 0,23. Com o limiar 0,34: **0 aprovados, 4 alertas para
+  4 pessoas**. Na caixa: **283 a 402 ms por quadro** (mediana 342), 2,6 a 3,6
+  análises/s, pior com mais rostos na tela. O lado do DONO na HAIZ ainda não
+  foi medido.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
