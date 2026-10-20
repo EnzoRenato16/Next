@@ -676,6 +676,7 @@ def main():
         signal.signal(s, lambda *_: parar.set())
 
     inicio = time.monotonic()
+    descarte = {}               # trilha -> ultimo aviso de rosto descartado (--calibrar)
     log, tempos, ultimo_status = [], [], 0.0
     qps_cam = {c.indice: [] for c in cams}
     vistos_por_cam = {c.indice: [] for c in cams}
@@ -707,6 +708,13 @@ def main():
                     t.comeco = t0 - inicio
                 boa, motivo = leitura_boa(l)
                 t.motivo = motivo
+                # Na calibracao, o rosto descartado tambem aparece (no maximo 1
+                # vez por segundo por trilha): e assim que se acha a distancia
+                # em que a camera deixa de ler alguem, sem ninguem da galeria.
+                if a.calibrar and not boa and t0 - descarte.get(ident, -9) >= 1:
+                    descarte[ident] = t0
+                    print(f"   {ident} descartado: {motivo} ({float(l[2]):.0f} px,"
+                          f" nota {float(l[14]):.2f})", flush=True)
                 # TODO rosto bom e medido, mesmo de quem ja foi decidido. Medir
                 # menos quem ja tem nome foi tentado (20/10) e quebrou a troca
                 # de trilha: a pessoa nova que ocupa o lugar herdava o nome
@@ -740,7 +748,8 @@ def main():
                         n = juiz.trilhas[ident].notas[-1]
                         top = sorted(zip(nomes, n), key=lambda x: -x[1])[:2]
                         print(f"   {ident} leitura {juiz.trilhas[ident].n}: "
-                              + ", ".join(f"{k} {s:.2f}" for k, s in top), flush=True)
+                              + ", ".join(f"{k} {s:.2f}" for k, s in top)
+                              + f" ({float(l[2]):.0f} px)", flush=True)
                 vistos.append((ident, cx, motivo))
             ms = (time.monotonic() - t0) * 1000
             tempos.append(ms)

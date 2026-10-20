@@ -599,6 +599,9 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   por quadro) e grava `arena/resultados/*.json`, sem imagem.
 - `--calibrar` imprime a nota de cada leitura: é como escolher o limiar no
   laboratório, com colegas fazendo o papel de desconhecido.
+  Mostra também o tamanho do rosto em px e, uma vez por segundo, o rosto
+  DESCARTADO e o motivo (nota baixa, rosto pequeno, torto, de lado): é como
+  achar, sem ninguém da galeria, a distância em que a câmera deixa de ler.
 - `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (36 casos,
   incluindo o "parecido perigoso", a troca de trilha, o `.env` e dois
   desconhecidos parecidos na tela ao mesmo tempo; passa com 41 sementes, e com
