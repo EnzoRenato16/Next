@@ -547,9 +547,10 @@ class VideoFluido:
             for (x, y, w, h), cor, txt in marcas:
                 p1 = (int(x * self.sx), int(y * self.sy))
                 p2 = (int((x + w) * self.sx), int((y + h) * self.sy))
-                cv2.rectangle(q, p1, p2, cor, 2)
-                cv2.putText(q, txt, (p1[0], max(16, p1[1] - 8)),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, cor, 2, cv2.LINE_AA)
+                cv2.rectangle(q, p1, p2, cor, 2 if txt else 1)
+                if txt:
+                    cv2.putText(q, txt, (p1[0], max(16, p1[1] - 8)),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, cor, 2, cv2.LINE_AA)
             ok, buf = cv2.imencode(".jpg", q, [cv2.IMWRITE_JPEG_QUALITY, 70])
             if ok:
                 self.tela.publicar_jpeg(buf.tobytes())
@@ -570,6 +571,7 @@ def ascii(s):
 
 
 VERDE, RUBI, AMBAR, BRANCO = (95, 191, 95), (70, 70, 235), (40, 190, 235), (240, 240, 240)
+CINZA = (150, 150, 150)
 
 
 def rotulo(juiz, ident, motivo):
@@ -579,6 +581,12 @@ def rotulo(juiz, ident, motivo):
     if t is not None and t.estado == "desconhecido":
         return RUBI, f"DESCONHECIDO #{t.numero}"
     n = t.n if t else 0
+    if motivo == "rosto pequeno" and n == 0:
+        # LONGE DEMAIS PARA LER, e nao entra na conta. Com a Intelbras do alto
+        # (21/10) o fundo da sala virou uma pilha de "analisando 0/3 (rosto
+        # pequeno)" amarelos. Chamar de desconhecido seria pior: na arena o
+        # fundo e a PLATEIA, e cada pessoa dela viraria um alerta.
+        return CINZA, ""
     return AMBAR, f"analisando {n}/{MINIMO}" + (f" ({motivo})" if motivo else "")
 
 
@@ -590,9 +598,10 @@ def desenhar(cv2, img, juiz, vistos, largura_tela):
         cor, txt = rotulo(juiz, ident, motivo)
         p1 = (int(x * escala), int(y * escala))
         p2 = (int((x + w) * escala), int((y + h) * escala))
-        cv2.rectangle(tela, p1, p2, cor, 2)
-        cv2.putText(tela, txt, (p1[0], max(16, p1[1] - 8)),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.55, cor, 2, cv2.LINE_AA)
+        cv2.rectangle(tela, p1, p2, cor, 2 if txt else 1)
+        if txt:
+            cv2.putText(tela, txt, (p1[0], max(16, p1[1] - 8)),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.55, cor, 2, cv2.LINE_AA)
     return tela
 
 

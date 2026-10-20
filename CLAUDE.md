@@ -735,6 +735,14 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   faltando): o cano do vídeo fluido usa `avdec_h265 output-corrupt=false`,
   que descarta em vez de mostrar. Só nele, não na identificação.
   30 leituras por segundo não existe nesta CPU com rosto em 4 MP.
+- **Intelbras .108 na arena (21/10):** o fluxo principal (`subtype=0`) é
+  **H.265** ("not-linked" com o cano de H.264): `CAM_CODEC=h265` na frente
+  do comando. Do alto, o fundo da sala vira rosto pequeno: agora caixa
+  CINZA fina, sem texto, fora da conta. Não vira desconhecido de propósito:
+  na arena o fundo é a plateia, e cada rosto dela viraria um alerta.
+  **NPU:** o professor sugeriu dividir CPU e NPU; o ONNX Runtime 1.16 da
+  caixa não fala com a NPU (precisa TFLite/QNN quantizado e validar de
+  novo). Fica para depois da final, não cabe com segurança no prazo.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
