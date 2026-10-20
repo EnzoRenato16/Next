@@ -108,6 +108,13 @@ for k in range(arena.MINIMO_DESC):
 ok("e quem volta DEPOIS, sozinho, continua sendo um deles",
    len(j.resumo()["desconhecidos"]) == 2 and j.trilhas["c1-32"].numero in (1, 2),
    f"{j.resumo()['desconhecidos']} {j.trilhas['c1-32'].numero}")
+j2 = novo_juiz()
+for k in range(arena.MINIMO_DESC):
+    j2.ler("c1-40", parecido(gemeo, 0.9), 1 + k * 0.3)        # ate 2,2 s
+for k in range(arena.MINIMO_DESC):
+    j2.ler("c1-41", parecido(gemeo, 0.9), 2.5 + k * 0.3)      # comeca 0,3 s depois
+ok("quem anda rapido e volta com outro numero logo em seguida e UM alerta",
+   j2.resumo()["desconhecidos"] == [1], str(j2.resumo()["desconhecidos"]))
 ok("e isso aparece como 'juntou', com a nota", any(
     e["tipo"] == "juntou" and e["parecido"] is not None for e in j.eventos))
 

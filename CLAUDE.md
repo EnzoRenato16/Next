@@ -661,12 +661,21 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   análises/s, pior com mais rostos na tela. O lado do DONO na HAIZ ainda não
   foi medido. Rodadas 05:02 e 05:05: mais 154 leituras, máximo 0,23, 0
   aprovados; mas nas 05:02 **3 pessoas viraram 1 alerta**.
-- **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Quem está na tela
-  AO MESMO TEMPO (`JUNTOS_S`=1,5 s) nunca é juntado: são duas pessoas. (2) O
+- **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Trilha que ainda era
+  vista depois que a outra começou (as duas no mesmo quadro) nunca é juntada:
+  são duas pessoas. Uma janela de 1,5 s no lugar disso dava DOIS alertas para
+  quem anda rápido e volta com outro número no quadro seguinte. (2) O
   limite é por motor: `ARENA_MESMO_DESC` (SFace, 0,45) e
   `ARENA_MESMO_DESC_ARCFACE` (0,60). (3) Toda junção aparece no terminal
   ("o mesmo desconhecido #k voltou (parecido 0,xx)") e todo alerta diz o mais
   parecido, para calibrar esse limite na caixa como o outro.
+- **Desempenho na HAIZ:** procurar rosto em 1280 de largura
+  (`ARENA_DETECCAO`, agora o padrão) baixou de ~530 para **~296 ms por
+  quadro, 3,2 análises/s**, sem perder qualidade: o rosto continua medido no
+  quadro cheio. **Não medir de novo quem já foi decidido foi tentado e
+  desfeito:** a pessoa nova que ocupa o lugar herdava o nome (ensaio 4 de 4
+  virou 1 de 4). O que sobra de peso é decodificar 2880x1620 a 30/s na CPU
+  (`qtivdec` resolveria, mas deu "sem imagem" no último teste).
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

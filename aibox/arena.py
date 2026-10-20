@@ -73,9 +73,6 @@ PADROES = {"sface": ("0.36", "0.26"), "arcface": ("0.34", "0.26")}
 # o mesmo angulo, rostos diferentes ficam mais parecidos. ARENA_MESMO_DESC vale
 # so para o SFace; ARENA_MESMO_DESC_ARCFACE so para o ArcFace.
 MESMO_PADRAO = {"sface": "0.45", "arcface": "0.60"}
-# Duas trilhas vistas a menos disso uma da outra estavam NA TELA AO MESMO
-# TEMPO, e por isso sao duas pessoas, por mais que os rostos se parecam.
-JUNTOS_S = 1.5
 MOTOR = "sface"
 
 
@@ -159,6 +156,7 @@ class Trilha:
         self.nota = 0.0
         self.numero = None      # numero do desconhecido
         self.visto = -1e9       # ultima vez na tela (segundos desde o inicio)
+        self.comeco = None      # primeira vez na tela
         self.motivo = ""        # por que a ultima leitura nao valeu
 
 
@@ -209,6 +207,9 @@ class Juiz:
         t.notas, t.vetores = t.notas[-JANELA:], t.vetores[-JANELA:]
         t.n += 1
         t.visto = max(t.visto, agora)
+        if t.comeco is None:
+            t.comeco = agora
+
         return self._decidir(t, agora)
 
     def _decidir(self, t, agora):
@@ -293,14 +294,18 @@ class Juiz:
         """Este desconhecido ja foi visto (outra trilha, mesma pessoa)?
         Devolve (numero, alerta_novo, nota_do_mais_parecido, numero_dele).
 
-        Desconhecido com trilha na tela AGORA nao entra na conta: quem esta ao
-        mesmo tempo na imagem e outra pessoa, e juntar os dois apagava um
-        alerta (na HAIZ, tres estranhos viraram um)."""
+        Grupo com uma trilha que ainda era vista DEPOIS que esta comecou nao
+        entra na conta: as duas estiveram no mesmo quadro, sao duas pessoas
+        (na HAIZ, tres estranhos viraram um alerta). Trilha que acabou antes
+        desta comecar pode ser a mesma pessoa: quem anda rapido e perdido
+        pelo rastreador e volta com outro numero no quadro seguinte. Uma
+        janela de 1,5 s no lugar disto dava dois alertas para essa pessoa."""
         m = np.mean(t.vetores, axis=0)
         m = m / (np.linalg.norm(m) + 1e-9)
         melhor, alvo = -1.0, None
         for g in self.grupos:
-            if any(tid != t.id and self.trilhas[tid].visto >= agora - JUNTOS_S
+            comeco = t.comeco if t.comeco is not None else agora
+            if any(tid != t.id and self.trilhas[tid].visto >= comeco
                    for tid in g["trilhas"]):
                 continue
             c = g["soma"] / (np.linalg.norm(g["soma"]) + 1e-9)
@@ -609,7 +614,11 @@ def main():
     p.add_argument("--altura", type=int, default=int(_num("ARENA_ALT", "1080")))
     p.add_argument("--fps", type=int, default=int(_num("ARENA_FPS", "6")),
                    help="teto de quadros por segundo lidos da camera (0 = sem teto)")
-    p.add_argument("--deteccao", type=int, default=int(_num("ARENA_DETECCAO", "0")),
+    # 1280 e nao o quadro cheio: na HAIZ (20/10) o tempo por quadro caiu de
+    # ~530 para ~300 ms. O rosto continua MEDIDO no quadro cheio (o detector
+    # devolve os pontos na escala real), e o menor rosto aceito, 32 px, vira
+    # ~21 px na busca, que o YuNet ainda acha.
+    p.add_argument("--deteccao", type=int, default=int(_num("ARENA_DETECCAO", "1280")),
                    help="largura em que o YuNet procura rosto (0 = quadro cheio)")
     p.add_argument("--galeria", default=os.environ.get("GALERIA") or galeria.PADRAO)
     p.add_argument("--porta", type=int, default=int(_num("ARENA_PORTA", "8080")))
@@ -694,8 +703,14 @@ def main():
             for l, ident, cx in zip(linhas, ids, caixas):
                 t = juiz.trilha(ident, cam.indice)
                 t.visto = max(t.visto, t0 - inicio)
+                if t.comeco is None:
+                    t.comeco = t0 - inicio
                 boa, motivo = leitura_boa(l)
                 t.motivo = motivo
+                # TODO rosto bom e medido, mesmo de quem ja foi decidido. Medir
+                # menos quem ja tem nome foi tentado (20/10) e quebrou a troca
+                # de trilha: a pessoa nova que ocupa o lugar herdava o nome
+                # (ensaio com video: 4 de 4 virou 1 de 4).
                 if boa:
                     v = medir(img, l)
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
