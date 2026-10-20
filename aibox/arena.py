@@ -97,10 +97,13 @@ def configurar(motor="sface"):
     NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
     # Quanto o rosto pode estar virado: desvio do nariz ate o meio dos olhos,
     # dividido pela distancia entre os olhos. Era 0,35 e barrava quem estava
-    # perto da camera mas olhando de lado (HAIZ, 20/10). No LFW com o ArcFace
-    # (galeria de frente, leitura virada), de 0,35 a 0,55: dono p5 0,37 a 0,41,
-    # estranho no maximo 0,24. Virado, o estranho cai junto com o dono.
-    FRENTE = _num("ARENA_FRENTE", "0.55")
+    # perto da camera mas olhando de lado (HAIZ, 20/10). Medido na HAIZ com o
+    # Samuel girando a cabeca e a sala cheia de estranhos: de 0,55 a 0,70, o
+    # Samuel deu no minimo 0,41 (17 leituras) e estranho no maximo 0,19. De
+    # 0,70 a 0,85 o estranho continua baixo, mas o DONO cai para 0,15 a 0,27
+    # em um quarto das leituras: leitura assim so serviria para dar alerta
+    # errado contra o proprio autorizado. Por isso para em 0,70.
+    FRENTE = _num("ARENA_FRENTE", "0.70")
     # A nota de cada pessoa e a media das TOPK fotos mais parecidas dela (1 =
     # so a melhor). Estranho costuma acertar UMA foto por sorte, e o dono se
     # parece com varias: no laboratorio (20/10), um estranho chegou a 0,40

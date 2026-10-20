@@ -208,7 +208,7 @@ print("\n== qualidade da leitura ==")
 # linha do YuNet: x, y, w, h, olho_d(x,y), olho_e(x,y), nariz(x,y), boca(2x2), nota
 frente = [100, 100, 60, 70, 115, 125, 145, 125, 130, 140, 118, 155, 142, 155, 0.92]
 lado = list(frente)
-lado[8] = 150                                              # nariz alem do olho
+lado[8] = 153                                              # nariz alem do olho
 tres_quartos = list(frente)
 tres_quartos[8] = 144                                      # virado 0,47: vale desde 20/10
 pequeno = list(frente)

@@ -569,7 +569,13 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
 - **O juiz decide por trilha, não por quadro.** Leitura só de rosto bom (nota
   do YuNet ≥ 0,80, largura ≥ 32 px, de pé, virado até `ARENA_FRENTE`).
   `ARENA_FRENTE` era 0,35 fixo e barrava quem estava perto da HAIZ olhando
-  de lado ("analisando 0/3 (de lado)", 20/10); agora 0,55. Medido no LFW
+  de lado ("analisando 0/3 (de lado)", 20/10); agora **0,70**, medido na
+  HAIZ (`calib-samuel-lado.log`, Samuel girando a cabeça, sala cheia, com
+  0,85 só no teste): de 0,55 a 0,70 o Samuel deu no mínimo 0,41 (17
+  leituras) e estranho no máximo 0,19; de 0,70 a 0,85 estranho no máximo
+  0,19, mas o dono cai para 0,15 a 0,27 em um quarto das leituras, e isso
+  só daria alerta errado contra o autorizado. De frente: Samuel mediana
+  0,73. Estranhos na rodada: 219 leituras, máximo 0,25. Antes, 0,55: Medido no LFW
   com o ArcFace, galeria de frente e leitura virada 0,35 a 0,55: dono p5
   0,37 a 0,41, estranho no máximo 0,24 (virado, o estranho cai junto com o
   dono). Amostra pequena (o LFW é quase todo de frente): conferir no log,
