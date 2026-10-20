@@ -506,7 +506,7 @@ antes continua sendo reconhecido.
 > ruído — nada quebra, ninguém é reconhecido. O servidor avisa com `[bio]
 > ATENCAO` na partida quando isso acontece.
 
-## A final do NEXT: quem é cadastrado e quem não é (PENDENTE, nada feito ainda)
+## A final do NEXT: quem é cadastrado e quem não é
 
 Passamos em terceiro. O desafio da final: numa sala com umas 20 pessoas, dizer
 quem se cadastrou na facial e quem não, mantendo queda, corrida e briga.
@@ -602,6 +602,22 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   medir).
 - **Porta 8080 ocupada = serviço da sala rodando:** `bash aibox/servico.sh
   parar` antes da arena.
+- **Conferir a galeria sem a caixa:** `python aibox\galeria.py conferir` faz
+  cada foto virar uma leitura contra a galeria sem ela (como o juiz) e diz se
+  acertou o dono e com que folga; `cadastrar_fotos.py --conferir` com várias
+  pastas aponta o ARQUIVO da foto que confunde. O "pior par" entre pessoas
+  assusta mais do que pesa: Daniel x Lucas deu 0,43 no pior par e +0,41 de
+  folga no teste que importa.
+- **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
+  `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
+
+**Estado em 20/10/2026 (laboratório, sem porta livre na caixa):** galeria
+montada por fotos no PC do laboratório (`Desktop\Next-arena`, OpenCV 4.10 igual
+ao da caixa) com os 4 da arena: **Lucas, Daniel, Samuel e Matheus**
+(Guilherme e Enzo fora; Enzo opera o terminal). `conferir`: todos acertam
+100% das fotos, menor folga +0,41. Uma foto do Matheus que puxava para o
+Samuel saiu. Falta, com a caixa: `pc galeria`, a passada pela câmera da sala
+(`--acrescentar`), calibrar e o ensaio cronometrado.
 
 **O gargalo é pixel, não modelo.** A caixa lê o fluxo secundário em 640x360
 (`CAM_LARG`/`CAM_ALT` em `aibox/gstcam.py`). Com a lente de ~99° da VIP 1230 D
