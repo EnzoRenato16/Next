@@ -58,9 +58,16 @@ def _codec(codec=None):
     return "rtph264depay", "h264parse", DECODIFICADOR
 
 
-def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None):
+def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None,
+             sem_corrompido=False):
     largura, altura = largura or LARG, altura or ALT
     depay, parse, dec = _codec(codec)
+    # QUADRO CORROMPIDO, opcional (so o video fluido da arena usa). Na HAIZ
+    # (21/10) o fluxo leve em H.265 saiu em blocos verdes e rosa: o avdec
+    # mostra o quadro mesmo faltando a referencia. output-corrupt=false joga
+    # fora em vez de mostrar. Nao vai para a identificacao: um avdec antigo
+    # sem essa propriedade derrubaria o cano inteiro.
+    dec = [dec, "output-corrupt=false"] if sem_corrompido and dec.startswith("avdec_") else [dec]
     # BORDAS, opcional (a arena usa). Com o tamanho pedido diferente da
     # proporcao da camera (4:3, ou 2688x1520), o videoscale ESTICA o quadro, e
     # rosto esticado da numeros diferentes das fotos do cadastro. Com
@@ -92,7 +99,7 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None)
         # rasgado, o que o detector le como corpo torto — alarme falso com
         # causa na rede, que e o pior tipo para diagnosticar.
         "protocols=tcp", "latency=100",
-        "!", depay, "!", parse, "!", dec, *teto,
+        "!", depay, "!", parse, "!", *dec, *teto,
         # A FILA VAZA DE PROPOSITO (leaky=downstream, 2 quadros). Sem ela, o
         # GStreamer BLOQUEIA quando o cano enche, e como a analise e mais lenta
         # que a camera o cano vive cheio: o que se analisa passa a ser o
@@ -108,7 +115,8 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None)
 class Gst:
     """Um cv2.VideoCapture que por dentro e um processo do GStreamer."""
 
-    def __init__(self, url, largura=None, altura=None, fps=None, bordas=False, codec=None):
+    def __init__(self, url, largura=None, altura=None, fps=None, bordas=False, codec=None,
+                 sem_corrompido=False):
         # Sem argumentos, o tamanho de sempre (CAM_LARG x CAM_ALT): e o que a
         # sala usa. A arena pede outro, porque rosto precisa de pixel.
         self.larg, self.alt = largura or LARG, altura or ALT
@@ -121,7 +129,8 @@ class Gst:
         # este filho nasce nos pequenos: decodificar e leve e cabe neles, e nao
         # disputa com a inferencia. Sem a variavel, nao muda nada.
         from aibox import nucleos
-        self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps, bordas, codec),
+        self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps, bordas, codec,
+                                           sem_corrompido),
                                   stdout=subprocess.PIPE,
                                   preexec_fn=(nucleos.soltar_nos_pequenos
                                               if os.name == "posix" else None))

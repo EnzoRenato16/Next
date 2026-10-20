@@ -731,6 +731,9 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   **Causa:** o fluxo leve da HAIZ é **H.265, 704x480** (o principal é
   H.264). `CAMERA_ARENA_VIDEO_CODEC=h265` vale só para essa conexão
   (`Gst(..., codec=)`); o `CAM_CODEC` continua sendo o da identificação.
+  Ligado, o vídeo saiu em blocos verdes e rosa (H.265 com referência
+  faltando): o cano do vídeo fluido usa `avdec_h265 output-corrupt=false`,
+  que descarta em vez de mostrar. Só nele, não na identificação.
   30 leituras por segundo não existe nesta CPU com rosto em 4 MP.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
