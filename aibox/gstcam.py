@@ -70,12 +70,13 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False):
     teto = (["!", "videorate", "drop-only=true", f"max-rate={int(fps)}"]
             if fps else [])
     # USUARIO E SENHA: os do .env (CAM_USER/CAM_PW) servem a todas as cameras,
-    # MENOS a que traz os seus no proprio endereco (rtsp://usuario:senha@ip/...).
-    # A camera HAIZ da arena tem senha diferente das Intelbras do laboratorio.
+    # MENOS a que traz os seus no proprio endereco: rtsp://usuario:senha@ip/...
+    # ou, no padrao Xiongmai, /user=...&password=... no caminho (e o da camera
+    # HAIZ da arena, que tem senha diferente das Intelbras do laboratorio).
     # Senha com @ continua tendo de ir pelo .env: dentro do endereco ela parte
     # a URL no lugar errado (armadilha 3).
     from urllib.parse import urlsplit
-    if urlsplit(url).username:
+    if urlsplit(url).username or "password=" in url:
         cred = []
     else:
         cred = ["user-id=" + os.environ.get("CAM_USER", ""),

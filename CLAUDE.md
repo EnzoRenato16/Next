@@ -648,6 +648,10 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   (`rtsp://usuario:senha@ip/...`) e aí não usa o `CAM_USER`/`CAM_PW`. O
   caminho RTSP se descobre no PC com `python aibox\achar_rtsp.py IP`, que
   tenta os caminhos comuns um por vez, com pausa, e diz resolução e codec.
+  **Achado:** é padrão **Xiongmai**, `/user=USUARIO&password=SENHA&channel=1&stream=0.sdp`
+  (Hikvision e Dahua respondem `451 Parameter Not Understood`), **2880x1620,
+  H.264**. Com `password=` no caminho o `gstcam` também não usa o
+  `CAM_USER`/`CAM_PW`.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
