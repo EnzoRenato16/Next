@@ -69,3 +69,9 @@ auditix.log.tmp
 # fotos e videos do laboratorio para o pitch: tem rosto de gente e pesam
 ppt/midia/*
 !ppt/midia/LEIA.txt
+
+# Videos de ensaio da arena: tem rosto de gente, e o repositorio e publico.
+*.mp4
+*.mov
+*.avi
+*.mkv
