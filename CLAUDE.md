@@ -743,6 +743,13 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   **NPU:** o professor sugeriu dividir CPU e NPU; o ONNX Runtime 1.16 da
   caixa não fala com a NPU (precisa TFLite/QNN quantizado e validar de
   novo). Fica para depois da final, não cabe com segurança no prazo.
+  **O que a caixa tem para a NPU (21/10):** `libSNPE.so`, **SNPE 2.12**,
+  `libSnpeHtpV68Skel/Stub.so` (o HTP, a NPU), `libhexagon_interface.so`, e os
+  plugins `qtimltflite`, `qtimlvdetection`, `qtimlvpose`,
+  `qtimlvclassification`, `qtimlvconverter`. Caminho mais curto: converter
+  YuNet e ArcFace de ONNX para DLC com o SNPE SDK 2.12 num PC Linux
+  (`snpe-onnx-to-dlc`, `snpe-dlc-quantize` com fotos de calibração), rodar
+  no HTP e comparar a nota com a do ONNX nas mesmas fotos antes de trocar.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
