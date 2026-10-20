@@ -548,6 +548,8 @@ obrigatório: faltar tira ponto.
 
 Feito para a regra da arena: **tudo na caixa**, sem servidor no notebook, sem
 IP fixo, um comando só. O notebook abre `http://IP_DA_CAIXA:8080`.
+O passo a passo do laboratório (entrar, `.env`, galeria, calibrar, ensaio
+cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
 
 - **Só rosto, sem YOLO:** a CPU inteira para o rosto em resolução cheia
   (`ARENA_LARG`/`ARENA_ALT`, padrão 1920x1080; `ARENA_FPS`=6 joga fora quadro
