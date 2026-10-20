@@ -717,6 +717,15 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   desfeito:** a pessoa nova que ocupa o lugar herdava o nome (ensaio 4 de 4
   virou 1 de 4). O que sobra de peso é decodificar 2880x1620 a 30/s na CPU
   (`qtivdec` resolveria, mas deu "sem imagem" no último teste).
+- **Vídeo fluido na página (`CAMERA_ARENA_VIDEO`, desligado por padrão).**
+  A página mostrava só os quadros analisados (2 a 6 por segundo), e o grupo
+  vizinho mostrava 28/30: parece travado mesmo decidindo em 1 s. Com
+  `CAMERA_ARENA_VIDEO` (na HAIZ, o mesmo endereço com `stream=1`), o vídeo
+  vem do fluxo LEVE da câmera, em outra conexão, a 25/s, com as caixas da
+  última análise; a identificação continua no fluxo principal e não muda
+  (ensaio igual com e sem). Caixa com mais de 0,8 s some (`MARCA_MAX_S`).
+  A página mostra `leituras/s` (análise) e `quadros/s` (vídeo) separados.
+  30 leituras por segundo não existe nesta CPU com rosto em 4 MP.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

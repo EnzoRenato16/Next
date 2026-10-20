@@ -121,6 +121,7 @@ SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
 # Sem resposta, a espera dobra a cada tentativa, ate 5 min: insistir de 30 em
 # 30 s mantem o bloqueio de pe.
 REABRIR_S = 30.0
+MARCA_MAX_S = 0.8        # video fluido: caixa mais velha que isso nao e desenhada
 REABRIR_MAX_S = 300.0
 
 
@@ -455,6 +456,103 @@ class Camera:
             pass
 
 
+# ---------------------------------------------------------- video fluido
+class VideoFluido:
+    """O VIDEO DA PAGINA no ritmo da camera, pelo fluxo SECUNDARIO dela.
+
+    A analise le o fluxo principal (2880x1620 na HAIZ) e faz 2 a 6 leituras
+    por segundo: e o que a CPU da caixa aguenta com rosto em resolucao cheia.
+    A pagina mostrava so os quadros analisados, e 2 quadros por segundo
+    parece sistema travado, mesmo decidindo em 1 s. Aqui o video vem de
+    outra conexao, a do fluxo leve da camera (CAMERA_ARENA_VIDEO), que custa
+    pouco para decodificar, e as caixas desenhadas sao as da ULTIMA analise.
+    A identificacao nao muda nada: continua no fluxo principal.
+
+    O video NAO serve para reconhecer, so para olhar: por isso aqui pode
+    esticar (bordas=False), e as caixas sao reescaladas pela proporcao."""
+
+    def __init__(self, fonte, larg_analise, alt_analise, tela, larg=960, alt=540, fps=25):
+        self.fonte, self.tela = fonte, tela
+        self.larg, self.alt, self.fps = larg, alt, fps
+        self.sx, self.sy = larg / larg_analise, alt / alt_analise
+        self.marcas = []            # [((x, y, w, h), cor, texto)] na escala da analise
+        self.marcado = 0.0          # quando a ultima analise mandou as marcas
+        self.vistos = []            # instantes dos quadros mostrados (para o qps)
+        self.ultimo = 0.0
+        self.aberta_em = 0.0
+        self.espera = REABRIR_S
+        self.vivo = True
+        self._abrir()
+        threading.Thread(target=self._rodar, daemon=True).start()
+
+    def _abrir(self):
+        self.aberta_em = time.monotonic()
+        self.arquivo = not str(self.fonte).startswith("rtsp")
+        if self.arquivo:
+            import cv2
+            f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
+            self.cap = cv2.VideoCapture(f)
+        else:
+            from aibox.gstcam import Gst
+            self.cap = Gst(self.fonte, self.larg, self.alt, self.fps, bordas=False)
+
+    def marcar(self, marcas):
+        self.marcas, self.marcado = marcas, time.monotonic()
+
+    def qps(self, agora):
+        self.vistos = [x for x in self.vistos if agora - x <= 5]
+        return len(self.vistos) / 5.0
+
+    def _rodar(self):
+        import cv2
+        while self.vivo:
+            ok, q = self.cap.read()
+            agora = time.monotonic()
+            if not ok:
+                if (ok is False and not self.arquivo
+                        and agora - max(self.ultimo, self.aberta_em) > self.espera):
+                    # Uma tentativa por vez, com espera crescente: camera
+                    # bloqueia quem insiste (armadilha 5).
+                    self.espera = min(self.espera * 2, REABRIR_MAX_S)
+                    try:
+                        self.cap.release()
+                    except Exception:
+                        pass
+                    self._abrir()
+                time.sleep(0.01)
+                continue
+            self.ultimo, self.espera = agora, REABRIR_S
+            if self.arquivo:
+                time.sleep(1.0 / self.fps)
+                if q.shape[1] != self.larg or q.shape[0] != self.alt:
+                    q = cv2.resize(q, (self.larg, self.alt))
+            if not self.tela.clientes:
+                continue
+            q = q.copy()                # o quadro do cano e so leitura
+            # CAIXA VELHA SOME. A caixa e da ultima analise, 0,15 a 0,4 s
+            # atras do video. Se a analise atrasar mais que isso, quem andou
+            # sai de dentro da caixa, e um nome flutuando sobre outra pessoa e
+            # pior que nenhuma caixa.
+            marcas = self.marcas if agora - self.marcado <= MARCA_MAX_S else []
+            for (x, y, w, h), cor, txt in marcas:
+                p1 = (int(x * self.sx), int(y * self.sy))
+                p2 = (int((x + w) * self.sx), int((y + h) * self.sy))
+                cv2.rectangle(q, p1, p2, cor, 2)
+                cv2.putText(q, txt, (p1[0], max(16, p1[1] - 8)),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, cor, 2, cv2.LINE_AA)
+            ok, buf = cv2.imencode(".jpg", q, [cv2.IMWRITE_JPEG_QUALITY, 70])
+            if ok:
+                self.tela.publicar_jpeg(buf.tobytes())
+                self.vistos.append(agora)
+
+    def fechar(self):
+        self.vivo = False
+        try:
+            self.cap.release()
+        except Exception:
+            pass
+
+
 # ------------------------------------------------------------------ tela
 def ascii(s):
     """O putText do OpenCV nao desenha acento; a pagina desenha (vem no JSON)."""
@@ -464,20 +562,22 @@ def ascii(s):
 VERDE, RUBI, AMBAR, BRANCO = (95, 191, 95), (70, 70, 235), (40, 190, 235), (240, 240, 240)
 
 
+def rotulo(juiz, ident, motivo):
+    t = juiz.trilhas.get(ident)
+    if t is not None and t.estado == "autorizado":
+        return VERDE, f"AUTORIZADO: {ascii(t.nome)} ({t.nota:.2f})"
+    if t is not None and t.estado == "desconhecido":
+        return RUBI, f"DESCONHECIDO #{t.numero}"
+    n = t.n if t else 0
+    return AMBAR, f"analisando {n}/{MINIMO}" + (f" ({motivo})" if motivo else "")
+
+
 def desenhar(cv2, img, juiz, vistos, largura_tela):
     escala = min(1.0, largura_tela / img.shape[1])
     tela = cv2.resize(img, None, fx=escala, fy=escala, interpolation=cv2.INTER_AREA) \
         if escala < 1 else img.copy()
     for ident, (x, y, w, h), motivo in vistos:
-        t = juiz.trilhas.get(ident)
-        if t is not None and t.estado == "autorizado":
-            cor, txt = VERDE, f"AUTORIZADO: {ascii(t.nome)} ({t.nota:.2f})"
-        elif t is not None and t.estado == "desconhecido":
-            cor, txt = RUBI, f"DESCONHECIDO #{t.numero}"
-        else:
-            n = t.n if t else 0
-            cor = AMBAR
-            txt = f"analisando {n}/{MINIMO}" + (f" ({motivo})" if motivo else "")
+        cor, txt = rotulo(juiz, ident, motivo)
         p1 = (int(x * escala), int(y * escala))
         p2 = (int((x + w) * escala), int((y + h) * escala))
         cv2.rectangle(tela, p1, p2, cor, 2)
@@ -522,6 +622,7 @@ ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
     <div class="n" id="desc"><b id="nDesc">--</b><span>alertas de desconhecido</span></div>
     <div class="n"><span>câmeras</span><div id="cams"></div></div>
     <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
+      <div class="cam" id="linhaVideo" hidden><span>vídeo</span><b id="vqps" style="font-size:15px">--</b></div>
       <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div></div>
     <div class="n"><span>últimos eventos</span><ol id="ev"></ol></div>
   </aside>
@@ -538,7 +639,11 @@ setInterval(async () => {
     $('cams').innerHTML = e.cameras.map(c => '<div class="cam"><span>câmera ' + c.indice +
       '</span><b class="' + (c.estado === 'ok' ? 'ok' : 'mal') + '" style="font-size:15px">' +
       esc(c.estado) + ' · ' + c.qps.toFixed(1) + '/s</b></div>').join('');
-    $('qps').textContent = e.qps.toFixed(1) + ' quadros/s';
+    $('qps').textContent = e.qps.toFixed(1) + ' leituras/s';
+    if (e.video_qps != null) {
+      $('linhaVideo').hidden = false;
+      $('vqps').textContent = e.video_qps.toFixed(1) + ' quadros/s';
+    }
     $('ms').textContent = Math.round(e.ms) + ' ms';
     $('tempo').textContent = e.tempo;
     $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
@@ -607,6 +712,10 @@ class Tela:
         self._srv.daemon_threads = True
         threading.Thread(target=self._srv.serve_forever, daemon=True).start()
 
+    def publicar_jpeg(self, jpeg):
+        with self._trava:
+            self.jpeg = jpeg
+
     def publicar(self, estado, jpeg=None):
         with self._trava:
             self.estado = estado
@@ -645,6 +754,9 @@ def main():
     p.add_argument("--galeria", default=os.environ.get("GALERIA") or galeria.PADRAO)
     p.add_argument("--porta", type=int, default=int(_num("ARENA_PORTA", "8080")))
     p.add_argument("--tela", type=int, default=1280, help="largura da imagem na pagina")
+    p.add_argument("--video", default=os.environ.get("CAMERA_ARENA_VIDEO", ""),
+                   help="fluxo LEVE da mesma camera, so para o video da pagina "
+                        "ficar no ritmo da camera (CAMERA_ARENA_VIDEO no .env)")
     p.add_argument("--segundos", type=float, default=0)
     p.add_argument("--calibrar", action="store_true",
                    help="imprime a nota de cada leitura (para escolher o limiar no local)")
@@ -684,6 +796,16 @@ def main():
         for c in cams:
             c.fechar()
         return 2
+
+    fluido = None
+    if a.video:
+        if len(cams) > 1:
+            print("[arena] CAMERA_ARENA_VIDEO e de UMA camera so; com duas, a "
+                  "pagina continua mostrando os quadros analisados")
+        else:
+            fluido = VideoFluido(a.video, a.largura, a.altura, tela)
+            print("[arena] video da pagina pelo fluxo leve da camera; a "
+                  "identificacao continua no fluxo principal", flush=True)
 
     print(f"[arena] autorizados na galeria: {', '.join(nomes)}  (motor {modelo})")
     print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
@@ -780,7 +902,10 @@ def main():
             tempos = tempos[-30:]
             qps_cam[cam.indice].append(time.monotonic())
             vistos_por_cam[cam.indice] = vistos
-            if tela.clientes:
+            if fluido is not None:
+                fluido.marcar([(cx, *rotulo(juiz, ident, motivo))
+                               for ident, cx, motivo in vistos])
+            elif tela.clientes:
                 quadro_tela[cam.indice] = desenhar(cv2, img, juiz, vistos, a.tela)
 
         agora = time.monotonic()
@@ -794,7 +919,8 @@ def main():
                           qps=len(qps_cam[c.indice]) / 5.0) for c in cams],
             qps=sum(len(v) for v in qps_cam.values()) / 5.0,
             ms=float(np.mean(tempos)) if tempos else 0.0,
-            tempo=relogio(agora - inicio), eventos=log[-8:][::-1])
+            tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
+            video_qps=fluido.qps(agora) if fluido is not None else None)
         jpeg = None
         if trabalhou and tela.clientes and quadro_tela:
             partes = [quadro_tela[k] for k in sorted(quadro_tela)]
@@ -814,7 +940,9 @@ def main():
             print(f"[arena {estado['tempo']}] autorizados {len(r['autorizados'])}/"
                   f"{r['total_autorizados']} ({', '.join(r['autorizados']) or '-'})"
                   f" | desconhecidos {len(r['desconhecidos'])} | {cam_txt}"
-                  f" | {estado['ms']:.0f} ms", flush=True)
+                  f" | {estado['ms']:.0f} ms"
+                  + (f" | video {estado['video_qps']:.1f}/s" if fluido is not None else ""),
+                  flush=True)
         if not trabalhou:
             time.sleep(0.01)
 
@@ -856,6 +984,8 @@ def main():
         print(f"  (nao consegui salvar o resultado: {e})")
     for c in cams:
         c.fechar()
+    if fluido is not None:
+        fluido.fechar()
     tela.fechar()
     return 0
 
