@@ -121,11 +121,51 @@ def conferir(caminho=PADRAO):
             b = np.where(dono == j)[0]
             maior = float(S[np.ix_(a, b)].max())
             pior = max(pior, maior)
-            aviso = "   <- PARECIDOS: risco de confundir" if maior >= 0.30 else ""
-            print(f"  {nomes[i]} x {nomes[j]}: {maior:.2f}{aviso}")
-    print(f"\nconclusao: o par mais parecido da {pior:.2f}. "
-          + ("Folga boa para o limiar de 0,36." if pior < 0.30 else
-             "Perto do limiar: junte mais fotos variadas desses dois e calibre na caixa."))
+            media = float(S[np.ix_(a, b)].mean())
+            aviso = "   <- parecidos: ver o teste abaixo" if maior >= 0.30 else ""
+            print(f"  {nomes[i]} x {nomes[j]}: pior {maior:.2f}, media {media:.2f}{aviso}")
+    print(f"\no par mais parecido da {pior:.2f} no pior caso (uma foto contra uma "
+          "foto). O pior caso assusta mais do que pesa: o juiz compara a leitura "
+          "com TODAS as fotos de cada pessoa, e o teste abaixo faz isso.")
+
+    # O TESTE QUE IMPORTA: cada foto faz o papel de uma leitura da camera, e e
+    # comparada com a galeria SEM ela mesma, do jeito que o juiz compara (o
+    # melhor de cada pessoa). Acertou o dono, e com quanta folga sobre o
+    # segundo nome? Foto e melhor que a camera da sala, entao isto e o teto:
+    # se aqui ja confunde, na sala confunde mais.
+    print("\ncada foto contra a galeria sem ela (como o juiz faz na arena):")
+    problemas = 0
+    for i, n in enumerate(nomes):
+        idx = np.where(dono == i)[0]
+        if len(idx) < 2:
+            continue
+        certas, folgas, rivais = 0, [], {}
+        for k in idx:
+            notas = np.full(len(nomes), -1.0)
+            for j in range(len(nomes)):
+                outras = [x for x in np.where(dono == j)[0] if x != k]
+                if outras:
+                    notas[j] = float(S[k, outras].max())
+            ordem = np.argsort(notas)[::-1]
+            if ordem[0] == i:
+                certas += 1
+            folga = notas[i] - max(notas[x] for x in range(len(nomes)) if x != i)
+            folgas.append(folga)
+            r = nomes[int(ordem[1] if ordem[0] == i else ordem[0])]
+            rivais[r] = rivais.get(r, 0) + 1
+        menor = min(folgas)
+        rival = max(rivais, key=rivais.get)
+        aviso = ""
+        if certas < len(idx) or menor < 0.05:
+            aviso = "   <- ATENCAO"
+            problemas += 1
+        print(f"  {n:20s} acertou {certas} de {len(idx)}, menor folga {menor:+.2f}, "
+              f"folga media {np.mean(folgas):+.2f} (rival: {rival}){aviso}")
+    print("\nconclusao: " + (
+        "toda foto escolhe o dono com folga. A galeria separa bem o grupo; o "
+        "resto e calibrar o limiar na camera da caixa." if not problemas else
+        f"{problemas} pessoa(s) com foto que confunde ou com folga menor que 0,05. "
+        "Junte fotos mais variadas (angulos, luz, outro lugar) dessas pessoas."))
 
 
 if __name__ == "__main__":
