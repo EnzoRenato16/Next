@@ -262,5 +262,44 @@ if topk_antes is not None:
     os.environ["ARENA_TOPK"] = topk_antes
     arena.configurar()
 
+print("\n== cadastro pelo botao (modo preparo) ==")
+c = arena.Coleta("Ana", 0.0)
+va, vb = parecido(pessoas["Ana"], 0.7), parecido(pessoas["Bruno"], 0.7)
+ok("sem rosto, espera", c.ver([], 0.1) is None and not c.vetores)
+ok("rosto longe nao vale", c.ver([(60, va)], 0.2) is None and not c.vetores, c.msg)
+ok("dois rostos do mesmo tamanho nao valem", c.ver([(120, va), (110, vb)], 0.3) is None
+   and not c.vetores, c.msg)
+ok("o maior, bem maior que o segundo, vale", c.ver([(150, va), (40, vb)], 0.4) is None
+   and len(c.vetores) == 1, c.msg)
+ok("antes do intervalo nao colhe de novo", c.ver([(150, va)], 0.5) is None and len(c.vetores) == 1)
+ok("rosto de lado (sem vetor) nao vale", c.ver([(150, None)], 2.0) is None and len(c.vetores) == 1)
+fim = None
+for k in range(10):
+    fim = c.ver([(150, parecido(pessoas["Ana"], 0.7))], 2.0 + 1.6 * k) or fim
+    if fim:
+        break
+ok("completa com 6 amostras", fim == "pronto" and len(c.vetores) == 6, f"{fim} {len(c.vetores)}")
+ok("estoura o prazo", arena.Coleta("Ana", 0.0).ver([], arena.Coleta.PRAZO_S + 1) == "prazo")
+
+import json as _json
+import tempfile
+from aibox import galeria as _gal
+with tempfile.TemporaryDirectory() as d:
+    cam = os.path.join(d, "g.json")
+    _gal.gravar("Ana", [list(map(float, parecido(pessoas["Ana"], 0.75))) for _ in range(5)],
+                False, cam, motor="sface")
+    outro = arena.Coleta("Ana", 0.0)
+    outro.vetores = [list(map(float, parecido(pessoas["Bruno"], 0.7))) for _ in range(6)]
+    okg, msg = arena.gravar_coleta(outro, cam, "sface")
+    ok("outra pessoa no lugar da Ana nao entra", not okg
+       and len(_gal.ler(cam)["pessoas"]["Ana"]) == 5, msg)
+    certo = arena.Coleta("Ana", 0.0)
+    certo.vetores = [list(map(float, parecido(pessoas["Ana"], 0.7))) for _ in range(6)]
+    okg, msg = arena.gravar_coleta(certo, cam, "sface")
+    ok("a Ana de verdade entra", okg and len(_gal.ler(cam)["pessoas"]["Ana"]) == 11, msg)
+    novo = arena.Coleta("Zeca", 0.0)
+    novo.vetores = certo.vetores
+    ok("nome fora da galeria nao entra pelo botao", not arena.gravar_coleta(novo, cam, "sface")[0])
+
 print("\nRESULTADO", "ok" if not falhas else f"{falhas} FALHA(S)")
 sys.exit(1 if falhas else 0)

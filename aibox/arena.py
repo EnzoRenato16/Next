@@ -456,6 +456,80 @@ class Camera:
             pass
 
 
+# ------------------------------------------------- cadastro pelo botao
+class Coleta:
+    """O botao "Cadastrar" da pagina, SO no modo preparo (--preparo).
+
+    A regra da prova proibe cadastro e ajuste na hora: sem --preparo a rota
+    nem existe. No laboratorio ele faz o mesmo que o cadastrar.py
+    --acrescentar, pela camera da arena, sem colar comando comprido.
+
+    A HAIZ ve a sala inteira, e o cadastrar.py para em "mais de um rosto" o
+    tempo todo. Aqui vale o MAIOR rosto, e so se ele estiver perto (largura
+    >= ROSTO_MIN_PX) e bem maior que o segundo (FOLGA_TAMANHO): quem esta na
+    frente da camera, e nao quem passa ao fundo. E o mesmo filtro do
+    cadastrar.py fica no fim: amostra que nao se parece com o que a pessoa
+    ja tem na galeria fica de fora."""
+
+    AMOSTRAS = 6
+    INTERVALO_S = 1.5
+    PRAZO_S = 60.0
+    ROSTO_MIN_PX = 90
+    FOLGA_TAMANHO = 1.5
+
+    def __init__(self, nome, agora):
+        self.nome, self.inicio = nome, agora
+        self.vetores, self.proxima = [], 0.0
+        self.msg = "olhe para a camera, a 1 ou 2 m"
+
+    def ver(self, rostos, agora):
+        """rostos: [(largura, vetor ou None)] de todos os rostos do quadro;
+        None = leitura ruim (de lado, borrado). Devolve "pronto", "prazo" ou
+        None (continua)."""
+        if agora - self.inicio > self.PRAZO_S:
+            self.msg = f"{self.PRAZO_S:.0f} s sem completar; tente de novo"
+            return "prazo"
+        if agora < self.proxima:
+            return None
+        if not rostos:
+            self.msg = "nenhum rosto na imagem"
+            return None
+        rs = sorted(rostos, key=lambda r: -r[0])
+        w, v = rs[0]
+        if len(rs) > 1 and w < self.FOLGA_TAMANHO * rs[1][0]:
+            self.msg = "outro rosto do mesmo tamanho: fique sozinho mais perto"
+            return None
+        if w < self.ROSTO_MIN_PX:
+            self.msg = f"chegue mais perto ({w:.0f} px de {self.ROSTO_MIN_PX})"
+            return None
+        if v is None:
+            self.msg = "rosto de lado ou borrado: olhe para a camera"
+            return None
+        self.vetores.append([float(x) for x in v])
+        self.proxima = agora + self.INTERVALO_S
+        self.msg = f"amostra {len(self.vetores)} de {self.AMOSTRAS}: mexa a cabeca devagar"
+        return "pronto" if len(self.vetores) >= self.AMOSTRAS else None
+
+
+def gravar_coleta(coleta, caminho, motor):
+    """(ok, mensagem). O mesmo criterio do cadastrar.py --acrescentar."""
+    from aibox.cadastrar_fotos import DESTOA, unitario
+    antes = galeria.ler(caminho)["pessoas"].get(coleta.nome, [])
+    if not antes:
+        return False, f"{coleta.nome} nao esta na galeria; o botao so completa quem ja esta"
+    centro = unitario(np.mean([unitario(np.array(v)) for v in antes], axis=0))
+    notas = [float(unitario(np.array(v)) @ centro) for v in coleta.vetores]
+    bons = [v for v, n in zip(coleta.vetores, notas) if n >= DESTOA]
+    fora = len(coleta.vetores) - len(bons)
+    if len(bons) < 3:
+        return False, (f"so {len(bons)} amostra(s) parecidas com {coleta.nome} "
+                       f"(notas {', '.join(f'{n:.2f}' for n in notas)}): outra pessoa "
+                       "na frente da camera? Nada gravado")
+    total = galeria.gravar(coleta.nome, bons, True, caminho, motor=motor)
+    return True, (f"{coleta.nome}: {total} amostras na galeria"
+                  + (f" ({fora} ficaram de fora: nao pareciam com {coleta.nome})" if fora else ""))
+
+
 # ---------------------------------------------------------- video fluido
 class VideoFluido:
     """O VIDEO DA PAGINA no ritmo da camera, pelo fluxo SECUNDARIO dela.
@@ -643,6 +717,10 @@ ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
     <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
       <div class="cam" id="linhaVideo" hidden><span>vídeo</span><b id="vqps" style="font-size:15px">--</b></div>
       <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div></div>
+    <div class="n" id="cad" hidden><span>cadastro (modo preparo)</span>
+      <div style="display:flex;gap:8px;margin-top:8px"><select id="cadNome" style="flex:1"></select>
+      <button id="cadBotao" type="button">Cadastrar</button></div>
+      <div id="cadMsg" class="nomes" style="color:var(--fraco)"></div></div>
     <div class="n"><span>últimos eventos</span><ol id="ev"></ol></div>
   </aside>
 </main>
@@ -666,9 +744,25 @@ setInterval(async () => {
     $('ms').textContent = Math.round(e.ms) + ' ms';
     $('tempo').textContent = e.tempo;
     $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
+    if (e.cadastro) {
+      $('cad').hidden = false;
+      const sel = $('cadNome');
+      if (sel.options.length !== e.cadastro.nomes.length)
+        sel.innerHTML = e.cadastro.nomes.map(n => '<option>' + esc(n) + '</option>').join('');
+      $('cadBotao').disabled = e.cadastro.ativo;
+      $('cadMsg').textContent = e.cadastro.msg || '';
+    }
     document.body.classList.remove('morto');
   }catch(_){ document.body.classList.add('morto'); }
 }, 700);
+$('cadBotao').addEventListener('click', async () => {
+  $('cadBotao').disabled = true;
+  $('cadMsg').textContent = 'começando…';
+  try {
+    await fetch('/cadastrar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                               body: JSON.stringify({nome: $('cadNome').value})});
+  } catch (_) { $('cadMsg').textContent = 'a caixa não respondeu'; }
+});
 </script>
 """.encode("utf-8")
 
@@ -676,8 +770,9 @@ setInterval(async () => {
 class Tela:
     """MJPEG + JSON, servidos pela caixa. O mesmo jeito do aibox/vivo.py."""
 
-    def __init__(self, porta):
+    def __init__(self, porta, preparo=False):
         self.jpeg, self.estado, self.clientes = None, {}, 0
+        self.preparo, self.pedido = preparo, None
         self._trava = threading.Lock()
         tela = self
 
@@ -686,6 +781,28 @@ class Tela:
 
             def log_message(self, *_):
                 pass
+
+            def do_POST(self):
+                # SO NO MODO PREPARO. Na prova (sem --preparo) cadastrar na
+                # hora e proibido, e a rota responde 403.
+                if not self.path.startswith("/cadastrar") or not tela.preparo:
+                    corpo, cod = b'{"erro": "cadastro so no modo preparo"}', 403
+                else:
+                    try:
+                        n = int(self.headers.get("Content-Length") or 0)
+                        nome = str(json.loads(self.rfile.read(n) or b"{}").get("nome", "")).strip()
+                    except Exception:
+                        nome = ""
+                    if nome:
+                        tela.pedido = nome
+                        corpo, cod = b'{"ok": true}', 200
+                    else:
+                        corpo, cod = b'{"erro": "falta o nome"}', 400
+                self.send_response(cod)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
 
             def do_GET(self):
                 if self.path.startswith("/video"):
@@ -777,6 +894,9 @@ def main():
                    help="fluxo LEVE da mesma camera, so para o video da pagina "
                         "ficar no ritmo da camera (CAMERA_ARENA_VIDEO no .env)")
     p.add_argument("--segundos", type=float, default=0)
+    p.add_argument("--preparo", action="store_true",
+                   help="mostra o botao Cadastrar na pagina (so no laboratorio: "
+                        "na prova, cadastro na hora e proibido)")
     p.add_argument("--calibrar", action="store_true",
                    help="imprime a nota de cada leitura (para escolher o limiar no local)")
     a = p.parse_args()
@@ -808,7 +928,7 @@ def main():
     cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
             for i, f in enumerate(fontes)]
     try:
-        tela = Tela(a.porta)
+        tela = Tela(a.porta, preparo=a.preparo)
     except OSError:
         print(f"[arena] a porta {a.porta} esta ocupada. O servico da sala esta "
               "rodando? Pare com: bash aibox/servico.sh parar  (ou use --porta 8090)")
@@ -844,6 +964,10 @@ def main():
     qps_cam = {c.indice: [] for c in cams}
     vistos_por_cam = {c.indice: [] for c in cams}
     quadro_tela = {}
+    coleta, cadastro_msg = None, ""
+    if a.preparo:
+        print("[arena] MODO PREPARO: a pagina tem o botao Cadastrar. Na prova, rode "
+              "sem --preparo", flush=True)
 
     while not parar.is_set():
         agora = time.monotonic()
@@ -852,6 +976,13 @@ def main():
         if all(c.acabou for c in cams):
             break
         trabalhou = False
+        if tela.pedido and coleta is None:
+            nome, tela.pedido = tela.pedido, None
+            if nome in juiz.nomes:
+                coleta = Coleta(nome, agora)
+                print(f"[arena] cadastro pelo botao: {nome}", flush=True)
+            else:
+                cadastro_msg = f"{nome} nao esta na galeria"
         for cam in cams:
             img = cam.ler()
             if img is None:
@@ -863,7 +994,7 @@ def main():
             linhas = motor.detect(img)
             caixas = [tuple(float(x) for x in l[:4]) for l in linhas]
             ids = cam.rast.associar(caixas, t0)
-            vistos = []
+            vistos, rostos = [], []
             for l, ident, cx in zip(linhas, ids, caixas):
                 t = juiz.trilha(ident, cam.indice)
                 t.visto = max(t.visto, t0 - inicio)
@@ -883,6 +1014,7 @@ def main():
                 # menos quem ja tem nome foi tentado (20/10) e quebrou a troca
                 # de trilha: a pessoa nova que ocupa o lugar herdava o nome
                 # (ensaio com video: 4 de 4 virou 1 de 4).
+                v = None
                 if boa:
                     v = medir(img, l)
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
@@ -916,6 +1048,20 @@ def main():
                               + f" ({float(l[2]):.0f} px, virado {virado(l):.2f})",
                               flush=True)
                 vistos.append((ident, cx, motivo))
+                rostos.append((float(l[2]), v))
+            if coleta is not None and cam.indice == 1:
+                fim = coleta.ver(rostos, t0)
+                if fim == "pronto":
+                    ok, cadastro_msg = gravar_coleta(coleta, a.galeria, modelo)
+                    if ok:
+                        # A galeria mudou: o juiz recomeca com ela (modo preparo).
+                        nomes, M, dono = galeria.matriz(a.galeria)
+                        juiz = Juiz(nomes, M, dono)
+                    print(f"[arena] cadastro: {cadastro_msg}", flush=True)
+                    coleta = None
+                elif fim == "prazo":
+                    cadastro_msg = f"{coleta.nome}: {coleta.msg}"
+                    coleta = None
             ms = (time.monotonic() - t0) * 1000
             tempos.append(ms)
             tempos = tempos[-30:]
@@ -939,7 +1085,10 @@ def main():
             qps=sum(len(v) for v in qps_cam.values()) / 5.0,
             ms=float(np.mean(tempos)) if tempos else 0.0,
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
-            video_qps=fluido.qps(agora) if fluido is not None else None)
+            video_qps=fluido.qps(agora) if fluido is not None else None,
+            cadastro=(dict(nomes=juiz.nomes, ativo=coleta is not None,
+                           msg=(f"{coleta.nome}: {coleta.msg}" if coleta else cadastro_msg))
+                      if a.preparo else None))
         jpeg = None
         if fluido is not None and fluido.ao_vivo(agora):
             quadro_tela.clear()         # a pagina esta no video fluido

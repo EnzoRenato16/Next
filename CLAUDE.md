@@ -614,7 +614,7 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   Mostra também o tamanho do rosto em px e, uma vez por segundo, o rosto
   DESCARTADO e o motivo (nota baixa, rosto pequeno, torto, de lado): é como
   achar, sem ninguém da galeria, a distância em que a câmera deixa de ler.
-- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (41 casos,
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (52 casos,
   incluindo o "parecido perigoso", a troca de trilha, o `.env` e dois
   desconhecidos parecidos na tela ao mesmo tempo; passa com 41 sementes, e com
   `ARENA_TOPK=3`). Ensaio com vídeo montado de duas fotos:
@@ -750,6 +750,16 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   YuNet e ArcFace de ONNX para DLC com o SNPE SDK 2.12 num PC Linux
   (`snpe-onnx-to-dlc`, `snpe-dlc-quantize` com fotos de calibração), rodar
   no HTP e comparar a nota com a do ONNX nas mesmas fotos antes de trocar.
+- **Botão Cadastrar na página, SÓ com `--preparo`** (`bash aibox/arena.sh
+  --preparo`). Sem a flag a rota responde 403 e o cartão não aparece: na
+  prova, cadastro na hora é proibido. Só completa quem JÁ está na galeria
+  (lista de nomes), como o `cadastrar.py --acrescentar`, e com o mesmo
+  filtro (`DESTOA`): amostra que não parece com a pessoa fica de fora.
+  Diferença de propósito: vale o MAIOR rosto, se tiver >= 90 px e for 1,5x
+  o segundo (`Coleta`). O `cadastrar.py` parava em "mais de um rosto"
+  o tempo todo na HAIZ, que vê a sala inteira; e numa passada do Lucas
+  (21/10) colheu outra pessoa (notas 0,01 a 0,09), barrada pelo filtro.
+  Gravou: o juiz recomeça com a galeria nova.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 
