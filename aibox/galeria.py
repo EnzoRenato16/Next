@@ -93,12 +93,51 @@ def matriz(caminho=PADRAO):
     return nomes, M, np.asarray(dono, int)
 
 
+def conferir(caminho=PADRAO):
+    """Quanto cada autorizado se parece com ele mesmo e com os outros.
+
+    O perigo que isto procura: dois do grupo parecidos demais entre si. Na
+    arena o juiz exige folga de MARGEM sobre o segundo nome, e com dois
+    parecidos essa folga nao aparece: a pessoa fica em "analisando" e nao e
+    autorizada. Melhor descobrir aqui, com tempo de juntar mais fotos."""
+    nomes, M, dono = matriz(caminho)
+    if len(nomes) == 0:
+        print("galeria vazia")
+        return
+    S = M @ M.T
+    print("mesma pessoa (media entre as fotos dela; quanto MAIOR, melhor):")
+    for i, n in enumerate(nomes):
+        idx = np.where(dono == i)[0]
+        bloco = S[np.ix_(idx, idx)]
+        k = len(idx)
+        media = (bloco.sum() - k) / max(1, k * k - k)
+        aviso = "   <- fotos muito diferentes entre si" if media < 0.45 else ""
+        print(f"  {n:20s} {media:.2f}  ({k} amostras){aviso}")
+    print("\nentre pessoas (o mais parecido de cada par; quanto MENOR, melhor):")
+    pior = 0.0
+    for i in range(len(nomes)):
+        for j in range(i + 1, len(nomes)):
+            a = np.where(dono == i)[0]
+            b = np.where(dono == j)[0]
+            maior = float(S[np.ix_(a, b)].max())
+            pior = max(pior, maior)
+            aviso = "   <- PARECIDOS: risco de confundir" if maior >= 0.30 else ""
+            print(f"  {nomes[i]} x {nomes[j]}: {maior:.2f}{aviso}")
+    print(f"\nconclusao: o par mais parecido da {pior:.2f}. "
+          + ("Folga boa para o limiar de 0,36." if pior < 0.30 else
+             "Perto do limiar: junte mais fotos variadas desses dois e calibre na caixa."))
+
+
 if __name__ == "__main__":
     # $P aibox/galeria.py                   lista quem esta autorizado
     # $P aibox/galeria.py remover "Nome"    tira uma pessoa
+    # $P aibox/galeria.py conferir          o grupo se parece entre si?
     import sys
     if len(sys.argv) > 2 and sys.argv[1] == "remover":
         print("removido" if remover(sys.argv[2]) else "nao achei esse nome")
+        sys.exit(0)
+    if len(sys.argv) > 1 and sys.argv[1] == "conferir":
+        conferir(sys.argv[2] if len(sys.argv) > 2 else PADRAO)
         sys.exit(0)
     pessoas = ler()["pessoas"]
     print(f"{PADRAO}: {len(pessoas)} pessoa(s) autorizada(s)")
