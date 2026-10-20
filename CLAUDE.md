@@ -694,6 +694,14 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   Samuel na HAIZ, antes da passada: 0,61 a 0,74 de frente (114 a 227 px),
   autorizado em 3 trilhas; de costas não há rosto. O `--calibrar` agora
   diz quanto cada leitura estava virada, para medir o `ARENA_FRENTE`.
+- **Samuel depois da passada (21/10, 12 -> 18 amostras, `conferir` 100%,
+  menor folga +0,46):** de frente 0,75 a 0,82 (antes ~0,73); virado 0,3:
+  0,72 a 0,76; virado 0,5: 0,64 a 0,69; 131 a 143 px virado 0,5 a 0,6:
+  0,45 a 0,52. **O ponto fraco é ANDANDO de lado:** trilha nova com 3
+  leituras 0,34 / 0,30 / 0,27 (115 a 155 px). Estranhos, 2.558 leituras em
+  todos os logs: pior leitura 0,27, pior média de 3 seguidas 0,24, de 8
+  0,23. Baixar `ARENA_LIMIAR_ARCFACE` para 0,30 ainda deixaria 0,06 de
+  colchão, mas só decidir depois de medir os outros três andando.
 - **Juntar desconhecidos: corrigido depois da HAIZ.** (1) Trilha que ainda era
   vista depois que a outra começou (as duas no mesmo quadro) nunca é juntada:
   são duas pessoas. Uma janela de 1,5 s no lugar disso dava DOIS alertas para
