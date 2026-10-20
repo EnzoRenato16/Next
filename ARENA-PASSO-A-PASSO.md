@@ -50,11 +50,15 @@ pc rede
 pc enviar
 ```
 
-Se for a primeira vez com rosto nesta caixa (ou se der erro de modelo depois):
+**Obrigatório desta vez** (a galeria agora é do ArcFace, e o modelo dele,
+`w600k_mbf.onnx`, ainda não está na caixa):
 
 ```cmd
 pc modelos
 ```
+
+O `w600k_mbf.onnx` tem de estar em `daten\models` do PC antes (ele fica fora
+do Git; como baixar: seção 5D).
 
 > Deu *Connection timed out*? É a rede acordando. **Repita o comando.**
 > Deu *Connection closed by 192.168.50.10*? É **senha errada** três vezes,

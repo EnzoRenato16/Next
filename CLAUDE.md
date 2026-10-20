@@ -648,6 +648,17 @@ ao da caixa) com os 4 da arena: **Lucas, Daniel, Samuel e Matheus**
 Samuel saiu. Falta, com a caixa: `pc galeria`, a passada pela câmera da sala
 (`--acrescentar`), calibrar e o ensaio cronometrado.
 
+**Decisão de 20/10: a galeria da arena passou para o ArcFace.** Vídeo de
+celular do Samuel (dono) e do Enzo (estranho), `comparar_modelos.py`: folga
++0,13 no SFace e +0,21 no ArcFace; do lado do estranho, o colchão até o limiar
+dobrou (0,40 contra 0,45 no SFace; 0,24 contra 0,34 no ArcFace). Na arena com
+o ArcFace e os limiares padrão 0,34 / 0,26: Samuel autorizado (0,71), Enzo 0
+de 4 e 1 alerta. `arena\galeria.json` (no PC do laboratório) é a ArcFace;
+`arena\galeria-sface.json` é a reserva SFace: voltar é trocar o arquivo, com
+`ARENA_LIMIAR=0.45` e `ARENA_LIMIAR_BAIXO=0.38`. **Na caixa, `pc modelos` é
+obrigatório agora** (leva o `w600k_mbf.onnx`). Falta confirmar com os vídeos
+de Lucas, Daniel e Matheus e na câmera da caixa.
+
 **O gargalo é pixel, não modelo.** A caixa lê o fluxo secundário em 640x360
 (`CAM_LARG`/`CAM_ALT` em `aibox/gstcam.py`). Com a lente de ~99° da VIP 1230 D
 G2, o rosto tem uns 44 px a 1 m e 11 px a 4 m (estimativa, medir no
