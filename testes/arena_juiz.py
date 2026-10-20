@@ -208,11 +208,20 @@ print("\n== qualidade da leitura ==")
 # linha do YuNet: x, y, w, h, olho_d(x,y), olho_e(x,y), nariz(x,y), boca(2x2), nota
 frente = [100, 100, 60, 70, 115, 125, 145, 125, 130, 140, 118, 155, 142, 155, 0.92]
 lado = list(frente)
-lado[8] = 146                                              # nariz em cima do olho
+lado[8] = 150                                              # nariz alem do olho
+tres_quartos = list(frente)
+tres_quartos[8] = 144                                      # virado 0,47: vale desde 20/10
 pequeno = list(frente)
 pequeno[2] = 20
 ok("rosto de frente vale", arena.leitura_boa(np.array(frente))[0])
 ok("rosto de lado nao vale", not arena.leitura_boa(np.array(lado))[0])
+ok("rosto meio virado (3/4) vale", arena.leitura_boa(np.array(tres_quartos))[0],
+   f"{arena.virado(tres_quartos):.2f}")
+os.environ["ARENA_FRENTE"] = "0.35"
+arena.configurar()
+ok("ARENA_FRENTE do .env vale", not arena.leitura_boa(np.array(tres_quartos))[0])
+del os.environ["ARENA_FRENTE"]
+arena.configurar()
 ok("rosto pequeno nao vale", not arena.leitura_boa(np.array(pequeno))[0])
 
 print("\n== rastreador ==")

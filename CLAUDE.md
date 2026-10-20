@@ -567,7 +567,13 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   --acrescentar`. **A caixa tem o cadastro na mão aqui**, ao contrário do
   sistema da escola: apagar depois do evento.
 - **O juiz decide por trilha, não por quadro.** Leitura só de rosto bom (nota
-  do YuNet ≥ 0,80, largura ≥ 32 px, de pé, quase de frente). AUTORIZADO com 3
+  do YuNet ≥ 0,80, largura ≥ 32 px, de pé, virado até `ARENA_FRENTE`).
+  `ARENA_FRENTE` era 0,35 fixo e barrava quem estava perto da HAIZ olhando
+  de lado ("analisando 0/3 (de lado)", 20/10); agora 0,55. Medido no LFW
+  com o ArcFace, galeria de frente e leitura virada 0,35 a 0,55: dono p5
+  0,37 a 0,41, estranho no máximo 0,24 (virado, o estranho cai junto com o
+  dono). Amostra pequena (o LFW é quase todo de frente): conferir no log,
+  que agora diz quanto o rosto descartado estava virado. AUTORIZADO com 3
   leituras, média ≥ `ARENA_LIMIAR` (0,36), folga de 0,05 sobre o segundo nome e
   maioria dos votos. DESCONHECIDO com 5 leituras e média < 0,26. No meio,
   "analisando", até 14 leituras: aí quem não foi autorizado com folga vira
@@ -602,7 +608,7 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   Mostra também o tamanho do rosto em px e, uma vez por segundo, o rosto
   DESCARTADO e o motivo (nota baixa, rosto pequeno, torto, de lado): é como
   achar, sem ninguém da galeria, a distância em que a câmera deixa de ler.
-- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (36 casos,
+- `testes/arena_juiz.py` cobra a decisão com vetores sintéticos (39 casos,
   incluindo o "parecido perigoso", a troca de trilha, o `.env` e dois
   desconhecidos parecidos na tela ao mesmo tempo; passa com 41 sementes, e com
   `ARENA_TOPK=3`). Ensaio com vídeo montado de duas fotos:

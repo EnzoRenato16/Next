@@ -82,7 +82,7 @@ def configurar(motor="sface"):
     ARENA_LIMIAR escrito no .env da caixa era ignorado calado, e a calibracao
     do laboratorio nao valia nada."""
     global LIMIAR, LIMIAR_BAIXO, MARGEM, MINIMO, MINIMO_DESC, MAXIMO
-    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, TOPK, MOTOR
+    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, FRENTE, TOPK, MOTOR
     MOTOR = motor
     sufixo = "" if motor == "sface" else "_" + motor.upper()
     alto, baixo = PADROES[motor]
@@ -95,6 +95,12 @@ def configurar(motor="sface"):
     MESMO_DESCONHECIDO = _num("ARENA_MESMO_DESC" + sufixo, MESMO_PADRAO[motor])
     ROSTO_MIN = _num("ARENA_ROSTO_MIN", "32")       # px de largura, no quadro cheio
     NOTA_MIN = _num("ARENA_NOTA_MIN", "0.80")       # nota do YuNet
+    # Quanto o rosto pode estar virado: desvio do nariz ate o meio dos olhos,
+    # dividido pela distancia entre os olhos. Era 0,35 e barrava quem estava
+    # perto da camera mas olhando de lado (HAIZ, 20/10). No LFW com o ArcFace
+    # (galeria de frente, leitura virada), de 0,35 a 0,55: dono p5 0,37 a 0,41,
+    # estranho no maximo 0,24. Virado, o estranho cai junto com o dono.
+    FRENTE = _num("ARENA_FRENTE", "0.55")
     # A nota de cada pessoa e a media das TOPK fotos mais parecidas dela (1 =
     # so a melhor). Estranho costuma acertar UMA foto por sorte, e o dono se
     # parece com varias: no laboratorio (20/10), um estranho chegou a 0,40
@@ -122,13 +128,16 @@ def de_pe(l):
     return dx > dy and (l[5] + l[7]) / 2 < l[9]
 
 
-def de_frente(l, folga=0.35):
+def virado(l):
+    """Desvio do nariz ate o meio dos olhos, em entre-olhos (0 = de frente)."""
+    entre = abs(l[6] - l[4])
+    return 9.0 if entre < 1 else float(abs(l[8] - (l[4] + l[6]) / 2) / entre)
+
+
+def de_frente(l, folga=None):
     """Nariz perto do meio dos olhos. Rosto virado poe o nariz quase em cima
     de um olho, e o vetor de rosto de lado nao se parece com o de frente."""
-    entre = abs(l[6] - l[4])
-    if entre < 1:
-        return False
-    return abs(l[8] - (l[4] + l[6]) / 2) / entre <= folga
+    return virado(l) <= (FRENTE if folga is None else folga)
 
 
 def leitura_boa(l):
@@ -714,7 +723,8 @@ def main():
                 if a.calibrar and not boa and t0 - descarte.get(ident, -9) >= 1:
                     descarte[ident] = t0
                     print(f"   {ident} descartado: {motivo} ({float(l[2]):.0f} px,"
-                          f" nota {float(l[14]):.2f})", flush=True)
+                          f" nota {float(l[14]):.2f}, virado {virado(l):.2f}"
+                          f" de no maximo {FRENTE:.2f})", flush=True)
                 # TODO rosto bom e medido, mesmo de quem ja foi decidido. Medir
                 # menos quem ja tem nome foi tentado (20/10) e quebrou a troca
                 # de trilha: a pessoa nova que ocupa o lugar herdava o nome
