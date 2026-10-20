@@ -15,7 +15,11 @@ setlocal
 set RAMO=claude/entender-projeto-0tgk9u
 set CAIXA=grupo11@192.168.50.10
 set MEUIP=192.168.50.72
-set PLACA=Ethernet
+REM Nome da placa de rede com cabo. No PC do laboratorio de 20/10 ela NAO se
+REM chamava "Ethernet" e o netsh respondeu so "Element not found". Para usar
+REM outro nome:  set PLACA=Ethernet 2   (ou $env:PLACA="Ethernet 2" no PowerShell)
+REM antes do pc. O nome certo sai de:  Get-NetAdapter
+if not defined PLACA set PLACA=Ethernet
 
 if "%1"=="" goto menu
 if /i "%1"=="puxar"    goto puxar

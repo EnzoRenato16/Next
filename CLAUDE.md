@@ -309,6 +309,10 @@ quadro novo é o da última análise, e a tela mostra `análise/s` e `vídeo/s`.
    bloqueio, 401 é senha ou caminho. Remédio: Ctrl+C e **não tentar nada** até
    passar. Teste de câmera, um de cada vez.
 6. **`~pylibs` não é `~/pylibs`.** Sem a barra o bash não expande.
+8. **`Element not found` no `pc rede` = a placa não se chama "Ethernet".** No
+   PC do laboratório de 20/10 tinha outro nome, o IP fixo não entrou e o ping
+   falhou como se fosse cabo. `Get-NetAdapter` mostra o nome; `set PLACA=...`
+   (cmd) ou `$env:PLACA="..."` (PowerShell) antes do `pc`.
 7. `$P` e `$PYTHONPATH` se perdem a cada nova sessão de SSH.
 
 ## Os números medidos na caixa (Qualcomm QCS6490, ARM, 8 núcleos, 7 GB)
