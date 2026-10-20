@@ -41,29 +41,10 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 
 from aibox import arena, cadastrar_fotos as cf  # noqa: E402
+from aibox import arcface as arcface_mod  # noqa: E402
+from aibox.arcface import ArcFace  # noqa: E402
 
-ARCFACE = os.path.join(RAIZ, "daten", "models", "w600k_mbf.onnx")
-# Onde o ArcFace espera olhos, nariz e cantos da boca num rosto de 112x112.
-# A ordem e a mesma do YuNet: olho da esquerda DA IMAGEM primeiro.
-MOLDE = np.array([[38.2946, 51.6963], [73.5318, 51.5014], [56.0252, 71.7366],
-                  [41.5493, 92.3655], [70.7299, 92.2041]], np.float32)
-
-
-class ArcFace:
-    def __init__(self, caminho):
-        import cv2
-        self.cv2 = cv2
-        self.net = cv2.dnn.readNetFromONNX(caminho)
-
-    def embedding(self, img, linha):
-        cv2 = self.cv2
-        pontos = np.asarray(linha[4:14], np.float32).reshape(5, 2)
-        m, _ = cv2.estimateAffinePartial2D(pontos, MOLDE, method=cv2.LMEDS)
-        rosto = cv2.warpAffine(img, m, (112, 112), borderValue=0)
-        blob = cv2.dnn.blobFromImage(rosto, 1 / 127.5, (112, 112),
-                                     (127.5, 127.5, 127.5), swapRB=True)
-        self.net.setInput(blob)
-        return self.net.forward().ravel().astype(np.float32)
+ARCFACE = arcface_mod.CAMINHO
 
 
 def unit(v):

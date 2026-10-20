@@ -88,7 +88,7 @@ def em_pe(linha):
     return dx > dy and olhos_y < float(linha[9])
 
 
-def medir(motor, img):
+def medir(motor, img, medir_vetor=None):
     """Devolve (vetor, None) ou (None, motivo).
 
     GIRA A FOTO E FICA COM O GIRO EM QUE O ROSTO E MAIS ROSTO. Celular as vezes
@@ -117,7 +117,7 @@ def medir(motor, img):
         return None, "rosto torto demais (cabeca muito inclinada ou de lado)"
     if float(linhas[0][2]) < ROSTO_MIN_PX:
         return None, f"rosto pequeno ({int(linhas[0][2])} px), tire mais de perto"
-    return motor.embedding(quadro, linhas[0]), None
+    return (medir_vetor or motor.embedding)(quadro, linhas[0]), None
 
 
 def unitario(v):
@@ -207,7 +207,26 @@ def main():
                    help="so confere as fotos, nao manda nada para o servidor")
     p.add_argument("--galeria", metavar="ARQUIVO",
                    help="grava no arquivo da arena em vez de mandar ao servidor")
+    p.add_argument("--motor", choices=("sface", "arcface"),
+                   help="so com --galeria: o modelo de rosto da galeria NOVA "
+                        "(padrao sface). Galeria que ja tem gente segue o motor dela.")
     a = p.parse_args()
+
+    # O MOTOR SEGUE A GALERIA. Galeria com gente ja tem motor, e o --motor so
+    # escolhe o de uma galeria nova; o servidor so conhece o sface.
+    modelo = a.motor or "sface"
+    if a.galeria:
+        from aibox import galeria as gal
+        existente = gal.motor_de(a.galeria, padrao=None)
+        if existente and a.motor and a.motor != existente:
+            print(f"[fotos] {a.galeria} ja e do motor {existente}; nao misturo com "
+                  f"{a.motor}. Use outro arquivo, ou apague este.")
+            return 2
+        modelo = existente or modelo
+    elif a.motor == "arcface" and not a.conferir:
+        print("[fotos] --motor arcface so vale com --galeria (a arena); o servidor "
+              "da escola so conhece o sface.")
+        return 2
 
     if not os.path.isdir(a.pasta):
         print(f"[fotos] a pasta {a.pasta} nao existe.")
@@ -218,7 +237,14 @@ def main():
         return 2
 
     from daten.app.recognizer import FaceEngine
+    from aibox.arcface import extrator
     motor = FaceEngine()
+    try:
+        medir_vetor = extrator(modelo, motor)
+    except FileNotFoundError as e:
+        print(f"[fotos] {e}")
+        return 2
+    print(f"[fotos] motor: {modelo}")
 
     falhou = 0
     conferidos = []                          # (nome, [arquivo], [vetor])
@@ -231,7 +257,7 @@ def main():
                 print(f"   - {os.path.basename(arq)}: nao abriu (se for HEIC do "
                       "iPhone, exporte como JPG)")
                 continue
-            v, motivo = medir(motor, img)
+            v, motivo = medir(motor, img, medir_vetor)
             del img
             if v is None:
                 print(f"   - {os.path.basename(arq)}: {motivo}")
@@ -262,7 +288,7 @@ def main():
             from aibox import galeria
             try:
                 total = galeria.gravar(nome, [[float(x) for x in v] for v in vetores],
-                                       a.acrescentar, a.galeria)
+                                       a.acrescentar, a.galeria, motor=modelo)
                 print(f"   NA GALERIA: {nome}, {total} amostras no total ({a.galeria}).")
             except ValueError as e:
                 print(f"   NAO GRAVEI: {e}")

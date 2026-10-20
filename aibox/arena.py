@@ -56,17 +56,31 @@ def _num(nome, padrao):
     return float(os.environ.get(nome, padrao))
 
 
-def configurar():
+# Limiares padrao de cada motor (cosseno, MAIOR = mais parecido). Cada motor
+# tem a sua escala, e por isso a sua variavel no .env: ARENA_LIMIAR vale so
+# para o SFace, ARENA_LIMIAR_ARCFACE so para o ArcFace. Um limiar calibrado
+# num motor e errado no outro, e trocar de galeria nao pode carregar junto.
+#   sface: 0,363 e o valor da OpenCV para rosto bom. No laboratorio (20/10) um
+#     estranho chegou a 0,40 contra a galeria do grupo: calibre (0,45 / 0,38
+#     separou o Enzo).
+#   arcface: o mesmo estranho chegou a 0,24; no LFW, o estranho mais parecido
+#     de 2.800 deu 0,34 e o dono no pior momento (5%), 0,36.
+PADROES = {"sface": ("0.36", "0.26"), "arcface": ("0.34", "0.26")}
+MOTOR = "sface"
+
+
+def configurar(motor="sface"):
     """Le os limiares do ambiente. Roda no import e DE NOVO no main, depois do
-    carregar_env: sem a segunda vez, o ARENA_LIMIAR escrito no .env da caixa
-    era ignorado calado, e a calibracao do laboratorio nao valia nada."""
+    carregar_env e de saber o motor da galeria: sem a segunda vez, o
+    ARENA_LIMIAR escrito no .env da caixa era ignorado calado, e a calibracao
+    do laboratorio nao valia nada."""
     global LIMIAR, LIMIAR_BAIXO, MARGEM, MINIMO, MINIMO_DESC, MAXIMO
-    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, TOPK
-    # Os limiares sao do SFace (cosseno, MAIOR = mais parecido). 0,363 e o valor
-    # da OpenCV para rosto bom; na camera da arena o rosto e pior, e o certo e
-    # calibrar no local com --calibrar (ver LEIA no fim do arquivo).
-    LIMIAR = _num("ARENA_LIMIAR", "0.36")           # para dizer QUEM e
-    LIMIAR_BAIXO = _num("ARENA_LIMIAR_BAIXO", "0.26")  # abaixo disso: ninguem
+    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, TOPK, MOTOR
+    MOTOR = motor
+    sufixo = "" if motor == "sface" else "_" + motor.upper()
+    alto, baixo = PADROES[motor]
+    LIMIAR = _num("ARENA_LIMIAR" + sufixo, alto)           # para dizer QUEM e
+    LIMIAR_BAIXO = _num("ARENA_LIMIAR_BAIXO" + sufixo, baixo)  # abaixo: ninguem
     MARGEM = _num("ARENA_MARGEM", "0.05")           # folga sobre o segundo nome
     MINIMO = int(_num("ARENA_MINIMO", "3"))         # leituras para autorizar
     MINIMO_DESC = int(_num("ARENA_MINIMO_DESC", "5"))  # para chamar de desconhecido
@@ -561,7 +575,6 @@ def relogio(s):
 def main():
     from aibox.sala import carregar_env
     carregar_env()
-    configurar()
     p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")
     p.add_argument("--camera", action="append",
                    help="rtsp://..., numero da webcam ou arquivo de video; "
@@ -590,11 +603,19 @@ def main():
     if not nomes:
         print(f"[arena] a galeria {a.galeria} esta vazia: ninguem para reconhecer.")
         return 2
+    modelo = galeria.motor_de(a.galeria)
+    configurar(modelo)
 
     import cv2
     from daten.app import config as dcfg
     from daten.app.recognizer import FaceEngine
     motor = FaceEngine()
+    from aibox.arcface import extrator
+    try:
+        medir = extrator(modelo, motor)
+    except FileNotFoundError as e:
+        print(f"[arena] a galeria e do motor {modelo}, mas {e}")
+        return 2
     juiz = Juiz(nomes, M, dono)
     cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
             for i, f in enumerate(fontes)]
@@ -607,7 +628,7 @@ def main():
             c.fechar()
         return 2
 
-    print(f"[arena] autorizados na galeria: {', '.join(nomes)}")
+    print(f"[arena] autorizados na galeria: {', '.join(nomes)}  (motor {modelo})")
     print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
           f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido, "
           f"nota = media das {TOPK} melhores fotos" if TOPK > 1 else
@@ -649,7 +670,7 @@ def main():
                 boa, motivo = leitura_boa(l)
                 t.motivo = motivo
                 if boa:
-                    v = motor.embedding(img, l)
+                    v = medir(img, l)
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
                         if ev["tipo"] == "troca":
                             txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o rosto "
@@ -725,8 +746,9 @@ def main():
         cameras=[dict(indice=c.indice, estado=c.estado(agora), quadros=c.quadros)
                  for c in cams],
         tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
-        limiares=dict(limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO, margem=MARGEM,
-                      minimo=MINIMO, minimo_desc=MINIMO_DESC),
+        limiares=dict(motor=MOTOR, limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO,
+                      margem=MARGEM, minimo=MINIMO, minimo_desc=MINIMO_DESC,
+                      topk=TOPK),
         eventos=log)
     print("\n================ RESULTADO DA ARENA ================")
     print(f"  autorizados identificados: {len(r['autorizados'])} de "

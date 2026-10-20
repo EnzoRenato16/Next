@@ -69,11 +69,35 @@ def main():
     p.add_argument("--acrescentar", action="store_true",
                    help="junta com as amostras que a pessoa ja tem (por exemplo, "
                         "as das fotos) em vez de substituir")
+    p.add_argument("--motor", choices=("sface", "arcface"),
+                   help="so com --galeria: o modelo de rosto de uma galeria NOVA "
+                        "(padrao sface). Galeria que ja tem gente segue o motor dela.")
     a = p.parse_args()
 
+    # O MOTOR SEGUE A GALERIA: a passada pela camera com --acrescentar mede com
+    # o mesmo modelo das fotos, sem ninguem precisar lembrar qual foi.
+    modelo = a.motor or "sface"
+    if a.galeria:
+        from aibox import galeria as gal
+        existente = gal.motor_de(a.galeria, padrao=None)
+        if existente and a.motor and a.motor != existente:
+            print(f"[cadastro] {a.galeria} ja e do motor {existente}; nao misturo "
+                  f"com {a.motor}.")
+            return 2
+        modelo = existente or modelo
+    elif a.motor == "arcface":
+        print("[cadastro] --motor arcface so vale com --galeria (a arena).")
+        return 2
+
     from daten.app.recognizer import FaceEngine
+    from aibox.arcface import extrator
     motor = FaceEngine()
-    print(f"[cadastro] motor: {motor.backend}")
+    try:
+        medir_vetor = extrator(modelo, motor)
+    except FileNotFoundError as e:
+        print(f"[cadastro] {e}")
+        return 2
+    print(f"[cadastro] motor: {modelo} ({motor.backend})")
 
     fonte = int(a.camera) if str(a.camera).isdigit() else a.camera
     print(f"[cadastro] camera: {fonte}")
@@ -117,7 +141,7 @@ def main():
                 proxima = time.monotonic() + 1.0
                 continue
 
-            vetores.append([float(v) for v in motor.embedding(img, linhas[0])])
+            vetores.append([float(v) for v in medir_vetor(img, linhas[0])])
             proxima = time.monotonic() + a.intervalo
             print(f"  amostra {len(vetores)} de {a.amostras}   (mexa a cabeca)")
     finally:
@@ -130,8 +154,31 @@ def main():
 
     if a.galeria:
         from aibox import galeria
+        # QUEM PASSA NA FRENTE DA CAMERA NAO E CONFERIDO PELO NOME. Com
+        # --acrescentar, a amostra que nao se parece com o que a pessoa ja tem
+        # (as fotos) fica de fora: e outra pessoa na frente da camera, e ela
+        # entraria na galeria com o nome errado sem ninguem ver. O mesmo
+        # criterio das fotos (cadastrar_fotos.DESTOA).
+        antes = galeria.ler(a.galeria)["pessoas"].get(a.nome.strip(), [])
+        if a.acrescentar and antes:
+            import numpy as np
+            from aibox.cadastrar_fotos import DESTOA, unitario
+            centro = unitario(np.mean([unitario(np.array(v)) for v in antes], axis=0))
+            notas = [float(unitario(np.array(v)) @ centro) for v in vetores]
+            fora = [i for i, n in enumerate(notas) if n < DESTOA]
+            for i in fora:
+                print(f"  ! amostra {i + 1}: nao se parece com o cadastro de "
+                      f"{a.nome.strip()} ({notas[i]:.2f}). Outra pessoa na frente "
+                      "da camera? Fica de fora.")
+            vetores = [v for i, v in enumerate(vetores) if i not in fora]
+            if len(vetores) < 3:
+                print(f"\n[cadastro] sobraram {len(vetores)} amostra(s) parecidas com "
+                      f"{a.nome.strip()}. Nada gravado: confira quem esta na frente "
+                      "da camera e tente de novo.")
+                return 1
         try:
-            total = galeria.gravar(a.nome, vetores, a.acrescentar, a.galeria)
+            total = galeria.gravar(a.nome, vetores, a.acrescentar, a.galeria,
+                                   motor=modelo)
         except ValueError as e:
             print(f"\n[cadastro] nao gravei: {e}")
             return 1

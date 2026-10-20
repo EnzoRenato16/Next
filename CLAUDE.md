@@ -625,7 +625,18 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   aprovados); com rosto de 38 px o ArcFace erra metade (99,0% contra 97,8%).
   Estranho no SFace chega a 0,40 (bate com o Enzo); no ArcFace, a 0,34, com
   mediana 0,00. Ganho real, mas moderado: só trocar se os vídeos do grupo
-  mostrarem folga bem maior, e só com teste na caixa.
+  mostrarem folga bem maior, e só com teste na caixa. No vídeo do Enzo contra
+  a galeria do grupo: pico 0,40 no SFace, 0,24 no ArcFace.
+- **ArcFace na arena (`aibox/arcface.py`), opcional.** A GALERIA diz o motor
+  (`"motor": "arcface"`, 512 números): `cadastrar_fotos.py --motor arcface
+  --galeria ...` cria, e a arena, o `cadastrar.py` (passada) e o `conferir`
+  seguem o motor dela. `galeria.gravar` recusa misturar motores. Limiar por
+  motor: `ARENA_LIMIAR` é só do SFace, `ARENA_LIMIAR_ARCFACE` (padrão 0,34 /
+  0,26) só do ArcFace, para um limiar calibrado num não valer no outro.
+- **A passada pela câmera confere quem está na frente.** Com `--acrescentar`,
+  amostra com cosseno < 0,25 contra a média do que a pessoa já tem fica de
+  fora. Achado no teste: sem isso, outra pessoa na frente da câmera entrava na
+  galeria com o nome errado e só o `conferir` via depois.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

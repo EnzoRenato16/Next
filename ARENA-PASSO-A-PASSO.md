@@ -187,6 +187,27 @@ python aibox\arena.py --camera 0 --galeria arena\galeria.json --calibrar --porta
 Abrir `http://127.0.0.1:8099`. A webcam vê melhor que a câmera da sala: o
 limiar final sai do passo 6, na caixa.
 
+### 5D. Galeria com o ArcFace (só se o `comparar_modelos.py` mandar)
+
+O ArcFace pequeno (`w600k_mbf.onnx`) separa dono de estranho com mais folga
+que o SFace. **A galeria diz qual motor a arena usa**, então trocar é refazer a
+galeria; o resto anda sozinho. No PC:
+
+```powershell
+del arena\galeria.json
+python aibox\cadastrar_fotos.py fotos-cadastro\Lucas --nome "Lucas" --motor arcface --galeria arena\galeria.json
+```
+
+(repita para Daniel, Samuel e Matheus, todos com `--motor arcface`). Na caixa
+o modelo vai pelo `.\pc modelos` (copia todo `.onnx` de `daten\models`), e a
+passada pela câmera com `--acrescentar` mede com o ArcFace sozinha, porque
+segue a galeria. **O limiar é outro:** `ARENA_LIMIAR_ARCFACE` e
+`ARENA_LIMIAR_BAIXO_ARCFACE` no `.env` (padrão 0,34 e 0,26); o
+`ARENA_LIMIAR` vale só para o SFace. A primeira linha da arena diz o motor.
+
+Na passada pela câmera, amostra que não se parece com as fotos da pessoa fica
+de fora ("Outra pessoa na frente da câmera?"), nos dois motores.
+
 ## 6. Calibrar (o passo mais importante, 10 min)
 
 ```bash
