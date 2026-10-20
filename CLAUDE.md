@@ -760,6 +760,15 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   o tempo todo na HAIZ, que vê a sala inteira; e numa passada do Lucas
   (21/10) colheu outra pessoa (notas 0,01 a 0,09), barrada pelo filtro.
   Gravou: o juiz recomeça com a galeria nova.
+- **Lentidão de 21/10 de manhã era dos OUTROS grupos:** `top` com a arena
+  parada: grupo05 python 194%, grupo06 python 129%, load average 18,7 em 8
+  núcleos. No evento a caixa deve estar só com a gente (confirmar).
+  **`qtivdec` entrega NV12 em memória comum OU em `memory:GBM`** (gst-inspect
+  na caixa); o "sem imagem" de 20/10 deve ter sido o GBM. Com
+  `GST_DECODIFICADOR=qtivdec`, o `gstcam` agora põe `video/x-raw,format=NV12`
+  logo depois dele. Propriedades: `turbo`, `skip-frames`, `decode-order`.
+  A Intelbras .108 em H.265 por software: atraso crescente (fila antes do
+  decodificador), inviável sem o `qtivdec`.
 - **Webcam no PC do laboratório:** o leitor padrão do Windows (MSMF) falha com
   `-1072873854`; `$env:OPENCV_VIDEOIO_PRIORITY_MSMF="0"` resolve.
 

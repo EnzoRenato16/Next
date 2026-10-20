@@ -78,6 +78,13 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None,
     # fora em vez de mostrar. Nao vai para a identificacao: um avdec antigo
     # sem essa propriedade derrubaria o cano inteiro.
     dec = [dec, "output-corrupt=false"] if sem_corrompido and dec.startswith("avdec_") else [dec]
+    # DECODIFICADOR DE HARDWARE (qtivdec, GST_DECODIFICADOR=qtivdec). Ele
+    # entrega NV12 em dois sabores: na memoria do hardware (memory:GBM), que o
+    # videoconvert nao le, e em memoria comum. No primeiro teste (20/10) deu
+    # "sem imagem", provavelmente por ter negociado o GBM. O filtro abaixo
+    # pede a memoria comum (21/10, gst-inspect na caixa: os dois aparecem).
+    if dec[0] == "qtivdec":
+        dec = dec + ["!", "video/x-raw,format=NV12"]
     # BORDAS, opcional (a arena usa). Com o tamanho pedido diferente da
     # proporcao da camera (4:3, ou 2688x1520), o videoscale ESTICA o quadro, e
     # rosto esticado da numeros diferentes das fotos do cadastro. Com
