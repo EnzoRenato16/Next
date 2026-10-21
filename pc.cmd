@@ -1,5 +1,7 @@
 @echo off
 REM ===========================================================================
+REM  ESTA E A COPIA DA VERSAO NPU (ramo npu/divisao-npu-cpu): tudo vai para
+REM  ~/auditix-npu na caixa. A versao atual (~/auditix, pasta Next-Final) nao e tocada.
 REM  Auditix IA - atalhos do PC do laboratorio.   Uso:  pc <comando>
 REM
 REM  POR QUE ISTO EXISTE. O PC do laboratorio so tem internet no DHCP e a caixa
@@ -12,7 +14,7 @@ REM  SEM ACENTO DE PROPOSITO: o cmd do Windows embaralha acento e o texto fica
 REM  ilegivel justamente na hora em que ele precisa ser lido.
 REM ===========================================================================
 setlocal
-set RAMO=claude/entender-projeto-0tgk9u
+set RAMO=npu/divisao-npu-cpu
 set CAIXA=grupo11@192.168.50.10
 set MEUIP=192.168.50.72
 REM Nome da placa de rede com cabo. No PC do laboratorio de 20/10 ela NAO se
@@ -31,6 +33,7 @@ if /i "%1"=="galeria"  goto galeria
 if /i "%1"=="entrar"   goto entrar
 if /i "%1"=="servidor" goto servidor
 if /i "%1"=="pitch"    goto pitch
+if /i "%1"=="copiar"   goto copiar
 goto menu
 
 :menu
@@ -43,6 +46,7 @@ echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
 echo   pc galeria    copia a galeria da arena (arena\galeria.json) para a caixa
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
+echo   pc copiar     VERSAO NPU: copia .env, modelos e galeria de ~/auditix para ~/auditix-npu (so le o original)
 echo   pc pitch      abre a apresentacao (Auditix-pitch.html) no navegador
 echo.
 echo   A ordem de uma noite normal:  puxar -^> enviar -^> servidor (outra janela) -^> entrar
@@ -129,14 +133,14 @@ echo -- copiando o codigo para a caixa --
 REM daten\app e o motor de rosto do --rosto. Sem ele a caixa sobe, mas o
 REM reconhecimento sai desligado com "No module named daten". As pastas sao
 REM criadas antes porque o scp nao cria pasta que nao existe do lado de la.
-ssh %CAIXA% "mkdir -p ~/auditix/aibox ~/auditix/daten/app ~/auditix/daten/models"
+ssh %CAIXA% "mkdir -p ~/auditix-npu/aibox ~/auditix-npu/daten/app ~/auditix-npu/daten/models"
 if errorlevel 1 (
   echo.
   echo    !! a caixa nao respondeu. Rode  pc rede  primeiro: sem o IP fixo ela nao existe.
   goto fim
 )
-scp aibox\*.py aibox\*.sh %CAIXA%:~/auditix/aibox/
-scp daten\app\*.py %CAIXA%:~/auditix/daten/app/
+scp aibox\*.py aibox\*.sh %CAIXA%:~/auditix-npu/aibox/
+scp daten\app\*.py %CAIXA%:~/auditix-npu/daten/app/
 if errorlevel 1 (
   echo.
   echo    !! nao copiou tudo. Veja a mensagem acima.
@@ -146,7 +150,7 @@ REM O \r do Windows morre AQUI, do lado de la, e nao depois. Deixar para o
 REM usuario lembrar e o que fez o bash da caixa responder "$'\r': command not
 REM found" - uma mensagem que nao parece nem de longe com a causa.
 echo    limpando o fim de linha do Windows do lado de la...
-ssh %CAIXA% "cd ~/auditix && sed -i 's/\r$//' aibox/*.py aibox/*.sh daten/app/*.py"
+ssh %CAIXA% "cd ~/auditix-npu && sed -i 's/\r$//' aibox/*.py aibox/*.sh daten/app/*.py"
 echo.
 echo    PRONTO. Na caixa agora e so:   bash aibox/ir.sh
 goto fim
@@ -155,8 +159,8 @@ goto fim
 echo.
 echo -- copiando os modelos de rosto (YuNet + SFace, 39 MB) --
 echo    So precisa uma vez: eles nao mudam. O --rosto nao funciona sem eles.
-ssh %CAIXA% "mkdir -p ~/auditix/daten/models"
-scp daten\models\*.onnx %CAIXA%:~/auditix/daten/models/
+ssh %CAIXA% "mkdir -p ~/auditix-npu/daten/models"
+scp daten\models\*.onnx %CAIXA%:~/auditix-npu/daten/models/
 if errorlevel 1 (
   echo.
   echo    !! nao copiou. Confira se os arquivos existem aqui:  dir daten\models
@@ -165,7 +169,7 @@ if errorlevel 1 (
 )
 echo.
 echo    PRONTO. Conferindo o tamanho do lado de la (o SFace tem que dar ~38 MB):
-ssh %CAIXA% "ls -la ~/auditix/daten/models/"
+ssh %CAIXA% "ls -la ~/auditix-npu/daten/models/"
 goto fim
 
 :galeria
@@ -178,8 +182,8 @@ if not exist arena\galeria.json (
   echo    !! nao achei arena\galeria.json. Gere com cadastrar_fotos.py --galeria primeiro.
   goto fim
 )
-ssh %CAIXA% "mkdir -p ~/auditix/arena"
-scp arena\galeria.json %CAIXA%:~/auditix/arena/galeria.json
+ssh %CAIXA% "mkdir -p ~/auditix-npu/arena"
+scp arena\galeria.json %CAIXA%:~/auditix-npu/arena/galeria.json
 if errorlevel 1 (
   echo.
   echo    !! nao copiou. A caixa respondeu? Rode  pc rede  e tente de novo.
@@ -187,7 +191,15 @@ if errorlevel 1 (
 )
 echo.
 echo    PRONTO. Conferindo do lado de la:
-ssh %CAIXA% "cd ~/auditix && /opt/eduvision/venv/bin/python aibox/galeria.py"
+ssh %CAIXA% "cd ~/auditix-npu && /opt/eduvision/venv/bin/python aibox/galeria.py"
+goto fim
+
+:copiar
+echo.
+echo -- VERSAO NPU: copiando .env, modelos e galeria da versao atual --
+REM So LE ~/auditix. cp -n nao sobrescreve nada que ja exista em ~/auditix-npu,
+REM e nada e gravado em ~/auditix: a versao atual fica intacta para a final.
+ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -n ~/auditix/arena/*.json ~/auditix-npu/arena/ 2>/dev/null; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
 goto fim
 
 :entrar
