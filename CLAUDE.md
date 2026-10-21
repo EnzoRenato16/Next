@@ -355,18 +355,28 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   (cosseno e quanto a nota contra a galeria muda) e a cada 10 quadros o YuNet
   da CPU procura no mesmo quadro. Só laboratório: fica mais lento.
 - **`npu_rodada2.sh` não mexe mais na câmera** sem `MUDAR_CAMERA=1`, e com
-  ele **volta sozinho no fim**, mesmo com Ctrl+C (antes deixava a HAIZ em
+  ele **volta sozinho no fim**, mesmo com Ctrl+C ou o SSH caindo (antes deixava a HAIZ em
   1080p/12, e a versão atual seria calibrada com outra câmera).
 - **`NPU_YUNET=yunet_a16.dlc`**: o YuNet com 16 bits nas ativações, reserva
   se o de 8 perder rosto pequeno (sai do próximo `npu-pacote`).
 - **Tempo até decidir** (do rosto aparecer até AUTORIZADO/DESCONHECIDO) no
   terminal ("em 0,8 s"), no resultado e no JSON: é a métrica que a banca pede.
 - **`bash aibox/gravar.sh 300`** grava o RTSP sem decodificar (CPU ~0) e
-  **`arena.py --camera X.mp4 --como-caixa`** relê no tamanho e no ritmo da
-  caixa. É como calibrar sem a caixa. Tem rosto: fica em `arena/` (fora do Git).
-- **Uma galeria só.** O `pc copiar` usa `cp -n`: depois de uma passada em
-  `~/auditix`, a cópia de `~/auditix-npu` fica velha para sempre. No `.env` da
-  pasta NPU: `GALERIA=/home/grupo11/auditix/arena/galeria.json`.
+  **`arena.py --camera X.mp4 --como-caixa`** relê no tamanho da caixa, um
+  quadro a cada `30/--fps`, no tempo do vídeo. Calibra o caminho da CPU no PC
+  (o PC não tem NPU). Para imitar a versão atual, que lê 2-3 quadros/s e não
+  o teto de 6, use `--fps 3`. Tem rosto: fica em `arena/` (fora do Git),
+  pasta só do grupo11, apagar depois do evento. Nunca gravar com a arena
+  ligada (duas conexões na câmera, armadilha 5).
+- **Rodada 2 em duas passadas da arena**: 4a mede o tempo (sem conferir), 4b
+  a qualidade (`NPU_CONFERIR=1`). Conferir junto estragava o tempo.
+- **Galeria: cópia nova a cada `pc copiar`, nunca apontar para `~/auditix`.**
+  O `cp -n` deixava a cópia de `~/auditix-npu` velha para sempre; agora o
+  `pc copiar` copia a `galeria.json` POR CIMA (o resto continua `cp -n`).
+  `GALERIA=/home/grupo11/auditix/...` no `.env` da pasta NPU foi descartado:
+  o botão Cadastrar e o `cadastrar.py` daqui gravariam na galeria da FINAL, e
+  com números do ArcFace da NPU. Na pasta NPU: nada de `--preparo` nem
+  cadastro.
 
 ## O hardware que a caixa tem e o Auditix ainda não usa
 

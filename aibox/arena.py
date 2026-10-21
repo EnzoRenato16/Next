@@ -251,6 +251,9 @@ class Juiz:
             ev = [dict(tipo="troca", nome=t.nome, trilha=t.id, quando=agora)]
             t.estado, t.nome, t.nota, t.n = "analisando", None, 0.0, 0
             t.notas, t.vetores = [], []
+            # O relogio do "tempo ate decidir" tambem recomeca: a pessoa nova
+            # nao herda o tempo de quem estava na trilha antes.
+            t.comeco = agora
             self.eventos.extend(ev)
             return ev
         if t.n >= MINIMO and autoriza:
@@ -416,11 +419,16 @@ class Camera:
         self.largura, self.altura, self.fps = largura, altura, fps
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
         # --como-caixa: video gravado na caixa (aibox/gravar.sh) lido com o
-        # MESMO tamanho e o MESMO ritmo da prova. Sem isto um .mp4 de
-        # 2880x1620 a 30/s e lido inteiro e quadro a quadro: rosto maior e 5x
-        # mais leituras que na caixa, e o limiar calibrado no PC nao vale la.
+        # MESMO tamanho da prova, um quadro a cada 30/--fps, e no TEMPO do
+        # video. Sem isto um .mp4 de 2880x1620 a 30/s e lido inteiro e quadro
+        # a quadro: rosto maior e 5x mais leituras que na caixa, e o limiar
+        # calibrado no PC nao vale la. O tempo importa porque o juiz e o
+        # rastreador contam segundos de relogio: lido mais rapido que a vida
+        # real, 3 s de "trilha perdida" virariam 10 s de video.
         self.como_caixa = como_caixa and self.arquivo
         self.pular = 1
+        self.passo_s = 0.0      # segundos de video entre dois quadros lidos
+        self.proximo = 0.0      # quando (relogio) o proximo quadro e devido
         self.cap = None
         self.ultimo = 0.0
         self.aberta_em = 0.0
@@ -441,13 +449,27 @@ class Camera:
             self.cap = cv2.VideoCapture(f)
             if self.como_caixa and self.fps:
                 fps_arq = float(self.cap.get(cv2.CAP_PROP_FPS) or 0)
+                if not 1 <= fps_arq <= 120:
+                    # Gravado do RTSP, o .mp4 as vezes diz um ritmo sem sentido
+                    # (0, ou 90000 da base de tempo): 30/s e o da HAIZ.
+                    print(f"[arena] o arquivo diz {fps_arq:.0f} quadros/s; usando 30", flush=True)
+                    fps_arq = 30.0
                 self.pular = max(1, int(round(fps_arq / self.fps))) if fps_arq > self.fps else 1
+                self.passo_s = self.pular / fps_arq
+                self.proximo = self.aberta_em
                 print(f"[arena] {os.path.basename(str(self.fonte))}: como na caixa, "
                       f"{self.largura}x{self.altura}, 1 quadro a cada {self.pular} "
                       f"(arquivo a {fps_arq:.0f}/s, teto {self.fps}/s)", flush=True)
 
     def ler(self):
         """(quadro ou None). Arquivo que acabou marca `acabou`."""
+        if self.passo_s:
+            agora = time.monotonic()
+            if agora < self.proximo:
+                return None         # ainda nao e a hora deste quadro no video
+            # PC mais lento que o video: segue do ponto em que esta, sem
+            # tentar recuperar o atraso de uma vez.
+            self.proximo = max(self.proximo + self.passo_s, agora - self.passo_s)
         for _ in range(self.pular - 1):
             self.cap.grab()
         ok, q = self.cap.read()

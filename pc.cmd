@@ -199,9 +199,11 @@ goto fim
 :copiar
 echo.
 echo -- VERSAO NPU: copiando .env, modelos e galeria da versao atual --
+REM A GALERIA vai POR CIMA, sempre: com cp -n a copia ficava velha para sempre.
+REM Nunca apontar o GALERIA da pasta NPU para ~/auditix (o Cadastrar gravaria la).
 REM So LE ~/auditix. cp -n nao sobrescreve nada que ja exista em ~/auditix-npu,
 REM e nada e gravado em ~/auditix: a versao atual fica intacta para a final.
-ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -rn ~/auditix/treino ~/auditix-npu/ 2>/dev/null; cp -n ~/auditix/arena/*.json ~/auditix-npu/arena/ 2>/dev/null; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
+ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -rn ~/auditix/treino ~/auditix-npu/ 2>/dev/null; cp ~/auditix/arena/galeria.json ~/auditix-npu/arena/galeria.json 2>/dev/null; ls -la ~/auditix-npu/arena/galeria.json; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
 goto fim
 
 :npu

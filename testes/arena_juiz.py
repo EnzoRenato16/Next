@@ -179,6 +179,13 @@ ok("o estranho vira desconhecido, nao Carla", t.estado == "desconhecido",
 ok("e Carla continua no placar, porque ja foi identificada",
    j.resumo()["autorizados"] == ["Carla"], str(j.resumo()["autorizados"]))
 ok("e o alerta do estranho conta", j.resumo()["desconhecidos"] == [1])
+troca = next(e for e in j.eventos if e["tipo"] == "troca")
+alerta = next(e for e in j.eventos if e["tipo"] == "desconhecido")
+ok("o tempo ate decidir do estranho conta da troca, nao de quando a Carla chegou",
+   alerta["levou"] == round(alerta["quando"] - troca["quando"], 2),
+   f"levou {alerta['levou']} s, troca em {troca['quando']} s")
+ok("e a Carla teve o dela", next(e for e in j.eventos if e["tipo"] == "autorizado")["levou"]
+   == arena.MINIMO - 1)
 
 print("\n== o .env vale ==")
 # carregar_env roda dentro do main, depois do import: os limiares tem de ser
