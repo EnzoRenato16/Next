@@ -349,8 +349,35 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   leituras BOAS, que é o que o juiz usa) e o ArcFace em todos os rostos, com a
   nota contra a galeria. Sem rosto, diz "NÃO MEDIDO". Precisa de alguém na
   frente da câmera.
-- **`NPU_ESTRITO=1`**: sem a CPU do SNPE de reserva. O "rodando na NPU" do
-  `tentar` diz que a NPU existe, não que a rede ficou nela.
+- **A reserva é sempre o OpenCV de hoje, nunca a CPU do SNPE.** A `Rede`
+  pede SÓ o runtime do `NPU_RUNTIME` (padrão `dsp`): se a NPU recusar uma
+  rede, o `tentar` devolve `None` e a arena/sala ficam no caminho da CPU que
+  a final usa, com "NÃO subiu" no terminal. Antes a lista de runtimes tinha
+  a CPU do SNPE atrás, a rede caía nela calada e a tela dizia "NPU" (e o
+  tempo medido era de uma CPU em float, que não é nem a NPU nem o OpenCV).
+  `na_npu` agora é verdade só quando o runtime pedido existe de fato.
+  (`NPU_ESTRITO` sumiu: era isso ligado por padrão.)
+- **`npu_teste.py` também experimenta o `OlhoNPU`** (pose + ByteTrack da
+  caixa) nos mesmos quadros; se falhar, diz que a sala segue no `OlhoYolo`.
+- **`decod_teste.sh` tem 3 canos** (software, `qtivdec` com NV12 forçado,
+  `qtivdec ! qtivtransform`), e na Intelbras `.108` só o de software: cada
+  tentativa seguida é uma a mais para o bloqueio 403 (armadilha 5).
+- **`npu_rodada.sh` (sem o 2) foi apagado**: mudava a câmera e não voltava.
+- **`pc npu` leva só o que a caixa usa** (`yunet.dlc`, `yunet_a16.dlc`,
+  `arcface_pc.dlc`, `pose.dlc`, `relatorio.txt`), não o pacote inteiro; e
+  **`pc copiar` mostra a diferença entre o `.env` da pasta final e o da
+  NPU** (senhas tapadas), porque a cópia é `cp -n` e um limiar calibrado
+  na final não chega sozinho à pasta NPU.
+- **Codec por câmera também aqui** (`CAMERA_ARENA_CODEC`,
+  `CAMERA_ARENA2_CODEC`, portado do PR #2): sem isso a Intelbras como
+  segunda câmera (H.265) dava "sem imagem" nesta pasta.
+- **`testes/npu_yunet.py`** prova que o `decodificar_yunet` (o pós-processo
+  escrito à mão para as 12 saídas cruas do `.dlc`) dá o MESMO resultado do
+  `cv2.FaceDetectorYN` numa foto (diferença 0,0000), sem SNPE: roda no PC.
+- **O relatório do CI separa o YuNet por largura do rosto** (<32, 32-48,
+  48-80, 80+ px) e a validação tem 20 telas de rosto pequeno (~22 a 80 px),
+  que é o que a quantização perde primeiro. A calibração não mudou.
+  `ultralytics` está preso em 8.4.183 (a versão do pacote que funcionou).
 - **`NPU_CONFERIR=1` na arena**: cada rosto bom também é medido na CPU
   (cosseno e quanto a nota contra a galeria muda) e a cada 10 quadros o YuNet
   da CPU procura no mesmo quadro. Só laboratório: fica mais lento.
@@ -391,8 +418,10 @@ Achado no laboratório, com `gst-inspect-1.0` e `ls /root/lib`:
   meio dos testes).
 - **NPU Hexagon V68** (`/dev/adsprpc-smd`, `libSnpeHtpV68Skel.so`) e os plugins
   `qtimltflite` + `qtimlvpose` do Qualcomm IM SDK: pose rodando na NPU, fora
-  da CPU. O ONNX Runtime da caixa (1.16.3) NÃO tem o provedor da NPU, então o
-  caminho é TFLite quantizado pelo GStreamer, não o ONNX de hoje.
+  da CPU. O ONNX Runtime da caixa (1.16.3) NÃO tem o provedor da NPU. O
+  caminho que funcionou é o SNPE pela API C, chamado do Python com `ctypes`
+  (`aibox/npu.py`), com `.dlc` feitos no GitHub Actions: ver a seção
+  "Versão NPU" acima.
 - **GPU Adreno** (`/dev/kgsl-3d0`).
 
 ## O que ainda NÃO existe na caixa
@@ -783,8 +812,10 @@ cronometrado) está em `ARENA-PASSO-A-PASSO.md`.
   CINZA fina, sem texto, fora da conta. Não vira desconhecido de propósito:
   na arena o fundo é a plateia, e cada rosto dela viraria um alerta.
   **NPU:** o professor sugeriu dividir CPU e NPU; o ONNX Runtime 1.16 da
-  caixa não fala com a NPU (precisa TFLite/QNN quantizado e validar de
-  novo). Fica para depois da final, não cabe com segurança no prazo.
+  caixa não fala com a NPU. Virou a versão PARALELA do ramo
+  `npu/divisao-npu-cpu` (pasta `~/auditix-npu` na caixa), que só vai para a
+  final se a rodada 2 na caixa provar tempo E qualidade; a versão atual é a
+  reserva. Ver a seção "Versão NPU".
   **O que a caixa tem para a NPU (21/10):** `libSNPE.so`, **SNPE 2.12**,
   `libSnpeHtpV68Skel/Stub.so` (o HTP, a NPU), `libhexagon_interface.so`, e os
   plugins `qtimltflite`, `qtimlvdetection`, `qtimlvpose`,

@@ -26,10 +26,18 @@ tentar() {
   rm -f "$log" "$log.n"
 }
 
-echo "camera: $(echo "$URL" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | head -1) (senha escondida)"
+IP=$(echo "$URL" | grep -oE "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+" | head -1)
+echo "camera: $IP (senha escondida)"
+# TRES conexoes, nao seis. Em 21/10 todos os canos do qtivdec deram 0 quadros
+# (16% de CPU: ele nem decodifica), entao repetir seis variantes so acumula
+# conexoes na camera (armadilha 5: a Intelbras bloqueia o IP). Ficam o
+# software, como referencia, e os dois canos do qtivdec que ainda tem chance;
+# o PORQUE do 0 sai do decod_qti.sh, com o log do GStreamer.
+if [ "$IP" = "192.168.50.108" ]; then
+  echo "!! camera Intelbras: so o cano de software (ela bloqueia o IP por 30 min com tentativas seguidas)"
+  tentar "software (avdec_h264)"      avdec_h264 ! videoconvert ! $FIM
+  exit 0
+fi
 tentar "software (avdec_h264)"      avdec_h264 ! videoconvert ! $FIM
 tentar "qtivdec NV12 comum"         qtivdec ! video/x-raw,format=NV12 ! videoconvert ! $FIM
-tentar "qtivdec sem filtro"         qtivdec ! videoconvert ! $FIM
 tentar "qtivdec + qtivtransform"    qtivdec ! qtivtransform ! video/x-raw,format=BGR,width=1280,height=720 ! fdsink
-tentar "qtivdec + qtivtransform RGB" qtivdec ! qtivtransform ! video/x-raw,format=RGB,width=1280,height=720 ! videoconvert ! video/x-raw,format=BGR ! fdsink
-tentar "qtivdec turbo + transform"  qtivdec turbo=true ! qtivtransform ! video/x-raw,format=BGR,width=1280,height=720 ! fdsink

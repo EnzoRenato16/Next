@@ -18,6 +18,7 @@
 cd "$(dirname "$0")/.." || exit 1
 sed -i 's/\r$//' aibox/*.sh aibox/*.py 2>/dev/null
 P=/opt/eduvision/venv/bin/python
+URL=$(grep -E '^CAMERA_ARENA=' .env | head -1 | cut -d= -f2- | tr -d '"'"'"'\r')
 export PYTHONPATH="$HOME/pylibs"
 
 voltar_camera() {
@@ -41,8 +42,8 @@ rodada() {
   trap voltar_camera EXIT
   trap 'exit 130' INT TERM HUP
   echo "===== 0. NPU: tempo e qualidade contra a CPU, nos mesmos quadros ====="
-  echo "(NPU_ESTRITO=1: sem a CPU do SNPE de reserva, para provar que roda na NPU)"
-  ( source aibox/npu_env.sh && NPU_ESTRITO=1 $P aibox/npu_teste.py 2>&1 | grep -vE "rpcmem|^ +c1-" | tail -40 )
+  echo "(o que nao couber na NPU nao sobe: 'NAO subiu' = fica no OpenCV)"
+  ( source aibox/npu_env.sh && $P aibox/npu_teste.py 2>&1 | grep -vE "rpcmem|^ +c1-" | tail -44 )
   echo; echo "===== 1. qtivdec por dentro ====="
   bash aibox/decod_qti.sh
   if [ "${MUDAR_CAMERA:-0}" = "1" ]; then
@@ -51,7 +52,15 @@ rodada() {
     # devolve 1 quando a resolucao nao pega) tambem precisa voltar.
     MUDOU=1
     $P aibox/camera_haiz.py --mudar
-    sleep 5
+    # Camera que troca de resolucao costuma reiniciar o fluxo por 10 a 30 s.
+    # Esperar ate ela entregar quadro, senao o passo 3 mede a reconexao.
+    echo "esperando a camera voltar..."
+    for i in $(seq 1 8); do
+      sleep 5
+      if timeout 6 gst-launch-1.0 -q rtspsrc location="$URL" protocols=tcp latency=0 ! rtph264depay ! h264parse ! fakesink num-buffers=5 >/dev/null 2>&1; then
+        echo "camera respondeu depois de $((i * 5)) s"; break
+      fi
+    done
     echo; echo "===== 3. decodificacao por software com a camera como ficou ====="
     bash aibox/decod_teste.sh 2>&1 | head -3
   fi

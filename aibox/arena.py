@@ -414,9 +414,13 @@ def como_gst(q, largura, altura):
 
 
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps, como_caixa=False):
+    def __init__(self, indice, fonte, largura, altura, fps, como_caixa=False, codec=None):
         self.indice, self.fonte = indice, fonte
         self.largura, self.altura, self.fps = largura, altura, fps
+        # Codec POR camera (CAMERA_ARENA_CODEC / CAMERA_ARENA2_CODEC): a HAIZ
+        # manda H.264 e a Intelbras .108 H.265. Um CAM_CODEC so para as duas
+        # deixava a segunda em "sem imagem". Vazio = o CAM_CODEC do gstcam.
+        self.codec = codec or None
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
         # --como-caixa: video gravado na caixa (aibox/gravar.sh) lido com o
         # MESMO tamanho da prova, um quadro a cada 30/--fps, e no TEMPO do
@@ -442,7 +446,8 @@ class Camera:
         self.aberta_em = time.monotonic()
         if str(self.fonte).startswith("rtsp"):
             from aibox.gstcam import Gst
-            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True)
+            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True,
+                           codec=self.codec)
         else:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
@@ -1055,7 +1060,9 @@ def main():
         print("[arena] NPU_CONFERIR=1: medindo NPU contra CPU (mais lento; so no "
               "laboratorio)", flush=True)
     juiz = Juiz(nomes, M, dono)
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.como_caixa)
+    codecs = [os.environ.get("CAMERA_ARENA_CODEC" if i == 0 else f"CAMERA_ARENA{i + 1}_CODEC")
+              for i in range(len(fontes))]
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.como_caixa, codecs[i])
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)

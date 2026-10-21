@@ -99,7 +99,6 @@ def main():
     imgs = quadros(cv2)
     print(f"{len(imgs)} imagem(ns) {imgs[0].shape[1]}x{imgs[0].shape[0]}")
     print(f"runtime pedido: {os.environ.get('NPU_RUNTIME', 'dsp')}  "
-          f"estrito (sem CPU de reserva): {os.environ.get('NPU_ESTRITO', '0') == '1'}  "
           f"SNPE_LIB={os.environ.get('SNPE_LIB', '(padrao)')}")
 
     # ------------------------------------------------------------ YuNet ---
@@ -208,6 +207,22 @@ def main():
             x = np.zeros(r.forma(), np.float32)
             print(f"\n[pose] {nome}: {tempo(lambda: r(entrada=x)):.0f} ms so a rede "
                   f"(na CPU, ONNX 320: ~110 ms)")
+            r.fechar()
+    # O CAMINHO INTEIRO DA SALA na caixa: letterbox, rede, NMS e o ByteTrack
+    # do Ultralytics DESTA caixa (o CI testou com o Ultralytics novo; o da
+    # caixa e mais antigo, e o OlhoNPU entrega a ele um objeto imitado).
+    olho = npu.tentar(npu.OlhoNPU, "sala (OlhoNPU + ByteTrack da caixa)")
+    if olho:
+        try:
+            for img in imgs:
+                pessoas = olho.ver(img)
+            print(f"[sala] OlhoNPU.ver: {tempo(lambda: olho.ver(imgs[0]), 10):.0f} ms por quadro, "
+                  f"{len(pessoas)} pessoa(s) no ultimo quadro"
+                  + (" (ninguem na imagem, ou o ByteTrack nao confirmou: ver no ir.sh)"
+                     if not pessoas else ""))
+        except Exception as e:
+            print(f"[sala] OlhoNPU.ver FALHOU na caixa: {type(e).__name__}: {e}. "
+                  "A sala continua no OlhoYolo da CPU.")
 
 
 if __name__ == "__main__":

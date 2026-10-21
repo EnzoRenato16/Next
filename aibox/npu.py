@@ -23,9 +23,11 @@ Variaveis:
     NPU=1|0              liga/desliga (padrao 1: tenta, e cai para CPU)
     SNPE_LIB=...         caminho do libSNPE.so (padrao: npu-lib/ do pacote,
                          que e do mesmo SNPE que gerou os .dlc; depois /root/lib)
-    NPU_RUNTIME=dsp      dsp (a NPU), gpu ou cpu; a ordem cai para cpu no fim
+    NPU_RUNTIME=dsp      dsp (a NPU), gpu ou cpu. SO esse: se a rede nao couber
+                         nele, a classe nao sobe e o chamador fica no OpenCV de
+                         hoje. A CPU do SNPE nunca e reserva: com o modelo
+                         quantizado ela e mais lenta que o OpenCV e pior.
     NPU_DIR=...          onde ficam os .dlc (padrao: daten/models/npu)
-    NPU_ESTRITO=1        so a NPU, sem a CPU do SNPE de reserva (para testar)
     NPU_YUNET=...        qual .dlc do YuNet (padrao yunet.dlc, 8 bits)
     NPU_CONFERIR=1       (arena.py) mede cada rosto tambem na CPU e compara
 """
@@ -38,9 +40,11 @@ import numpy as np
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 NPU_DIR = os.environ.get("NPU_DIR") or os.path.join(RAIZ, "daten", "models", "npu")
 
-# enum Snpe_Runtime_t e Snpe_PerformanceProfile_t do SNPE 2.x
+# enum Snpe_Runtime_t e Snpe_PerformanceProfile_t do SNPE 2.x. O perfil 5 e
+# SUSTAINED_HIGH_PERFORMANCE (o BURST e o 6): a arena roda 5 minutos seguidos,
+# e o burst e para rajada curta, que depois pode baixar a frequencia.
 RUNTIME = {"cpu": 0, "gpu": 1, "dsp": 2}
-BURST = 5
+SUSTENTADO = 5
 
 _lib = None
 
@@ -156,16 +160,14 @@ class Rede:
             raise _erro(lib, f"abrir {dlc}")
         b = lib.Snpe_SNPEBuilder_Create(cont)
         rl = lib.Snpe_RuntimeList_Create()
-        # NPU_ESTRITO=1: so a NPU, sem a CPU do SNPE de reserva. O na_npu
-        # abaixo diz se a NPU EXISTE, nao se ESTA rede ficou nela: com a CPU na
-        # lista, uma rede que a NPU recusa sobe na CPU e o aviso ainda diz
-        # "NPU". Nos testes, estrito: se nao couber na NPU, erro na cara.
-        estrito = os.environ.get("NPU_ESTRITO", "0").strip() == "1"
-        ordem = [runtime] + (["cpu"] if runtime != "cpu" and not estrito else [])
-        for r in ordem:
-            lib.Snpe_RuntimeList_Add(rl, RUNTIME[r])
+        # SO O RUNTIME PEDIDO, sem a CPU do SNPE na lista. Com ela, uma rede
+        # que a NPU recusa subia na CPU do SNPE calada (mais lenta que o
+        # OpenCV, e quantizada) e o aviso dizia "NPU", porque o na_npu so
+        # pergunta se a NPU existe. Agora: nao coube na NPU, nao sobe, e o
+        # tentar() devolve None: o chamador fica no OpenCV de hoje, avisado.
+        lib.Snpe_RuntimeList_Add(rl, RUNTIME[runtime])
         lib.Snpe_SNPEBuilder_SetRuntimeProcessorOrder(b, rl)
-        lib.Snpe_SNPEBuilder_SetPerformanceProfile(b, BURST)
+        lib.Snpe_SNPEBuilder_SetPerformanceProfile(b, SUSTENTADO)
         # Sem isto o SNPE so devolve a saida da ULTIMA camada (o YuNet tem 12
         # saidas e vinha so o kps_32). Assim vem toda saida que ninguem consome.
         f = getattr(lib, "Snpe_SNPEBuilder_SetUnconsumedTensorsAsOutputs", None)
@@ -182,11 +184,11 @@ class Rede:
         lib.Snpe_DlContainer_Delete(cont)
         if not self.snpe:
             raise _erro(lib, f"montar {os.path.basename(dlc)} no {runtime}")
-        # Quem realmente roda: a NPU so "existe" para o SNPE se o processo
-        # abriu o /dev/adsprpc-smd. Sem permissao, ele cai para a CPU calado,
-        # e e por isso que isto e conferido e impresso.
-        self.na_npu = bool(lib.Snpe_Util_IsRuntimeAvailable(RUNTIME[runtime])) \
-            if runtime != "cpu" else False
+        # Montou no runtime pedido (so ele estava na lista), entao e la que
+        # roda. A pergunta ao SNPE fica como conferencia: sem permissao no
+        # /dev/adsprpc-smd a NPU "nao existe" e a montagem ja teria falhado.
+        self.na_npu = runtime != "cpu" and \
+            bool(lib.Snpe_Util_IsRuntimeAvailable(RUNTIME[runtime]))
 
         self.entradas = {}
         self.mapa_in = lib.Snpe_TensorMap_Create()

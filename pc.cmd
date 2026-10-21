@@ -204,6 +204,10 @@ REM Nunca apontar o GALERIA da pasta NPU para ~/auditix (o Cadastrar gravaria la
 REM So LE ~/auditix. cp -n nao sobrescreve nada que ja exista em ~/auditix-npu,
 REM e nada e gravado em ~/auditix: a versao atual fica intacta para a final.
 ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -rn ~/auditix/treino ~/auditix-npu/ 2>/dev/null; cp ~/auditix/arena/galeria.json ~/auditix-npu/arena/galeria.json 2>/dev/null; ls -la ~/auditix-npu/arena/galeria.json; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
+echo.
+echo    O .env so e copiado na PRIMEIRA vez. Diferencas entre o .env atual (~/auditix, com <) e o da NPU (>), senhas escondidas:
+ssh %CAIXA% "diff ~/auditix/.env ~/auditix-npu/.env | sed -E 's/(password=)[^&]*/\1***/; s/(CAM_PW=).*/\1***/; s/(rtsp:\/\/[^:\/@]+:)[^@]*@/\1***@/' || true; echo (fim da comparacao: nada acima = iguais)"
+echo    Se um limiar mudou em ~/auditix depois da copia, copie a linha para ~/auditix-npu/.env na mao (nano ~/auditix-npu/.env).
 goto fim
 
 :npu
@@ -217,7 +221,8 @@ if not exist npu-pacote\modelos\yunet.dlc (
   goto fim
 )
 ssh %CAIXA% "mkdir -p ~/auditix-npu/daten/models/npu ~/auditix-npu/npu-lib/dsp"
-scp npu-pacote\modelos\*.dlc npu-pacote\modelos\relatorio.txt %CAIXA%:~/auditix-npu/daten/models/npu/
+REM So o que a caixa usa: yunet (8 bits) e a reserva de 16, o ArcFace por canal e o pose. Metade do scp.
+scp npu-pacote\modelos\yunet.dlc npu-pacote\modelos\yunet_a16.dlc npu-pacote\modelos\arcface_pc.dlc npu-pacote\modelos\pose.dlc npu-pacote\modelos\relatorio.txt %CAIXA%:~/auditix-npu/daten/models/npu/
 scp npu-pacote\npu-lib\* %CAIXA%:~/auditix-npu/npu-lib/
 scp npu-pacote\npu-lib\dsp\* %CAIXA%:~/auditix-npu/npu-lib/dsp/
 ssh %CAIXA% "ls -la ~/auditix-npu/daten/models/npu ~/auditix-npu/npu-lib ~/auditix-npu/npu-lib/dsp"

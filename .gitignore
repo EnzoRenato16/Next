@@ -80,3 +80,15 @@ ppt/midia/*
 # Regra so para ESTE arquivo: uma regra daten/models/*.onnx ja barrou os
 # modelos versionados uma vez sem avisar.
 daten/models/w600k_mbf.onnx
+
+# Versao NPU: o pacote baixado do GitHub Actions (66 MB de .dlc e bibliotecas
+# do SNPE) e o que a caixa gera. Um `git add -A` na pasta Next-NPU subiria tudo.
+npu-pacote/
+npu-lib/
+daten/models/npu/
+*.dlc
+haiz_antes.json
+haiz_antes.xml
+rodada*.txt
+camera_volta.txt
+diagnostico.txt

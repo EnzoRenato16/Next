@@ -205,13 +205,16 @@ def tela_yunet(cv2, img):
     return t
 
 
-def mosaico(cv2, rostos, rng):
+def mosaico(cv2, rostos, rng, lados=(60, 360)):
     """Uma tela 1280x736 com rostos do LFW espalhados em tamanhos de arena
-    (de ~40 a ~250 px), em cima de uma foto do coco128 como fundo."""
+    em cima de um fundo liso. A foto do LFW tem 250 px com o rosto em ~110,
+    entao `lados` 60..360 da rosto de ~26 a ~160 px; 50..180 (a validacao de
+    rosto PEQUENO) da ~22 a ~80 px, que e o fundo da sala na HAIZ e o primeiro
+    a perder com 8 bits nas ativacoes. A calibracao continua com 60..360."""
     t = np.full((YUNET_HW[0], YUNET_HW[1], 3), rng.integers(30, 200), np.uint8)
     for _ in range(rng.integers(2, 9)):
         r = rostos[rng.integers(len(rostos))]
-        lado = int(rng.integers(60, 360))
+        lado = int(rng.integers(*lados))
         r = cv2.resize(r, (lado, lado))
         y = int(rng.integers(0, YUNET_HW[0] - lado))
         x = int(rng.integers(0, YUNET_HW[1] - lado))
@@ -270,6 +273,10 @@ def comparar_yunet(cv2, npu, telas, dlcs):
         diga(f"\n[yunet] {os.path.basename(dlc)} rodando na {'NPU' if det.rede.na_npu else 'CPU do SNPE'}")
         achou = total = extra = 0
         erro_pontos = []
+        # Por faixa de LARGURA do rosto: um total unico esconde o rosto
+        # pequeno, que e justamente o que a quantizacao perde primeiro.
+        FAIXAS = ((0, 32), (32, 48), (48, 80), (80, 10 ** 6))
+        faixa = {f: [0, 0] for f in FAIXAS}
         for t in telas:
             _, a = ref.detect(t)
             a = a if a is not None else np.empty((0, 15))
@@ -277,14 +284,22 @@ def comparar_yunet(cv2, npu, telas, dlcs):
             total += len(a)
             usados = set()
             for la in a:
+                f = next(f for f in FAIXAS if f[0] <= la[2] < f[1])
+                faixa[f][1] += 1
                 melhor = max(range(len(b)), key=lambda j: iou(la, b[j]), default=None)
                 if melhor is not None and iou(la, b[melhor]) >= 0.5:
                     achou += 1
+                    faixa[f][0] += 1
                     usados.add(melhor)
                     erro_pontos.append(np.abs(la[4:14] - b[melhor][4:14]).mean() / max(la[2], 1))
             extra += len(b) - len(usados)
         diga(f"[yunet] rostos do original achados: {achou}/{total}; a mais: {extra}; "
              f"erro medio dos 5 pontos: {100 * np.mean(erro_pontos or [0]):.1f}% do tamanho do rosto")
+        diga("[yunet]   por largura do rosto: " + "; ".join(
+            f"{'<' + str(f[1]) if f[0] == 0 else str(f[0]) + ('+' if f[1] > 9999 else '-' + str(f[1]))} px: "
+            f"{faixa[f][0]}/{faixa[f][1]}" for f in FAIXAS))
+        diga("[yunet]   (medido na CPU do SNPE, em float: so os pesos. Os 8/16 bits das "
+             "ativacoes so a caixa mede: npu_teste.py)")
 
 
 def alinhados(cv2, imgs):
@@ -432,6 +447,7 @@ if __name__ == "__main__":
     telas = [tela_yunet(cv2, cv2.imread(f)) for f in coco[:40]] + \
             [mosaico(cv2, rostos, rng) for _ in range(60)]
     validar_telas = [mosaico(cv2, rostos[::-1], np.random.default_rng(5)) for _ in range(30)] + \
+                    [mosaico(cv2, rostos[::-1], np.random.default_rng(7), (50, 180)) for _ in range(20)] + \
                     [tela_yunet(cv2, cv2.imread(f)) for f in coco[100:128]]
     lista_y = gravar_lista("cal_yunet", [L("yunet", t.astype(np.float32)) for t in telas])
 
