@@ -67,7 +67,11 @@ if grep -q '^CAMERA_ARENA.*subtype=1' .env 2>/dev/null || [[ " $* " == *"subtype
   echo "     o principal. Rosto pequeno nao se recupera depois."
 fi
 
-ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+# A caixa tem outras placas (192.168.225.1 e do modem/USB e o notebook nao
+# alcanca): prefere o endereco da rede do laboratorio, 192.168.50.x.
+ips=$(hostname -I 2>/dev/null)
+ip=$(echo "$ips" | tr ' ' '\n' | grep -m1 '^192\.168\.50\.')
+[ -n "$ip" ] || ip=$(echo "$ips" | awk '{print $1}')
 echo
 echo "  No notebook, abra:  http://${ip:-IP_DA_CAIXA}:8080"
 echo "  Para encerrar e ver o resultado: Ctrl+C"
