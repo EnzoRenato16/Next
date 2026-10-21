@@ -7,7 +7,9 @@ sed -i 's/\r$//' aibox/*.sh aibox/*.py 2>/dev/null
 P=/opt/eduvision/venv/bin/python
 export PYTHONPATH="$HOME/pylibs"
 {
-  echo "===== 1. qtivdec por dentro ====="
+  echo "===== 0. NPU: tempos e o ArcFace da NPU contra o da CPU (cosseno) ====="
+  ( source aibox/npu_env.sh && $P aibox/npu_teste.py 2>&1 | grep -vE "rpcmem|^ +c1-" | tail -20 )
+  echo; echo "===== 1. qtivdec por dentro ====="
   bash aibox/decod_qti.sh
   echo; echo "===== 2. HAIZ para 1080p a 12/s ====="
   $P aibox/camera_haiz.py --mudar
