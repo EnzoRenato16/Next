@@ -49,6 +49,8 @@ jobs:
           pip install -q --extra-index-url https://download.pytorch.org/whl/cpu \
             "numpy<2" onnx==1.16.1 onnxruntime==1.18.1 onnxsim protobuf==3.20.3 pyyaml packaging \
             mako pandas scipy opencv-python-headless==4.10.0.84 scikit-learn ultralytics torch==2.3.1+cpu torchvision==0.18.1+cpu
+          pip install -q "numpy<2" "opencv-python-headless==4.10.0.84"
+          python -c "import numpy, onnxruntime, cv2; print(numpy.__version__, onnxruntime.__version__, cv2.__version__)"
           python sdk/bin/check-python-dependency || true
       - name: converter, quantizar e conferir
         run: |
