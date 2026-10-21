@@ -462,7 +462,10 @@ def tentar(fabrica, nome):
     try:
         t0 = time.monotonic()
         obj = fabrica()
-        rede = getattr(obj, "rede", None)
+        # A fabrica pode devolver a propria Rede (o pose no npu_teste) ou um
+        # objeto que a carrega (DetectorNPU, OlhoNPU...). Sem isto o pose
+        # rodando na NPU aparecia como "CPU (pelo SNPE)" (laboratorio, 21/10).
+        rede = obj if isinstance(obj, Rede) else getattr(obj, "rede", None)
         onde = "NPU" if rede is not None and rede.na_npu else "CPU (pelo SNPE)"
         print(f"[npu] {nome}: carregado em {time.monotonic() - t0:.1f} s, rodando na {onde}",
               flush=True)
