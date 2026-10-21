@@ -54,6 +54,8 @@ def rodar(*cmd):
     r = subprocess.run(cmd, capture_output=True, text=True)
     print(r.stdout[-3000:], r.stderr[-3000:], flush=True)
     if r.returncode:
+        erro = [l for l in (r.stdout + r.stderr).splitlines() if "rror" in l][-4:]
+        diga("ERRO:", " | ".join(erro))
         raise SystemExit(f"falhou: {cmd[0]}")
 
 
@@ -96,6 +98,17 @@ def modelos():
             a = torch.cat((a, vis.sigmoid()), 2)
             return a.view(bs, self.nk, -1)
         Pose.kpts_decode = kpts_decode
+
+        # O mesmo para a caixa: dist2bbox usa chunk (vira Slice). Split.
+        import ultralytics.nn.modules.head as cabeca
+
+        def dist2bbox(distance, anchor_points, xywh=True, dim=-1):
+            lt, rb = torch.split(distance, [2, 2], dim)
+            x1y1, x2y2 = anchor_points - lt, anchor_points + rb
+            if xywh:
+                return torch.cat(((x1y1 + x2y2) / 2, x2y2 - x1y1), dim)
+            return torch.cat((x1y1, x2y2), dim)
+        cabeca.dist2bbox = dist2bbox
         cwd = os.getcwd()
         os.chdir(TRAB)
         YOLO("yolo11n-pose.pt").export(format="onnx", imgsz=POSE, opset=12,
