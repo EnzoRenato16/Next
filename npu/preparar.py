@@ -107,6 +107,20 @@ def modelos():
     return {"yunet": yunet, "arcface": arc, "pose": pose}, nomes
 
 
+def mostrar_slices(caminho):
+    import onnx
+    from onnx import numpy_helper
+    m = onnx.load(caminho)
+    const = {i.name: numpy_helper.to_array(i) for i in m.graph.initializer}
+    for n in m.graph.node:
+        if n.op_type == "Constant":
+            const[n.output[0]] = numpy_helper.to_array(n.attribute[0].t)
+    for n in m.graph.node:
+        if n.op_type == "Slice" and "model.23" in n.name:
+            print("SLICE", n.name, [(i, const.get(i, "?").tolist() if i in const else "?") for i in n.input[1:]],
+                  "de", n.input[0], flush=True)
+
+
 def converter(onnx_path, dlc, nome_in, dims):
     rodar(binario("snpe-onnx-to-dlc"), "-i", onnx_path, "-o", dlc,
           "--input_dim", nome_in, ",".join(str(d) for d in dims))
@@ -300,13 +314,19 @@ if __name__ == "__main__":
     dlc = {}
     converter(MOD["yunet"], os.path.join(TRAB, "yunet_f.dlc"), NOMES["yunet"], (1, 3) + YUNET_HW)
     converter(MOD["arcface"], os.path.join(TRAB, "arcface_f.dlc"), NOMES["arcface"], (1, 3, 112, 112))
-    converter(MOD["pose"], os.path.join(TRAB, "pose_f.dlc"), NOMES["pose"], (1, 3, POSE, POSE))
+    try:
+        converter(MOD["pose"], os.path.join(TRAB, "pose_f.dlc"), NOMES["pose"], (1, 3, POSE, POSE))
+        TEM_POSE = True
+    except SystemExit:
+        TEM_POSE = False
+        diga("[pose] o conversor recusou o YOLO-pose; pacote sai so com rosto")
+        mostrar_slices(MOD["pose"])
 
     # O layout que o .dlc pede (NHWC ou NCHW) sai da propria rede, pelo npu.py
     # rodando no CPU do SNPE x86: isso tambem testa o ctypes antes da caixa.
     os.environ["NPU_RUNTIME"] = "cpu"
     lay = {k: npu._nhwc(npu.Rede(os.path.join(TRAB, f"{k}_f.dlc")).forma())
-           for k in ("yunet", "arcface", "pose")}
+           for k in (("yunet", "arcface", "pose") if TEM_POSE else ("yunet", "arcface"))}
     diga("layout NHWC:", json.dumps(lay))
 
     def L(k, x_hwc):
@@ -335,9 +355,11 @@ if __name__ == "__main__":
         t[dy:dy + nh, dx:dx + nw] = cv2.resize(im, (nw, nh))
         return t[:, :, ::-1].astype(np.float32) / 255.0
     globals()["CALIB_POSE"] = CALIB_POSE
-    lista_p = gravar_lista("cal_pose", [L("pose", CALIB_POSE(f)) for f in coco[:100]])
+    listas = [("yunet", lista_y), ("arcface", lista_a)]
+    if TEM_POSE:
+        listas.append(("pose", gravar_lista("cal_pose", [L("pose", CALIB_POSE(f)) for f in coco[:100]])))
 
-    for k, lista in (("yunet", lista_y), ("arcface", lista_a), ("pose", lista_p)):
+    for k, lista in listas:
         f = os.path.join(TRAB, f"{k}_f.dlc")
         quantizar(f, lista, os.path.join(SAIDA, f"{k}_a8.dlc"), a16=False)
         if k != "yunet":
@@ -356,7 +378,7 @@ if __name__ == "__main__":
                                                  [os.path.join(TRAB, "arcface_f.dlc"),
                                                   os.path.join(SAIDA, "arcface.dlc"),
                                                   os.path.join(SAIDA, "arcface_a8.dlc")])),
-            ("pose", lambda: comparar_pose(npu, ort.InferenceSession(MOD["pose"]), coco[100:],
+            ("pose", lambda: TEM_POSE and comparar_pose(npu, ort.InferenceSession(MOD["pose"]), coco[100:],
                                            [os.path.join(TRAB, "pose_f.dlc"),
                                             os.path.join(SAIDA, "pose.dlc"),
                                             os.path.join(SAIDA, "pose_a8.dlc")]))):
