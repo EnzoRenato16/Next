@@ -1,26 +1,76 @@
-# Versao NPU: converte os modelos (ONNX) para DLC quantizado do SNPE 2.12, o
-# mesmo SNPE que a AIBOX tem. Roda aqui porque o conversor so existe para
-# Linux x86 e precisa baixar o SDK da Qualcomm.
+# Versao NPU: converte YuNet, ArcFace e YOLO11n-pose (ONNX) para .dlc
+# quantizado da NPU (HTP V68 do QCS6490) e confere a qualidade contra o ONNX
+# original. Roda aqui porque o SDK da Qualcomm so tem conversor para Linux x86.
+#
+# O SNPE 2.12 da caixa nao e mais baixavel sem login; o 2.26 e publico. Os
+# .dlc do 2.26 rodam com as bibliotecas do 2.26, que vao JUNTO no pacote
+# (npu-lib/), numa pasta do grupo11: nada e instalado no sistema da caixa.
+#
+# Resultado: o artefato "npu-pacote" (aba Actions do GitHub -> esta execucao).
 name: npu-modelos
 on:
   push:
     branches: [npu/divisao-npu-cpu]
-    paths: ['npu/**', '.github/workflows/npu-modelos.yml']
+    paths: ['npu/**', 'aibox/npu.py', '.github/workflows/npu-modelos.yml']
   workflow_dispatch:
+
+env:
+  SNPE_VER: 2.26.0.240828
 
 jobs:
   converter:
     runs-on: ubuntu-22.04
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
-      - name: sondar versoes do SNPE
+          python-version: '3.10'
+      - uses: actions/cache@v4
+        id: cache-sdk
+        with:
+          path: sdk
+          key: snpe-${{ env.SNPE_VER }}
+      - name: baixar o SDK da Qualcomm (SNPE ${{ env.SNPE_VER }})
+        if: steps.cache-sdk.outputs.cache-hit != 'true'
         run: |
-          B=https://softwarecenter.qualcomm.com/api/download/software
-          for v in 2.12.0.230626 2.12.4.230825 2.13.0.230730 2.20.0.240223 2.26.0.240828; do
-            for u in "$B/qualcomm_neural_processing_sdk/v$v.zip" "$B/sdks/Qualcomm_AI_Runtime_Community/All/$v/v$v.zip" "$B/sdks/Qualcomm_Neural_Processing_SDK/Linux/$v/v$v.zip" "$B/sdks/Qualcomm_Neural_Processing_SDK/All/$v/v$v.zip"; do
-              echo "$(curl -sL -o /dev/null -r 0-99 -w '%{http_code} %{size_download} %{url_effective}' "$u") <- $u"
-            done
-          done
+          curl -sSL -o snpe.zip "https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v$SNPE_VER.zip"
+          unzip -q snpe.zip -d sdk_tmp && rm snpe.zip
+          mv "$(dirname "$(find sdk_tmp -maxdepth 4 -type d -name bin | head -1)")" sdk
+          rm -rf sdk_tmp
+      - name: o que veio no SDK
+        run: |
+          ls sdk sdk/lib sdk/bin
+          ls sdk/lib/hexagon-v68/unsigned || true
+          ls sdk/lib/aarch64-ubuntu-gcc9.4 || ls sdk/lib | grep aarch64
+      - name: dependencias
+        run: |
+          sudo apt-get install -y -qq libc++1-14 libc++abi1-14 >/dev/null || true
+          pip install -q --extra-index-url https://download.pytorch.org/whl/cpu \
+            "numpy<2" onnx==1.16.1 onnxruntime==1.18.1 onnxsim protobuf==3.20.3 pyyaml packaging \
+            mako pandas scipy opencv-python-headless==4.10.0.84 scikit-learn ultralytics torch==2.3.1+cpu torchvision==0.18.1+cpu
+          python sdk/bin/check-python-dependency || true
+      - name: converter, quantizar e conferir
+        run: |
+          export SNPE_ROOT=$PWD/sdk
+          export PYTHONPATH=$SNPE_ROOT/lib/python:$PYTHONPATH
+          export LD_LIBRARY_PATH=$SNPE_ROOT/lib/x86_64-linux-clang:$LD_LIBRARY_PATH
+          export PATH=$SNPE_ROOT/bin/x86_64-linux-clang:$PATH
+          export SNPE_LIB=$SNPE_ROOT/lib/x86_64-linux-clang/libSNPE.so
+          python npu/preparar.py sdk pacote/modelos
+      - name: montar o pacote para a caixa
+        run: |
+          mkdir -p pacote/npu-lib/dsp
+          A=$(ls -d sdk/lib/aarch64-ubuntu-gcc9.4 2>/dev/null || ls -d sdk/lib/aarch64-oe-linux-gcc* | head -1)
+          echo "bibliotecas de $A"
+          cp $A/libSNPE.so $A/libSnpeHtpV68Stub.so $A/libSnpeHtpPrepare.so pacote/npu-lib/ 2>/dev/null || true
+          cp $A/libc++*.so* pacote/npu-lib/ 2>/dev/null || true
+          cp sdk/lib/hexagon-v68/unsigned/*.so pacote/npu-lib/dsp/
+          echo "$SNPE_VER" > pacote/npu-lib/VERSAO
+          ls -la pacote/* pacote/npu-lib/dsp
+          cat pacote/modelos/relatorio.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npu-pacote
+          path: pacote
+          retention-days: 30
