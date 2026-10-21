@@ -366,6 +366,33 @@ def comparar_pose(npu, ort_s, fotos, dlcs):
              f"diferenca na nota da pessoa {np.mean(conf or [0]):.3f}")
 
 
+def comparar_olho(npu, fotos):
+    """O caminho inteiro da sala: OlhoNPU (letterbox, rede, NMS, ByteTrack)
+    contra o Ultralytics de sempre, nos mesmos pontos do corpo."""
+    import cv2
+    from ultralytics import YOLO
+    ref = YOLO(os.path.join(TRAB, "yolo11n-pose.pt"))
+    for dlc in (os.path.join(TRAB, "pose_f.dlc"), os.path.join(SAIDA, "pose.dlc")):
+        erros, pessoas_ref, pessoas_npu = [], 0, 0
+        for f in fotos[:40]:
+            img = cv2.imread(f)
+            h, w = img.shape[:2]
+            r = ref.predict(img, imgsz=POSE, conf=0.35, classes=[0], verbose=False)[0]
+            kr = r.keypoints.xyn.cpu().numpy() if r.keypoints is not None else np.zeros((0, 17, 2))
+            olho = npu.OlhoNPU(dlc)
+            olho.ver(img)
+            saida = olho.ver(img)          # 2a vez: trilhas ja confirmadas
+            kq = np.array([[p[:2] for p in kp] for _, kp in saida]).reshape(-1, 17, 2)
+            pessoas_ref += len(kr)
+            pessoas_npu += len(kq)
+            for a in kr:
+                if len(kq):
+                    d = np.abs(kq - a[None]).mean(axis=(1, 2))
+                    erros.append(d.min())
+        diga(f"[sala] {os.path.basename(dlc)}: pessoas Ultralytics {pessoas_ref}, NPU {pessoas_npu}; "
+             f"erro medio dos pontos {100 * np.mean(erros or [0]):.2f}% da imagem")
+
+
 # ------------------------------------------------------------------ main ---
 
 if __name__ == "__main__":
@@ -445,6 +472,7 @@ if __name__ == "__main__":
                                                  [os.path.join(TRAB, "arcface_f.dlc"),
                                                   os.path.join(SAIDA, "arcface.dlc"),
                                                   os.path.join(SAIDA, "arcface_a8.dlc")])),
+            ("sala", lambda: TEM_POSE and comparar_olho(npu, coco[100:])),
             ("pose", lambda: TEM_POSE and comparar_pose(npu, ort.InferenceSession(MOD["pose"]), coco[100:],
                                            [os.path.join(TRAB, "pose_f.dlc"),
                                             os.path.join(SAIDA, "pose.dlc"),
