@@ -34,6 +34,7 @@ if /i "%1"=="entrar"   goto entrar
 if /i "%1"=="servidor" goto servidor
 if /i "%1"=="pitch"    goto pitch
 if /i "%1"=="copiar"   goto copiar
+if /i "%1"=="npu"      goto npu
 goto menu
 
 :menu
@@ -47,6 +48,7 @@ echo   pc galeria    copia a galeria da arena (arena\galeria.json) para a caixa
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
 echo   pc copiar     VERSAO NPU: copia .env, modelos e galeria de ~/auditix para ~/auditix-npu (so le o original)
+echo   pc npu        VERSAO NPU: copia o pacote da NPU (pasta npu-pacote, baixada do GitHub) para a caixa
 echo   pc pitch      abre a apresentacao (Auditix-pitch.html) no navegador
 echo.
 echo   A ordem de uma noite normal:  puxar -^> enviar -^> servidor (outra janela) -^> entrar
@@ -200,6 +202,23 @@ echo -- VERSAO NPU: copiando .env, modelos e galeria da versao atual --
 REM So LE ~/auditix. cp -n nao sobrescreve nada que ja exista em ~/auditix-npu,
 REM e nada e gravado em ~/auditix: a versao atual fica intacta para a final.
 ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -n ~/auditix/arena/*.json ~/auditix-npu/arena/ 2>/dev/null; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
+goto fim
+
+:npu
+echo.
+echo -- VERSAO NPU: pacote da NPU (modelos .dlc + bibliotecas do SNPE) --
+REM O pacote e o zip "npu-pacote" do GitHub Actions, descompactado AQUI, na
+REM pasta npu-pacote (tem que ter modelos\ e npu-lib\ dentro).
+if not exist npu-pacote\modelos\yunet.dlc (
+  echo    !! nao achei npu-pacote\modelos\yunet.dlc. Baixe o zip npu-pacote e
+  echo       descompacte nesta pasta, numa pasta chamada npu-pacote.
+  goto fim
+)
+ssh %CAIXA% "mkdir -p ~/auditix-npu/daten/models/npu ~/auditix-npu/npu-lib/dsp"
+scp npu-pacote\modelos\*.dlc npu-pacote\modelos\relatorio.txt %CAIXA%:~/auditix-npu/daten/models/npu/
+scp npu-pacote\npu-lib\* %CAIXA%:~/auditix-npu/npu-lib/
+scp npu-pacote\npu-lib\dsp\* %CAIXA%:~/auditix-npu/npu-lib/dsp/
+ssh %CAIXA% "ls -la ~/auditix-npu/daten/models/npu ~/auditix-npu/npu-lib ~/auditix-npu/npu-lib/dsp"
 goto fim
 
 :entrar

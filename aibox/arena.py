@@ -933,6 +933,18 @@ def main():
     except FileNotFoundError as e:
         print(f"[arena] a galeria e do motor {modelo}, mas {e}")
         return 2
+    # VERSAO NPU: o YuNet vai para a NPU (tamanho fixo 1280x736, entao o
+    # ARENA_DETECCAO deixa de valer) e, so com NPU_ARCFACE=1, o ArcFace tambem.
+    # O ArcFace fica na CPU por padrao: 8 bits mudam os numeros e a galeria
+    # foi feita na CPU (ver relatorio.txt do pacote antes de ligar).
+    from aibox import npu
+    det_npu = npu.tentar(npu.DetectorNPU, "YuNet")
+    if det_npu is not None:
+        motor.detect = det_npu.detect
+    if modelo == "arcface" and os.environ.get("NPU_ARCFACE", "0") == "1":
+        arc_npu = npu.tentar(npu.ArcFaceNPU, "ArcFace")
+        if arc_npu is not None:
+            medir = arc_npu.embedding
     juiz = Juiz(nomes, M, dono)
     cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
             for i, f in enumerate(fontes)]

@@ -20,7 +20,8 @@ volta para a CPU, que e o caminho de hoje. NPU=0 no .env forca a CPU.
 
 Variaveis:
     NPU=1|0              liga/desliga (padrao 1: tenta, e cai para CPU)
-    SNPE_LIB=...         caminho do libSNPE.so (padrao: /root/lib, /usr/lib)
+    SNPE_LIB=...         caminho do libSNPE.so (padrao: npu-lib/ do pacote,
+                         que e do mesmo SNPE que gerou os .dlc; depois /root/lib)
     NPU_RUNTIME=dsp      dsp (a NPU), gpu ou cpu; a ordem cai para cpu no fim
     NPU_DIR=...          onde ficam os .dlc (padrao: daten/models/npu)
 """
@@ -48,7 +49,8 @@ def _abrir_lib():
     global _lib
     if _lib is not None:
         return _lib
-    candidatos = [os.environ.get("SNPE_LIB"), "/root/lib/libSNPE.so",
+    candidatos = [os.environ.get("SNPE_LIB"), os.path.join(RAIZ, "npu-lib", "libSNPE.so"),
+                  "/root/lib/libSNPE.so",
                   "/usr/lib/libSNPE.so", "libSNPE.so"]
     erros = []
     for c in candidatos:

@@ -15,6 +15,7 @@ cd "$(dirname "$0")/.." || exit 1
 
 P=/opt/eduvision/venv/bin/python
 export PYTHONPATH="$HOME/pylibs"
+source "$(dirname "$0")/npu_env.sh"
 
 echo "=============================================="
 echo " Auditix IA, modo arena (identificacao na AIBOX)"

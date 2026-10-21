@@ -113,6 +113,12 @@ def abrir(qual=None, modelo=None):
     """Escolhe a fonte. `qual` vem do .env (OLHO=yolo|mediapipe)."""
     qual = (qual or os.environ.get("OLHO", "yolo")).strip().lower()
     if qual in ("yolo", "yolo11", "ultralytics"):
+        # VERSAO NPU: o YOLO-pose vai para a NPU se o pose.dlc subir; se nao,
+        # e o mesmo OlhoYolo de sempre na CPU (aibox/npu.py explica).
+        from . import npu                     # noqa: PLC0415
+        olho = npu.tentar(npu.OlhoNPU, "YOLO-pose")
+        if olho is not None:
+            return olho
         return OlhoYolo(modelo or os.environ.get("MODELO", "yolo11n-pose.onnx"))
     if qual in ("mediapipe", "mp"):
         return OlhoMediaPipe(modelo or MODELO_MP)
