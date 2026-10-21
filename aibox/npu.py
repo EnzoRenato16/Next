@@ -106,6 +106,7 @@ def _tipos(lib):
         "Snpe_TensorMap_GetTensor_Ref": (H, [H, P]),
         "Snpe_TensorMap_Clear": (None, [H]),
         "Snpe_TensorMap_Delete": (I, [H]),
+        "Snpe_ErrorCode_GetLastErrorString": (P, []),
         "Snpe_ErrorCode_getLastErrorString": (P, []),
     }
     for nome, (res, args) in sig.items():
@@ -116,7 +117,8 @@ def _tipos(lib):
 
 
 def _erro(lib, onde):
-    f = getattr(lib, "Snpe_ErrorCode_getLastErrorString", None)
+    f = getattr(lib, "Snpe_ErrorCode_GetLastErrorString", None) or \
+        getattr(lib, "Snpe_ErrorCode_getLastErrorString", None)
     msg = f().decode(errors="replace") if f else "?"
     return RuntimeError(f"SNPE: {onde}: {msg}")
 
