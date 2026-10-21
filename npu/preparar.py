@@ -78,7 +78,20 @@ def modelos():
             open(arc, "wb").write(f.read(nome))
     pose = os.path.join(TRAB, "yolo11n-pose.onnx")
     if not os.path.exists(pose):
+        import torch
         from ultralytics import YOLO
+        from ultralytics.nn.modules.head import Pose
+
+        # O kpts_decode normal fatia os canais de 3 em 3 (y[:, 2::3]), e o
+        # conversor do SNPE recusa esse Slice ("Stride is zero"). Esta versao
+        # faz a mesma conta com reshape, que vira operacoes que a NPU aceita.
+        def kpts_decode(self, bs, kpts):
+            y = kpts.view(bs, *self.kpt_shape, -1)
+            a = (y[:, :, :2] * 2.0 + (self.anchors - 0.5)) * self.strides
+            if self.kpt_shape[1] == 3:
+                a = torch.cat((a, y[:, :, 2:3].sigmoid()), 2)
+            return a.view(bs, self.nk, -1)
+        Pose.kpts_decode = kpts_decode
         cwd = os.getcwd()
         os.chdir(TRAB)
         YOLO("yolo11n-pose.pt").export(format="onnx", imgsz=POSE, opset=12,
