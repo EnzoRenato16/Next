@@ -391,10 +391,11 @@ class Rastreador:
 
 # ---------------------------------------------------------------- cameras
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps, latencia=0):
+    def __init__(self, indice, fonte, largura, altura, fps, latencia=0, codec=None):
         self.indice, self.fonte = indice, fonte
         self.largura, self.altura, self.fps = largura, altura, fps
         self.latencia = latencia
+        self.codec = codec      # None = o CAM_CODEC de sempre
         self.chegou = 0.0       # quando o quadro de agora saiu da camera
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
         self.cap = None
@@ -411,7 +412,7 @@ class Camera:
         if str(self.fonte).startswith("rtsp"):
             from aibox.gstcam import Gst
             self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True,
-                           latencia=self.latencia)
+                           latencia=self.latencia, codec=self.codec)
         else:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
@@ -719,6 +720,9 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:
 main>section{grid-area:palco;margin-bottom:12px} aside{grid-area:lado} #eventos{grid-area:ev}
 @media (max-width:900px){main{grid-template-columns:1fr;grid-template-areas:"palco" "lado" "ev";padding:12px}
   header{padding:12px}.dir{margin-left:0}}
+.vistas{display:flex;gap:6px;margin-bottom:8px}
+.vistas button{background:var(--caixa2);border-color:var(--linha);color:var(--fraco);font-weight:500;padding:5px 12px}
+.vistas button.ativa{background:var(--verde);border-color:var(--verde);color:#08231B;font-weight:600}
 .palco{position:relative;background:#000;border:1px solid var(--linha);border-radius:12px;
        overflow:hidden;line-height:0}
 .palco img{width:100%;height:auto;display:block}
@@ -777,6 +781,7 @@ button:disabled{opacity:.5;cursor:default;filter:none}
 <span class="pilula"><span class="ponto meio" id="conPonto"></span><span id="conTxt">conectando…</span></span></div></header>
 <main>
   <section>
+    <div class="vistas" id="vistas" hidden></div>
     <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras">
       <span class="pilula selo"><span class="ponto mal"></span>AO VIVO</span></div>
     <div class="legenda"><span><i style="color:#5FBF5F"></i>autorizado</span>
@@ -851,6 +856,15 @@ setInterval(async () => {
     txt('lat', e.lat_ms ? Math.round(e.lat_ms) + ' ms' : '--');
     cls('lat', e.lat_ms ? nivel(e.lat_ms, 500, 1000) : '');
     txt('tempo', e.tempo);
+    // TROCAR DE CAMERA NA TELA. So aparece com duas cameras ou mais. Muda o
+    // que a pagina MOSTRA, nunca o que a caixa analisa: as duas continuam
+    // sendo lidas e contando no placar.
+    if (e.cameras.length > 1) {
+      $('vistas').hidden = false;
+      html('vistas', [[0, 'as duas']].concat(e.cameras.map(c => [c.indice, 'câmera ' + c.indice]))
+        .map(([v, t]) => '<button type="button" data-vista="' + v + '"' +
+             (v === e.vista ? ' class="ativa"' : '') + '>' + t + '</button>').join(''));
+    }
     html('ev', e.eventos.map(evento).join('') || '<li class="vazio">nenhum evento ainda</li>');
     if (e.cadastro) {
       $('cad').hidden = false;
@@ -867,6 +881,15 @@ setInterval(async () => {
     cls('conPonto', 'ponto mal'); txt('conTxt', 'a caixa não responde');
   }
 }, 700);
+$('vistas').addEventListener('click', async ev => {
+  const b = ev.target.closest('button');
+  if (!b) return;
+  for (const x of $('vistas').children) x.classList.toggle('ativa', x === b);
+  try {
+    await fetch('/vista', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                           body: JSON.stringify({camera: Number(b.dataset.vista)})});
+  } catch (_) {}
+});
 $('cadBotao').addEventListener('click', async () => {
   $('cadBotao').disabled = true;
   $('cadMsg').textContent = 'começando…';
@@ -885,6 +908,7 @@ class Tela:
     def __init__(self, porta, preparo=False):
         self.jpeg, self.estado, self.clientes = None, {}, 0
         self.preparo, self.pedido = preparo, None
+        self.vista = 0          # camera mostrada na pagina: 0 = todas
         self._trava = threading.Lock()
         tela = self
 
@@ -895,6 +919,8 @@ class Tela:
                 pass
 
             def do_POST(self):
+                if self.path.startswith("/vista"):
+                    return self._vista()
                 # SO NO MODO PREPARO. Na prova (sem --preparo) cadastrar na
                 # hora e proibido, e a rota responde 403.
                 if not self.path.startswith("/cadastrar") or not tela.preparo:
@@ -910,6 +936,21 @@ class Tela:
                         corpo, cod = b'{"ok": true}', 200
                     else:
                         corpo, cod = b'{"erro": "falta o nome"}', 400
+                self.send_response(cod)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+
+            def _vista(self):
+                # Fora do modo preparo de proposito: escolher o que a tela
+                # mostra nao muda leitura, juiz nem placar.
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    tela.vista = max(0, int(json.loads(self.rfile.read(n) or b"{}").get("camera", 0)))
+                    corpo, cod = b'{"ok": true}', 200
+                except Exception:
+                    corpo, cod = b'{"erro": "camera invalida"}', 400
                 self.send_response(cod)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(corpo)))
@@ -1049,7 +1090,13 @@ def main():
         print(f"[arena] a galeria e do motor {modelo}, mas {e}")
         return 2
     juiz = Juiz(nomes, M, dono)
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.latencia)
+    # CODEC POR CAMERA. O CAM_CODEC e um so, e as duas cameras da arena nao
+    # falam o mesmo: a HAIZ manda H.264 e a Intelbras .108 manda H.265 no
+    # fluxo principal (21/10). Com um codec so, uma delas ficava "sem imagem".
+    # CAMERA_ARENA_CODEC e CAMERA_ARENA2_CODEC no .env; sem eles, o CAM_CODEC.
+    codecs = [os.environ.get("CAMERA_ARENA_CODEC" if i == 0 else f"CAMERA_ARENA{i + 1}_CODEC")
+              or None for i in range(len(fontes))]
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.latencia, codecs[i])
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)
@@ -1202,7 +1249,10 @@ def main():
                 fluido.marcar([(cx, *rotulo(juiz, ident, motivo))
                                for ident, cx, motivo in vistos])
             if (fluido is None or not fluido.ao_vivo(t0)) and tela.clientes:
-                quadro_tela[cam.indice] = desenhar(cv2, img, juiz, vistos, a.tela)
+                if tela.vista in (0, cam.indice) or len(cams) == 1:
+                    # So desenha a camera que a pagina mostra: a outra
+                    # continua analisada, mas nao paga redimensionar nem JPEG.
+                    quadro_tela[cam.indice] = desenhar(cv2, img, juiz, vistos, a.tela)
 
         agora = time.monotonic()
         for k in qps_cam:
@@ -1218,6 +1268,7 @@ def main():
             lat_ms=float(np.mean(latencias)) if latencias else 0.0,
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
             video_qps=fluido.qps(agora) if fluido is not None else None,
+            vista=tela.vista,
             cadastro=(dict(nomes=juiz.nomes, ativo=coleta is not None,
                            msg=(f"{coleta.nome}: {coleta.msg}" if coleta else cadastro_msg))
                       if a.preparo else None))
@@ -1225,7 +1276,9 @@ def main():
         if fluido is not None and fluido.ao_vivo(agora):
             quadro_tela.clear()         # a pagina esta no video fluido
         elif trabalhou and tela.clientes and quadro_tela:
-            partes = [quadro_tela[k] for k in sorted(quadro_tela)]
+            partes = [quadro_tela[k] for k in sorted(quadro_tela)
+                      if tela.vista in (0, k) or len(cams) == 1] or \
+                     [quadro_tela[k] for k in sorted(quadro_tela)]
             if len(partes) > 1:
                 alt = min(x.shape[0] for x in partes)
                 partes = [cv2.resize(x, (int(x.shape[1] * alt / x.shape[0]), alt))
