@@ -82,7 +82,7 @@ def configurar(motor="sface"):
     ARENA_LIMIAR escrito no .env da caixa era ignorado calado, e a calibracao
     do laboratorio nao valia nada."""
     global LIMIAR, LIMIAR_BAIXO, MARGEM, MINIMO, MINIMO_DESC, MAXIMO
-    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, FRENTE, TOPK, MOTOR
+    global MESMO_DESCONHECIDO, ROSTO_MIN, NOTA_MIN, FRENTE, TOPK, MOTOR, RECONFERIR_S
     MOTOR = motor
     sufixo = "" if motor == "sface" else "_" + motor.upper()
     alto, baixo = PADROES[motor]
@@ -109,11 +109,19 @@ def configurar(motor="sface"):
     # parece com varias: no laboratorio (20/10), um estranho chegou a 0,40
     # contra a melhor foto, acima do limiar de 0,36.
     TOPK = max(1, int(_num("ARENA_TOPK", "1")))
+    # SEGUIR PRIMEIRO, RECONHECER DEPOIS. Quem ja foi decidido (autorizado ou
+    # desconhecido) e medido de novo so a cada RECONFERIR_S segundos, e nao a
+    # todo quadro: o rastreador segue a pessoa e o nome vai junto. 0 = mede
+    # todo rosto bom, como sempre foi. Medir menos foi tentado em 20/10 sem
+    # trava e a pessoa nova que ocupava o lugar herdava o nome; as travas
+    # estao em Juiz.precisa_medir.
+    RECONFERIR_S = max(0.0, _num("ARENA_RECONFERIR_S", "0"))
 
 
 configurar()
 JANELA = 8                                      # media das ultimas leituras
 PERDIDA_S = 3.0          # trilha sem rosto ha mais que isso deixa a tela
+LACUNA_S = 0.6           # trilha que sumiu mais que isso volta a ser medida
 TAMANHO_MAX = 1.6        # rosto que muda mais que isso de largura: outra trilha
 SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
 # Reabrir camera e uma tentativa a cada 30 s, nunca em laco: a Intelbras
@@ -176,6 +184,8 @@ class Trilha:
         self.visto = -1e9       # ultima vez na tela (segundos desde o inicio)
         self.comeco = None      # primeira vez na tela
         self.motivo = ""        # por que a ultima leitura nao valeu
+        self.medido = -1e9      # ultima leitura medida (ARENA_RECONFERIR_S)
+        self.suspeita = False   # a ultima leitura discordou da decisao
 
 
 class Juiz:
@@ -193,6 +203,25 @@ class Juiz:
         # pessoa ja identificada nao some do placar.
         self.identificados = set()
         self.eventos = []
+        self.medidos = 0        # rostos bons medidos pelo modelo de rosto
+        self.poupados = 0       # rostos bons seguidos sem medir (RECONFERIR_S)
+
+    def precisa_medir(self, ident, agora):
+        """Este rosto bom precisa passar pelo modelo de rosto agora? Chamado
+        ANTES de atualizar t.visto. Com ARENA_RECONFERIR_S=0, sempre.
+
+        Quem ainda esta "analisando" e sempre medido. Quem ja foi decidido so
+        e pulado se nada indicar troca de pessoa na trilha:
+        - a trilha sumiu da tela por mais de LACUNA_S (quem volta pode ser
+          outra pessoa no mesmo lugar: foi o defeito de 20/10);
+        - a ultima leitura discordou da decisao (suspeita): a partir dai mede
+          todo quadro, e o _outro_rosto pega a troca como sempre pegou."""
+        t = self.trilhas.get(ident)
+        if RECONFERIR_S <= 0 or t is None or t.estado == "analisando" or t.suspeita:
+            return True
+        if agora - t.visto > LACUNA_S:
+            return True
+        return agora - t.medido >= RECONFERIR_S
 
     def trilha(self, ident, camera=0):
         t = self.trilhas.get(ident)
@@ -227,8 +256,25 @@ class Juiz:
         t.visto = max(t.visto, agora)
         if t.comeco is None:
             t.comeco = agora
+        t.medido = agora
+        self.medidos += 1
 
-        return self._decidir(t, agora)
+        ev = self._decidir(t, agora)
+        x = t.notas[-1] if t.notas else None
+        if x is None or not self.nomes:
+            t.suspeita = False
+        elif t.estado == "autorizado":
+            # So sai da suspeita com leitura que AUTORIZARIA sozinha (acima
+            # do LIMIAR, e o nome dela na frente). Com LIMIAR_BAIXO bastava
+            # um estranho parecido acertar 0,27 uma vez para voltar a pular
+            # por mais RECONFERIR_S: na simulacao, 16 s com o nome errado.
+            i = self.nomes.index(t.nome)
+            t.suspeita = not (x[i] >= LIMIAR and int(np.argmax(x)) == i)
+        elif t.estado == "desconhecido":
+            t.suspeita = bool(float(np.max(x)) >= LIMIAR_BAIXO)
+        else:
+            t.suspeita = False
+        return ev
 
     def _decidir(self, t, agora):
         if not self.nomes:
@@ -1201,6 +1247,9 @@ def main():
           f"nota = media das {TOPK} melhores fotos" if TOPK > 1 else
           f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
           f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido")
+    if RECONFERIR_S > 0:
+        print(f"[arena] quem ja foi decidido e medido de novo a cada {RECONFERIR_S:g} s "
+              "(ARENA_RECONFERIR_S); 0 mede todo quadro", flush=True)
     print(f"[arena] imagem ao vivo: http://<IP da caixa>:{a.porta}", flush=True)
 
     parar = threading.Event()
@@ -1277,6 +1326,9 @@ def main():
             ids = cam.rast.associar(caixas, t0)
             vistos, rostos = [], []
             for l, ident, cx in zip(linhas, ids, caixas):
+                # Antes de atualizar o visto: a lacuna desde a ultima vez na
+                # tela e uma das travas do RECONFERIR_S.
+                precisa = coleta is not None or juiz.precisa_medir(ident, t0 - inicio)
                 t = juiz.trilha(ident, cam.indice)
                 t.visto = max(t.visto, t0 - inicio)
                 if t.comeco is None:
@@ -1291,12 +1343,15 @@ def main():
                     print(f"   {ident} descartado: {motivo} ({float(l[2]):.0f} px,"
                           f" nota {float(l[14]):.2f}, virado {virado(l):.2f}"
                           f" de no maximo {FRENTE:.2f})", flush=True)
-                # TODO rosto bom e medido, mesmo de quem ja foi decidido. Medir
-                # menos quem ja tem nome foi tentado (20/10) e quebrou a troca
-                # de trilha: a pessoa nova que ocupa o lugar herdava o nome
-                # (ensaio com video: 4 de 4 virou 1 de 4).
+                # Por padrao TODO rosto bom e medido, mesmo de quem ja foi
+                # decidido. Medir menos quem ja tem nome foi tentado (20/10)
+                # sem trava e quebrou a troca de trilha: a pessoa nova que
+                # ocupa o lugar herdava o nome (4 de 4 virou 1 de 4). Com
+                # ARENA_RECONFERIR_S, as travas estao em Juiz.precisa_medir.
                 v = None
-                if boa:
+                if boa and not precisa:
+                    juiz.poupados += 1
+                elif boa:
                     v = medir(img, l)
                     if conferir and medir is not medir_cpu:
                         u = np.asarray(v, np.float32)
@@ -1424,6 +1479,8 @@ def main():
                  for c in cams],
         tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
         tempo_ate_decidir_s=tempo_ate_decidir(juiz.eventos),
+        reconferir_s=RECONFERIR_S, rostos_medidos=juiz.medidos,
+        rostos_poupados=juiz.poupados,
         conferencia_npu=conferencia(conf)[1] if conferir else None,
         limiares=dict(motor=MOTOR, limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO,
                       margem=MARGEM, minimo=MINIMO, minimo_desc=MINIMO_DESC,
@@ -1442,6 +1499,10 @@ def main():
     if td:
         print(f"  tempo ate decidir:         mediana {td['mediana']} s, pior {td['pior']} s"
               f" ({td['decisoes']} decisoes)")
+    if RECONFERIR_S > 0:
+        tot = juiz.medidos + juiz.poupados
+        print(f"  rostos medidos:            {juiz.medidos} de {tot}"
+              f" ({juiz.poupados} seguidos sem medir, ARENA_RECONFERIR_S={RECONFERIR_S:g})")
     if conferir:
         print(f"  NPU contra CPU:            {conferencia(conf)[0]}")
     print(f"  duracao:                   {relogio(resultado['duracao_s'])}")

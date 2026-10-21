@@ -384,6 +384,19 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   escolhe ao subir. **Nas duas:** 10 s no mínimo entre trocas
   (`TROCA_MIN_S`), por causa do bloqueio 403 da Intelbras; os botões ficam
   apagados nesse tempo. A troca da arena entra nos eventos ("camera: so a 2").
+- **Seguir primeiro, reconhecer depois: `ARENA_RECONFERIR_S`** (pedido do
+  Enzo em 21/10, desligado por padrão = 0). Quem já foi decidido só passa
+  pelo modelo de rosto de novo a cada N s; o rastreador leva o nome junto.
+  Travas em `Juiz.precisa_medir` (sem elas, foi o defeito de 20/10): mede
+  sempre quem está "analisando", quem sumiu da tela mais de `LACUNA_S`
+  (0,6 s) e a trilha SUSPEITA, cuja última leitura não autorizaria sozinha
+  (abaixo do `LIMIAR` ou outro nome na frente). Suspeita mede todo quadro
+  até a troca ser pega. `testes/arena_reconferir.py` simula com o Rastreador
+  e o Juiz de verdade (100 rodadas por cenário): com N=1, 75% menos rostos
+  medidos, o mesmo placar, e o estranho que herda a trilha fica com o nome
+  ~2 s, como com N=0. Sair da suspeita com o `LIMIAR_BAIXO` deixava um
+  estranho parecido 16 s com o nome errado. Vídeo com 6 rostos reais (SFace
+  na CPU do PC): 76 → 37 ms por quadro, 4 de 4 e 3 alertas nos dois.
 - **`testes/npu_yunet.py`** prova que o `decodificar_yunet` (o pós-processo
   escrito à mão para as 12 saídas cruas do `.dlc`) dá o MESMO resultado do
   `cv2.FaceDetectorYN` numa foto (diferença 0,0000), sem SNPE: roda no PC.
