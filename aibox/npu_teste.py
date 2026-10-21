@@ -71,14 +71,16 @@ def main():
               f"decodificar), {len(b)} rostos")
 
     arq = os.path.join(npu.NPU_DIR, "arcface.dlc")
-    if os.path.exists(arq) and a is not None and len(a):
+    if (os.path.exists(arq) or os.path.exists(arq.replace(".dlc", "_pc.dlc"))) and a is not None and len(a):
         from aibox.arcface import ArcFace
         linha = a[0].copy()
         linha[:14] /= e
         ref = ArcFace()
         va = ref.embedding(img, linha)
         print(f"\n[ArcFace] CPU: {tempo(lambda: ref.embedding(img, linha)):.0f} ms por rosto")
-        for nome in ("arcface.dlc", "arcface_a8.dlc"):
+        for nome in ("arcface_pc.dlc", "arcface_pce.dlc", "arcface.dlc", "arcface_a8.dlc"):
+            if not os.path.exists(os.path.join(npu.NPU_DIR, nome)):
+                continue
             q = npu.tentar(lambda: npu.ArcFaceNPU(os.path.join(npu.NPU_DIR, nome)), nome)
             if q:
                 vb = q.embedding(img, linha)

@@ -326,15 +326,19 @@ class ArcFaceNPU:
     """O ArcFace (w600k_mbf) na NPU. Mesma entrada do aibox/arcface.py: rosto
     alinhado 112x112, (x - 127,5) / 127,5, RGB.
 
-    ATENCAO: 8 bits muda um pouco os numeros. A galeria do ArcFace da CPU so
-    vale aqui se aibox/npu_conferir.py mostrar cosseno alto entre os dois
-    (>= 0,98); se nao, cadastre de novo com este motor ("arcface-npu")."""
+    Usa o arcface_pc.dlc (quantizado por canal) quando ele existe: no CI deu
+    cosseno 0,9989 com o original (pior 0,9965) e a galeria da CPU continua
+    valendo. O arcface.dlc (por camada) dava 0,973 e pedia recadastro."""
 
     def __init__(self, dlc=None):
         import cv2
         from aibox.arcface import MOLDE
         self.cv2, self.molde = cv2, MOLDE
-        self.rede = Rede(dlc or os.path.join(NPU_DIR, "arcface.dlc"))
+        if dlc is None:
+            dlc = os.path.join(NPU_DIR, "arcface_pc.dlc")
+            if not os.path.exists(dlc):
+                dlc = os.path.join(NPU_DIR, "arcface.dlc")
+        self.rede = Rede(dlc)
 
     def embedding(self, img, linha):
         cv2 = self.cv2
@@ -388,7 +392,10 @@ class OlhoNPU:
         # yaml puro: o yaml_load do Ultralytics mudou de nome entre versoes
         with open(check_yaml("bytetrack.yaml"), encoding="utf-8") as f:
             cfg = IterableSimpleNamespace(**yaml.safe_load(f))
-        self.trilhas = BYTETracker(cfg, frame_rate=30)
+        try:
+            self.trilhas = BYTETracker(cfg, frame_rate=30)
+        except TypeError:  # Ultralytics novo tirou o frame_rate
+            self.trilhas = BYTETracker(cfg)
 
     def ver(self, img):
         cv2 = self.cv2

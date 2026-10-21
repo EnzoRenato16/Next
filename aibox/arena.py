@@ -934,14 +934,15 @@ def main():
         print(f"[arena] a galeria e do motor {modelo}, mas {e}")
         return 2
     # VERSAO NPU: o YuNet vai para a NPU (tamanho fixo 1280x736, entao o
-    # ARENA_DETECCAO deixa de valer) e, so com NPU_ARCFACE=1, o ArcFace tambem.
-    # O ArcFace fica na CPU por padrao: 8 bits mudam os numeros e a galeria
-    # foi feita na CPU (ver relatorio.txt do pacote antes de ligar).
+    # ARENA_DETECCAO deixa de valer) e o ArcFace tambem, se o arcface_pc.dlc
+    # (por canal, cosseno 0,999 com a CPU: a galeria vale) estiver na caixa.
+    # NPU_ARCFACE=0 deixa o ArcFace na CPU.
     from aibox import npu
     det_npu = npu.tentar(npu.DetectorNPU, "YuNet")
     if det_npu is not None:
         motor.detect = det_npu.detect
-    if modelo == "arcface" and os.environ.get("NPU_ARCFACE", "0") == "1":
+    pc_ok = os.path.exists(os.path.join(npu.NPU_DIR, "arcface_pc.dlc"))
+    if modelo == "arcface" and os.environ.get("NPU_ARCFACE", "1" if pc_ok else "0") == "1":
         arc_npu = npu.tentar(npu.ArcFaceNPU, "ArcFace")
         if arc_npu is not None:
             medir = arc_npu.embedding
