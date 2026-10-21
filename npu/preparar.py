@@ -232,7 +232,7 @@ def gravar_lista(nome, arrays):
     return lista
 
 
-def quantizar(dlc, lista, saida, a16, saidas=None):
+def quantizar(dlc, lista, saida, a16, saidas=None, extra=()):
     """Quantiza e ja deixa pronto o "cache" do HTP V68 (o grafo compilado para
     a NPU), para a caixa nao compilar na hora. O cache guarda QUAIS saidas
     existem: sem --set_output_tensors ele so tem a ultima camada, e o YuNet
@@ -241,6 +241,7 @@ def quantizar(dlc, lista, saida, a16, saidas=None):
            "--output_dlc", saida]
     if a16:
         cmd += ["--act_bitwidth", "16"]
+    cmd += list(extra)
     if not saidas:
         cmd += ["--enable_htp", "--htp_socs", "qcs6490"]
     rodar(*cmd)
@@ -458,6 +459,15 @@ if __name__ == "__main__":
         quantizar(f, lista, os.path.join(SAIDA, f"{k}_a8.dlc"), a16=False, saidas=sai)
         if k != "yunet":
             quantizar(f, lista, os.path.join(SAIDA, f"{k}.dlc"), a16=True)
+        if k == "arcface":
+            # Tentativas de chegar mais perto do original (cosseno >= ~0.99),
+            # para a galeria que ja existe continuar valendo sem recadastro.
+            for suf, ext in (("pc", ["--use_per_channel_quantization"]),
+                             ("pce", ["--use_per_channel_quantization", "--use_enhanced_quantizer"])):
+                try:
+                    quantizar(f, lista, os.path.join(SAIDA, f"arcface_{suf}.dlc"), a16=True, extra=ext)
+                except SystemExit:
+                    diga(f"[arcface_{suf}.dlc] o quantizador recusou {ext}")
     shutil.copy(os.path.join(SAIDA, "yunet_a8.dlc"), os.path.join(SAIDA, "yunet.dlc"))
 
     # Comparacoes. Primeiro com NPU_RUNTIME=dsp (no x86 o SNPE pode emular o
@@ -471,7 +481,9 @@ if __name__ == "__main__":
             ("arcface", lambda: comparar_arcface(npu, ort.InferenceSession(MOD["arcface"]), pares, alvo,
                                                  [os.path.join(TRAB, "arcface_f.dlc"),
                                                   os.path.join(SAIDA, "arcface.dlc"),
-                                                  os.path.join(SAIDA, "arcface_a8.dlc")])),
+                                                  os.path.join(SAIDA, "arcface_a8.dlc")] +
+                                                 [os.path.join(SAIDA, f"arcface_{x}.dlc") for x in ("pc", "pce")
+                                                  if os.path.exists(os.path.join(SAIDA, f"arcface_{x}.dlc"))])),
             ("sala", lambda: TEM_POSE and comparar_olho(npu, coco[100:])),
             ("pose", lambda: TEM_POSE and comparar_pose(npu, ort.InferenceSession(MOD["pose"]), coco[100:],
                                            [os.path.join(TRAB, "pose_f.dlc"),
