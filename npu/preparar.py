@@ -88,10 +88,12 @@ def modelos():
         def kpts_decode(self, *args):          # (bs, kpts) ou (kpts), conforme a versao
             kpts = args[-1]
             bs = kpts.shape[0]
+            # Sem fatiar nada: o conversor tambem recusa y[:, :, :2] num
+            # tensor de 4 dimensoes. Split vira uma operacao que ele aceita.
             y = kpts.view(bs, *self.kpt_shape, -1)
-            a = (y[:, :, :2] * 2.0 + (self.anchors - 0.5)) * self.strides
-            if self.kpt_shape[1] == 3:
-                a = torch.cat((a, y[:, :, 2:3].sigmoid()), 2)
+            xy, vis = torch.split(y, [2, 1], dim=2)
+            a = (xy * 2.0 + (self.anchors - 0.5)) * self.strides
+            a = torch.cat((a, vis.sigmoid()), 2)
             return a.view(bs, self.nk, -1)
         Pose.kpts_decode = kpts_decode
         cwd = os.getcwd()
