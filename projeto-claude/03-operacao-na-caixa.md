@@ -114,6 +114,33 @@ $P aibox/galeria.py conferir
 - `NUCLEOS=grandes` agora também vale na arena (rosto nos 4 núcleos grandes,
   decodificação nos 4 pequenos). Só deixar no `.env` se `ms` cair.
 
+## Deixar a caixa mais rápida (uma vez, no laboratório)
+
+Na ordem. Cada passo é independente: se um não der certo, siga para o próximo.
+Antes de cada um, anote o `ms` e a `latencia` da linha de status da arena
+(`bash aibox/arena.sh --segundos 60`), para comparar depois.
+
+1. **Vídeo decodificado pelo hardware da caixa.** Com a arena parada:
+
+   ```bash
+   $P aibox/acelerar.py
+   ```
+
+   Ele testa por 20 s, com uma conexão só. Se aparecer `FUNCIONOU`, já ficou
+   ligado no `.env`. Abra a arena e olhe a imagem da página: se estiver
+   estranha (blocos, cores erradas), `$P aibox/acelerar.py --desfazer`.
+2. **HAIZ no tamanho que a arena usa.** No navegador do PC, abra
+   `http://192.168.50.109` e entre com o usuário da câmera. Em Configuração →
+   Codificação (o nome pode variar: "Encode", "Vídeo"), no **fluxo principal**:
+   resolução **1080P (1920x1080)** e **12 quadros/s**. Salve. O caminho
+   RTSP no `.env` não muda. Se a página da câmera pedir plugin ou não abrir,
+   pule este passo.
+3. **Núcleos.** `$P aibox/medir.py --nucleos`. Se ele disser `GANHA`, ponha
+   `NUCLEOS=grandes` no `.env`; se disser `NAO GANHA`, não mexa.
+4. **Sala e arena nunca juntas.** O `arena.sh` já para a sala sozinho antes de
+   começar. Depois da arena, se quiser a sala de novo:
+   `bash aibox/servico.sh iniciar`.
+
 ## Problemas conhecidos
 
 | sintoma | causa | o que fazer |
