@@ -95,6 +95,61 @@ class Camera:
             return None
 
 
+class Isapi:
+    """O mesmo, pela API "Hikvision" (ISAPI), que a pagina /doc/page/main.html
+    da HAIZ sugere. Uma conexao com Digest; so GET ate o --mudar."""
+
+    def __init__(self, ip, usuario, senha):
+        import urllib.request
+        self.base = f"http://{ip}"
+        gerente = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+        gerente.add_password(None, self.base, usuario, senha)
+        self.ab = urllib.request.build_opener(urllib.request.HTTPDigestAuthHandler(gerente),
+                                              urllib.request.HTTPBasicAuthHandler(gerente))
+
+    def get(self, caminho):
+        return self.ab.open(self.base + caminho, timeout=8).read().decode("utf-8", "replace")
+
+    def put(self, caminho, xml):
+        import urllib.request
+        r = urllib.request.Request(self.base + caminho, data=xml.encode(), method="PUT",
+                                   headers={"Content-Type": "application/xml"})
+        return self.ab.open(r, timeout=8).read().decode("utf-8", "replace")
+
+
+def tag(xml, nome):
+    m = re.search(rf"<{nome}>([^<]*)</{nome}>", xml)
+    return m.group(1) if m else None
+
+
+def isapi(a, ip, usuario, senha):
+    api = Isapi(ip, usuario, senha)
+    caminho = "/ISAPI/Streaming/channels/101"
+    xml = api.get(caminho)
+    def res(x):
+        fps = tag(x, "maxFrameRate")
+        return (f"{tag(x, 'videoResolutionWidth')}x{tag(x, 'videoResolutionHeight')} a "
+                f"{int(fps) / 100 if fps else '?'} quadros/s, {tag(x, 'videoCodecType')}")
+    print(f"camera {ip} (ISAPI), fluxo principal agora: {res(xml)}")
+    antes = ANTES.replace(".json", ".xml")
+    if a.voltar:
+        print("voltei:", tag(api.put(caminho, open(antes).read()), "statusString"))
+        print("agora:", res(api.get(caminho)))
+        return 0
+    if not a.mudar:
+        return 0
+    if not os.path.exists(antes):
+        open(antes, "w").write(xml)
+        print(f"guardei o antes em {antes}")
+    w, h = {"1080P": (1920, 1080), "720P": (1280, 720)}.get(a.resolucao, (1920, 1080))
+    novo = re.sub(r"<videoResolutionWidth>\d+<", f"<videoResolutionWidth>{w}<", xml)
+    novo = re.sub(r"<videoResolutionHeight>\d+<", f"<videoResolutionHeight>{h}<", novo)
+    novo = re.sub(r"<maxFrameRate>\d+<", f"<maxFrameRate>{a.fps * 100}<", novo)
+    print("gravei:", tag(api.put(caminho, novo), "statusString"))
+    print("agora:", res(api.get(caminho)))
+    return 0
+
+
 def resumo(enc):
     v = enc[0]["MainFormat"]["Video"]
     return f"{v.get('Resolution')} a {v.get('FPS')} quadros/s, {v.get('Compression')}, {v.get('BitRate')} kbps"
@@ -108,6 +163,12 @@ def main():
     p.add_argument("--fps", type=int, default=12)
     a = p.parse_args()
     ip, usuario, senha = credenciais()
+    # 1o a ISAPI (a pagina da HAIZ e de cara Hikvision). A porta 34567
+    # (Xiongmai) aceitou conexao mas nao respondeu ao login em 21/10.
+    try:
+        return isapi(a, ip, usuario, senha)
+    except Exception as e:
+        print(f"ISAPI nao respondeu ({type(e).__name__}: {str(e)[:120]}); tentando o DVRIP")
     cam = Camera(ip)
     cam.entrar(usuario, senha)
     enc = cam.ler("Simplify.Encode")
