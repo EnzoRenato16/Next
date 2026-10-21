@@ -695,81 +695,177 @@ def desenhar(cv2, img, juiz, vistos, largura_tela):
 PAGINA = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Auditix IA na arena</title><style>
+/* Leve de proposito: nada de blur, sombra grande, fonte de fora ou animacao
+   continua. A pagina roda ao lado do video e nao pode pesar no navegador. */
 :root{color-scheme:dark;--verde:#5FBFA0;--rubi:#E8707F;--ambar:#E5C07B;
-      --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;--fraco:#8FB3A7}
+      --fundo:#0B1310;--caixa:#12241F;--caixa2:#183029;--linha:#24453B;
+      --texto:#E3F2EC;--fraco:#8FB3A7;--apagado:#5E7F74}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 body{margin:0;background:var(--fundo);color:var(--texto);
      font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 18px;
-       border-bottom:1px solid var(--linha)}
-h1{margin:0;font-size:21px}h1 i{font-style:normal;color:var(--verde)}
-.sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px}
-@media (max-width:900px){main{grid-template-columns:1fr}}
-.palco{background:#000;border:1px solid var(--linha);border-radius:12px;overflow:hidden;line-height:0}
-.palco img{width:100%;height:auto}
+.num{font-variant-numeric:tabular-nums}
+header{display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap;padding:12px 20px;
+       border-bottom:1px solid var(--linha);background:var(--caixa)}
+h1{margin:0;font-size:20px;letter-spacing:.01em}h1 i{font-style:normal;color:var(--verde)}
+.sub{color:var(--fraco);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase}
+.dir{margin-left:auto;display:flex;align-items:center;gap:10px}
+.pilula{display:inline-flex;align-items:center;gap:7px;padding:3px 11px;border-radius:99px;
+        border:1px solid var(--linha);background:var(--fundo);font-size:12.5px;color:var(--fraco)}
+.ponto{width:8px;height:8px;border-radius:50%;background:var(--verde);flex:none}
+.ponto.mal{background:var(--rubi)} .ponto.meio{background:var(--ambar)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;grid-template-areas:"palco lado" "ev lado";
+     grid-template-rows:auto 1fr;gap:0 16px;padding:16px 20px;align-items:start;max-width:1800px;margin:0 auto}
+main>section{grid-area:palco;margin-bottom:12px} aside{grid-area:lado} #eventos{grid-area:ev}
+@media (max-width:900px){main{grid-template-columns:1fr;grid-template-areas:"palco" "lado" "ev";padding:12px}
+  header{padding:12px}.dir{margin-left:0}}
+.palco{position:relative;background:#000;border:1px solid var(--linha);border-radius:12px;
+       overflow:hidden;line-height:0}
+.palco img{width:100%;height:auto;display:block}
+.selo{position:absolute;top:10px;left:10px;line-height:1.4;background:rgba(0,0,0,.6);
+      color:#fff;border-color:transparent;font-weight:600;letter-spacing:.08em}
+.legenda{display:flex;gap:16px;flex-wrap:wrap;padding:8px 2px 0;font-size:12.5px;color:var(--fraco)}
+.legenda span{display:inline-flex;align-items:center;gap:6px}
+.legenda i{width:12px;height:12px;border:2px solid;border-radius:2px}
 .n{background:var(--caixa);border:1px solid var(--linha);border-radius:12px;padding:14px 16px;margin-bottom:12px}
-.n b{display:block;font-size:40px;line-height:1.1;font-variant-numeric:tabular-nums}
-.n span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
-#aut b{color:var(--verde)} #desc b{color:var(--rubi)}
-.nomes{margin-top:6px;font-size:14px}
-.cam{display:flex;justify-content:space-between;font-size:14px}
-.ok{color:var(--verde)} .mal{color:var(--rubi)}
-ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
-.morto{opacity:.4}
+.rot{display:block;color:var(--fraco);font-size:11.5px;letter-spacing:.12em;text-transform:uppercase}
+.grande{display:flex;align-items:baseline;gap:8px;margin:2px 0}
+.grande b{font-size:40px;line-height:1.1}
+.grande small{color:var(--fraco);font-size:16px}
+#aut .grande b{color:var(--verde)}
+.barra{height:6px;border-radius:3px;background:var(--caixa2);overflow:hidden;margin:8px 0 10px}
+.barra div{height:100%;width:0;background:var(--verde);border-radius:3px;transition:width .4s}
+.fichas{display:flex;flex-wrap:wrap;gap:6px}
+.ficha{padding:2px 10px;border-radius:99px;font-size:13px;background:var(--caixa2);border:1px solid var(--linha)}
+.ficha.ok{border-color:rgba(95,191,160,.45)} .ficha.mal{border-color:rgba(232,112,127,.5);color:var(--rubi)}
+.vazio{color:var(--apagado);font-size:13.5px}
+#desc.alerta{border-color:rgba(232,112,127,.55);background:#2A1A1E}
+#desc .grande b{color:var(--fraco)} #desc.alerta .grande b{color:var(--rubi)}
+.linha{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px;padding:4px 0}
+.linha+.linha{border-top:1px solid var(--caixa2)}
+.linha span{display:inline-flex;align-items:center;gap:8px}
+.linha b{font-weight:600}
+.ok{color:var(--verde)} .mal{color:var(--rubi)} .meio{color:var(--ambar)}
+.metricas{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+.metricas div{background:var(--caixa2);border-radius:8px;padding:8px 10px}
+.metricas small{display:block;color:var(--fraco);font-size:11.5px;line-height:1.3}
+.metricas b{font-size:16px;font-weight:600}
+.cad{display:flex;gap:8px;margin-top:8px}
+select,button{font:inherit;font-size:14px;color:var(--texto);background:var(--caixa2);
+              border:1px solid var(--linha);border-radius:8px;padding:7px 10px}
+select{flex:1;min-width:0}
+button{background:var(--verde);border-color:var(--verde);color:#08231B;font-weight:600;cursor:pointer}
+button:hover{filter:brightness(1.08)}
+button:disabled{opacity:.5;cursor:default;filter:none}
+#cadMsg{margin-top:6px;font-size:13px;color:var(--fraco)}
+#ev{list-style:none;margin:8px 0 0;padding:0}
+#ev li{display:grid;grid-template-columns:auto auto 1fr;gap:8px;align-items:baseline;
+       font-size:13.5px;padding:6px 0;color:var(--fraco)}
+#ev li+li{border-top:1px solid var(--caixa2)}
+#ev li:first-child{color:var(--texto)}
+#ev li.vazio{display:block;color:var(--apagado)}
+#ev time{font-size:12.5px;color:var(--apagado)}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+     padding:1px 6px;border-radius:4px;background:var(--caixa2);color:var(--fraco)}
+.tag.ok{background:rgba(95,191,160,.16);color:var(--verde)}
+.tag.mal{background:rgba(232,112,127,.16);color:var(--rubi)}
+.tag.meio{background:rgba(229,192,123,.14);color:var(--ambar)}
+.morto main{opacity:.45}
 </style>
 <header><h1>Audit<i>ix</i> IA</h1><span class="sub">arena · identificação na AI BOX</span>
-<span class="sub" id="tempo"></span></header>
+<div class="dir"><span class="pilula" title="tempo desde o começo"><span class="num" id="tempo">--:--</span></span>
+<span class="pilula"><span class="ponto meio" id="conPonto"></span><span id="conTxt">conectando…</span></span></div></header>
 <main>
-  <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras"></div>
+  <section>
+    <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras">
+      <span class="pilula selo"><span class="ponto mal"></span>AO VIVO</span></div>
+    <div class="legenda"><span><i style="color:#5FBF5F"></i>autorizado</span>
+      <span><i style="color:#EB4646"></i>desconhecido</span>
+      <span><i style="color:#EBBE28"></i>analisando</span>
+      <span><i style="color:#969696"></i>longe demais para ler</span></div>
+  </section>
   <aside>
-    <div class="n" id="aut"><b id="nAut">--</b><span>autorizados identificados</span>
-      <div class="nomes" id="nomes"></div></div>
-    <div class="n" id="desc"><b id="nDesc">--</b><span>alertas de desconhecido</span></div>
-    <div class="n"><span>câmeras</span><div id="cams"></div></div>
-    <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
-      <div class="cam" id="linhaVideo" hidden><span>vídeo</span><b id="vqps" style="font-size:15px">--</b></div>
-      <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div>
-      <div class="cam"><span>latência (quadro → decisão)</span><b id="lat" style="font-size:15px">--</b></div></div>
-    <div class="n" id="cad" hidden><span>cadastro (modo preparo)</span>
-      <div style="display:flex;gap:8px;margin-top:8px"><select id="cadNome" style="flex:1"></select>
+    <div class="n" id="aut"><span class="rot">autorizados identificados</span>
+      <div class="grande num"><b id="nAut">--</b><small id="nTot"></small></div>
+      <div class="barra"><div id="barra"></div></div>
+      <div class="fichas" id="nomes"></div></div>
+    <div class="n" id="desc"><span class="rot">alertas de desconhecido</span>
+      <div class="grande num"><b id="nDesc">--</b></div>
+      <div class="fichas" id="descs"></div></div>
+    <div class="n"><span class="rot">câmeras</span><div id="cams"></div></div>
+    <div class="n"><span class="rot">desempenho</span>
+      <div class="metricas num">
+        <div><small>análise</small><b id="qps">--</b></div>
+        <div id="linhaVideo" hidden><small>vídeo</small><b id="vqps">--</b></div>
+        <div><small>tempo por quadro</small><b id="ms">--</b></div>
+        <div><small>latência (quadro → decisão)</small><b id="lat">--</b></div></div></div>
+    <div class="n" id="cad" hidden><span class="rot">cadastro (modo preparo)</span>
+      <div class="cad"><select id="cadNome"></select>
       <button id="cadBotao" type="button">Cadastrar</button></div>
-      <div id="cadMsg" class="nomes" style="color:var(--fraco)"></div></div>
-    <div class="n"><span>últimos eventos</span><ol id="ev"></ol></div>
+      <div id="cadMsg"></div></div>
   </aside>
+  <div class="n" id="eventos"><span class="rot">últimos eventos</span><ul id="ev"></ul></div>
 </main>
 <script>
 const $ = i => document.getElementById(i);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// So mexe no DOM quando o texto muda: a pagina pergunta 1,4 vez por segundo e
+// quase sempre nada mudou. Assim o navegador nao redesenha a lateral a toa.
+const html = (id, h) => { const el = $(id); if (el._h !== h) { el._h = h; el.innerHTML = h; } };
+const txt = (id, t) => { const el = $(id); if (el.textContent !== t) el.textContent = t; };
+const cls = (id, c) => { const el = $(id); if (el.className !== c) el.className = c; };
+const nivel = (v, bom, ruim) => v <= bom ? 'ok' : v <= ruim ? 'meio' : 'mal';
+const TIPOS = [[' AUTORIZADO ', 'autorizado', 'ok'], [' ALERTA ', 'alerta', 'mal']];
+function evento(x) {
+  const s = String(x), hora = s.slice(0, 5);
+  let resto = s.slice(5), tag = 'trilha', c = 'meio';
+  for (const [k, nome, cor] of TIPOS)
+    if (resto.startsWith(k)) { resto = resto.slice(k.length); tag = nome; c = cor; break; }
+  return '<li><time class="num">' + esc(hora) + '</time><span class="tag ' + c + '">' + tag +
+         '</span><span>' + esc(resto.trim()) + '</span></li>';
+}
 setInterval(async () => {
   try{
     const e = await (await fetch('/estado')).json();
-    $('nAut').textContent = e.autorizados.length + ' de ' + e.total_autorizados;
-    $('nomes').innerHTML = e.autorizados.map(esc).join('<br>') || '—';
-    $('nDesc').textContent = e.desconhecidos.length;
-    $('cams').innerHTML = e.cameras.map(c => '<div class="cam"><span>câmera ' + c.indice +
-      '</span><b class="' + (c.estado === 'ok' ? 'ok' : 'mal') + '" style="font-size:15px">' +
-      esc(c.estado) + ' · ' + c.qps.toFixed(1) + '/s</b></div>').join('');
-    $('qps').textContent = e.qps.toFixed(1) + ' leituras/s';
+    txt('nAut', String(e.autorizados.length));
+    txt('nTot', 'de ' + e.total_autorizados);
+    const largura = (e.total_autorizados ? 100 * e.autorizados.length / e.total_autorizados : 0) + '%';
+    if ($('barra').style.width !== largura) $('barra').style.width = largura;
+    html('nomes', e.autorizados.map(n => '<span class="ficha ok">✓ ' + esc(n) + '</span>').join('') ||
+                  '<span class="vazio">ninguém identificado ainda</span>');
+    txt('nDesc', String(e.desconhecidos.length));
+    cls('desc', 'n' + (e.desconhecidos.length ? ' alerta' : ''));
+    html('descs', e.desconhecidos.map(n => '<span class="ficha mal">#' + esc(n) + '</span>').join(''));
+    html('cams', e.cameras.map(c => {
+      const cor = c.estado === 'ok' ? 'ok' : c.estado === 'abrindo' ? 'meio' : 'mal';
+      return '<div class="linha"><span><span class="ponto ' + cor + '"></span>câmera ' + c.indice +
+        '</span><b class="num ' + cor + '">' + esc(c.estado) + ' · ' + c.qps.toFixed(1) + '/s</b></div>';
+    }).join(''));
+    txt('qps', e.qps.toFixed(1) + ' leituras/s');
     if (e.video_qps != null) {
       $('linhaVideo').hidden = false;
-      $('vqps').textContent = e.video_qps.toFixed(1) + ' quadros/s';
+      txt('vqps', e.video_qps.toFixed(1) + ' quadros/s');
     }
-    $('ms').textContent = Math.round(e.ms) + ' ms';
-    $('lat').textContent = Math.round(e.lat_ms) + ' ms';
-    $('tempo').textContent = e.tempo;
-    $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
+    txt('ms', e.ms ? Math.round(e.ms) + ' ms' : '--');
+    cls('ms', e.ms ? nivel(e.ms, 350, 700) : '');
+    txt('lat', e.lat_ms ? Math.round(e.lat_ms) + ' ms' : '--');
+    cls('lat', e.lat_ms ? nivel(e.lat_ms, 500, 1000) : '');
+    txt('tempo', e.tempo);
+    html('ev', e.eventos.map(evento).join('') || '<li class="vazio">nenhum evento ainda</li>');
     if (e.cadastro) {
       $('cad').hidden = false;
       const sel = $('cadNome');
       if (sel.options.length !== e.cadastro.nomes.length)
         sel.innerHTML = e.cadastro.nomes.map(n => '<option>' + esc(n) + '</option>').join('');
       $('cadBotao').disabled = e.cadastro.ativo;
-      $('cadMsg').textContent = e.cadastro.msg || '';
+      txt('cadMsg', e.cadastro.msg || '');
     }
     document.body.classList.remove('morto');
-  }catch(_){ document.body.classList.add('morto'); }
+    cls('conPonto', 'ponto'); txt('conTxt', 'conectado');
+  }catch(_){
+    document.body.classList.add('morto');
+    cls('conPonto', 'ponto mal'); txt('conTxt', 'a caixa não responde');
+  }
 }, 700);
 $('cadBotao').addEventListener('click', async () => {
   $('cadBotao').disabled = true;
