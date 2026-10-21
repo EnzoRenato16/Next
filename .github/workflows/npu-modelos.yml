@@ -1,0 +1,31 @@
+# Versao NPU: converte os modelos (ONNX) para DLC quantizado do SNPE 2.12, o
+# mesmo SNPE que a AIBOX tem. Roda aqui porque o conversor so existe para
+# Linux x86 e precisa baixar o SDK da Qualcomm.
+name: npu-modelos
+on:
+  push:
+    branches: [npu/divisao-npu-cpu]
+    paths: ['npu/**', '.github/workflows/npu-modelos.yml']
+  workflow_dispatch:
+
+jobs:
+  converter:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.8'
+      - name: baixar SNPE 2.12
+        run: |
+          set -x
+          for u in \
+            https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v2.12.0.230626.zip \
+            https://softwarecenter.qualcomm.com/api/download/software/qualcomm_neural_processing_sdk/v2.12.4.230825.zip ; do
+            curl -sSL -o snpe.zip -w '%{http_code} %{size_download}\n' "$u" && unzip -tq snpe.zip >/dev/null 2>&1 && break
+          done
+          ls -la snpe.zip
+          unzip -q snpe.zip -d sdk
+          find sdk -maxdepth 3 | head -40
+          find sdk -maxdepth 5 -name 'snpe-onnx-to-dlc' -o -maxdepth 5 -name 'snpe-dlc-quantize' -o -maxdepth 5 -name 'snpe-net-run' | head
+          ls sdk/*/*/lib | head -40
