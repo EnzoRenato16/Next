@@ -205,8 +205,8 @@ REM So LE ~/auditix. cp -n nao sobrescreve nada que ja exista em ~/auditix-npu,
 REM e nada e gravado em ~/auditix: a versao atual fica intacta para a final.
 ssh %CAIXA% "mkdir -p ~/auditix-npu/daten ~/auditix-npu/arena && cp -n ~/auditix/.env ~/auditix-npu/.env; cp -rn ~/auditix/daten/models ~/auditix-npu/daten/; cp -rn ~/auditix/treino ~/auditix-npu/ 2>/dev/null; cp ~/auditix/arena/galeria.json ~/auditix-npu/arena/galeria.json 2>/dev/null; ls -la ~/auditix-npu/arena/galeria.json; ls -la ~/auditix-npu ~/auditix-npu/daten/models"
 echo.
-echo    O .env so e copiado na PRIMEIRA vez. Diferencas entre o .env atual (~/auditix, com <) e o da NPU (>), senhas escondidas:
-ssh %CAIXA% "diff ~/auditix/.env ~/auditix-npu/.env | sed -E 's/(password=)[^&]*/\1***/; s/(CAM_PW=).*/\1***/; s/(rtsp:\/\/[^:\/@]+:)[^@]*@/\1***@/' || true; echo (fim da comparacao: nada acima = iguais)"
+echo    O .env so e copiado na PRIMEIRA vez. Diferencas entre o .env atual da caixa e o da NPU, senhas escondidas:
+ssh %CAIXA% "diff ~/auditix/.env ~/auditix-npu/.env | sed -E 's/(password=)[^&]*/\1***/; s/(CAM_PW=).*/\1***/; s/(rtsp:\/\/[^:\/@]+:)[^@]*@/\1***@/' || true; echo fim da comparacao, nada acima = iguais"
 echo    Se um limiar mudou em ~/auditix depois da copia, copie a linha para ~/auditix-npu/.env na mao (nano ~/auditix-npu/.env).
 goto fim
 
