@@ -58,6 +58,14 @@ main{padding:20px;max-width:1100px;margin:0 auto}
 .n span{color:var(--fraco);font-size:11.5px;letter-spacing:.09em;text-transform:uppercase}
 .nota{margin-top:16px;color:var(--fraco);font-size:13.5px;max-width:70ch}
 .morto{color:#E08A9B}
+.usar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.usar>span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-right:4px}
+.usar button{background:var(--caixa);border:1px solid var(--linha);color:var(--fraco);border-radius:8px;
+             padding:5px 12px;font:inherit;font-size:14px;cursor:pointer}
+.usar button.ativa{background:var(--verde);border-color:var(--verde);color:#08231B;font-weight:600}
+.usar button:disabled{opacity:.5;cursor:default}
+.usar em{color:var(--fraco);font-size:13px}
+[hidden]{display:none!important}
 </style>
 <header>
   <h1>Audit<i>ix</i> IA</h1>
@@ -65,6 +73,8 @@ main{padding:20px;max-width:1100px;margin:0 auto}
   <nav id="atalhos"></nav>
 </header>
 <main>
+  <div class="usar" id="usar" hidden><span>câmera</span><span id="usarBotoes"></span>
+    <em id="usarMsg"></em></div>
   <div class="palco"><img src="/video" alt="imagem ao vivo da camera da sala"></div>
   <div class="nums">
     <div class="n"><b id="fps">--</b><span>analise/s</span></div>
@@ -131,9 +141,33 @@ setInterval(async () => {
         '<a href="' + e.servidor + '/painel">Painel de eventos</a>' +
         '<a href="' + e.servidor + '/cadeia">Conferir a cadeia</a>';
     }
+    /* ESCOLHER A CAMERA. So com duas. A sala analisa UMA por vez: trocar
+       fecha a de agora e abre a outra, e as pessoas comecam do zero. */
+    if(e.cameras_n > 1){
+      $('usar').hidden = false;
+      const chave = e.cameras_n + '|' + e.usando + '|' + (e.troca_espera > 0);
+      if($('usarBotoes').dataset.chave !== chave){
+        $('usarBotoes').dataset.chave = chave;
+        let h = '';
+        for(let i = 1; i <= e.cameras_n; i++)
+          h += '<button type="button" data-camera="' + i + '"' + (i === e.usando ? ' class="ativa"' : '') +
+               (e.troca_espera > 0 ? ' disabled' : '') + '>câmera ' + i + '</button>';
+        $('usarBotoes').innerHTML = h;
+      }
+      $('usarMsg').textContent = e.troca_msg || '';
+    }
     document.body.classList.remove('morto');
   }catch(_){ document.body.classList.add('morto'); }
 }, 1000);
+$('usarBotoes').addEventListener('click', async ev => {
+  const b = ev.target.closest('button');
+  if(!b || b.disabled) return;
+  $('usarMsg').textContent = 'trocando…';
+  try{
+    await fetch('/camera', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({camera: Number(b.dataset.camera)})});
+  }catch(_){ $('usarMsg').textContent = 'a caixa não respondeu'; }
+});
 </script>
 """.encode("utf-8")   # a pagina tem acento; bytes literal so aceita ASCII
 
@@ -147,8 +181,11 @@ class Vivo:
         self.estado = dict(fps=0.0, rede=0.0, analise=0.0, cpu=0.0,
                            ram=0.0, corpos=0, enviados=0, falhas=0,
                            pendentes=0, ultimo_ms=None, video=0.0,
-                           servidor="", imagem="", detalhe=None)
+                           servidor="", imagem="", detalhe=None,
+                           cameras_n=1, usando=1, troca_msg="")
         self.clientes = 0
+        self._pedido = None         # camera pedida pela pagina, o laco aplica
+        self._troca_ate = 0.0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))
         self._srv.daemon_threads = True
@@ -164,6 +201,23 @@ class Vivo:
         quando quem desenha o video e o Pintor (--fluido)."""
         with self._trava:
             self.estado.update(estado)
+
+    def cameras(self, n, usando):
+        with self._trava:
+            self.estado.update(cameras_n=n, usando=usando)
+
+    def pedido_camera(self):
+        """A camera que a pagina pediu (e esquece o pedido), ou None."""
+        with self._trava:
+            p, self._pedido = self._pedido, None
+            return p
+
+    def troca(self, usando, msg, espera_s):
+        import time
+        with self._trava:
+            self.estado.update(usando=usando, troca_msg=msg)
+            if espera_s:
+                self._troca_ate = max(self._troca_ate, time.monotonic() + espera_s)
 
     def pegar(self):
         with self._trava:
@@ -256,12 +310,35 @@ def _fabricar(vivo):
             """Calado. O log do laco e o que importa nesta janela, e uma linha
             por quadro do MJPEG esconderia qualquer alerta de queda."""
 
+        def do_POST(self):
+            # So a troca de camera. Fica na caixa (e nao no servidor do PC)
+            # porque e a caixa que abre a camera.
+            if not self.path.startswith("/camera"):
+                corpo, cod = b'{"erro": "rota desconhecida"}', 404
+            else:
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    pedido = int(json.loads(self.rfile.read(n) or b"{}").get("camera", 0))
+                    with vivo._trava:
+                        vivo._pedido = pedido
+                    corpo, cod = b'{"ok": true}', 200
+                except Exception:
+                    corpo, cod = b'{"erro": "camera invalida"}', 400
+            self.send_response(cod)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(corpo)))
+            self.end_headers()
+            self.wfile.write(corpo)
+
         def do_GET(self):
             if self.path.startswith("/video"):
                 return self._video()
             if self.path.startswith("/estado"):
+                import time
                 with vivo._trava:
-                    corpo = json.dumps(vivo.estado).encode()
+                    est = dict(vivo.estado,
+                               troca_espera=max(0.0, vivo._troca_ate - time.monotonic()))
+                    corpo = json.dumps(est).encode()
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(corpo)))

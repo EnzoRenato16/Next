@@ -72,7 +72,7 @@ class OlhoFalso:
         pass
 
 
-sala.abrir_camera = lambda fonte: CameraFalsa()
+sala.abrir_camera = lambda fonte, codec=None: CameraFalsa()
 sala.olho_mod.abrir = lambda qual=None, modelo=None: OlhoFalso()
 
 s = socket.socket(); s.bind(("127.0.0.1", 0)); porta = s.getsockname()[1]; s.close()

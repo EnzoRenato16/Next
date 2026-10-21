@@ -123,6 +123,10 @@ SEM_IMAGEM_S = 3.0       # camera sem quadro ha mais que isso: "sem imagem"
 REABRIR_S = 30.0
 MARCA_MAX_S = 0.8        # video fluido: caixa mais velha que isso nao e desenhada
 REABRIR_MAX_S = 300.0
+# TROCAR A CAMERA PELA PAGINA abre uma conexao nova. A Intelbras bloqueia o IP
+# (403) depois de conexoes seguidas (armadilha 5 do CLAUDE.md): entre duas
+# trocas, no minimo isto.
+TROCA_MIN_S = 10.0
 
 
 # --------------------------------------------------------------- qualidade
@@ -414,8 +418,12 @@ def como_gst(q, largura, altura):
 
 
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps, como_caixa=False, codec=None):
+    def __init__(self, indice, fonte, largura, altura, fps, como_caixa=False, codec=None,
+                 ligada=True):
         self.indice, self.fonte = indice, fonte
+        # LIGADA = a caixa le e analisa esta camera. Desligada pela pagina, a
+        # conexao FECHA: nao decodifica nada e nao gasta CPU.
+        self.ligada = ligada
         self.largura, self.altura, self.fps = largura, altura, fps
         # Codec POR camera (CAMERA_ARENA_CODEC / CAMERA_ARENA2_CODEC): a HAIZ
         # manda H.264 e a Intelbras .108 H.265. Um CAM_CODEC so para as duas
@@ -440,7 +448,26 @@ class Camera:
         self.quadros = 0
         self.espera = REABRIR_S
         self.rast = Rastreador(f"c{indice}")
+        if ligada:
+            self.abrir()
+
+    def ligar(self):
+        if self.ligada:
+            return
+        self.ligada, self.acabou, self.ultimo = True, False, 0.0
+        self.espera = REABRIR_S
+        # O MESMO rastreador: um novo recomecaria a numeracao (c1-1, c1-2...)
+        # e o juiz ainda tem as trilhas antigas com esses nomes; quem entrasse
+        # herdaria o nome de quem estava na tela antes. Com o mesmo, as trilhas
+        # antigas so expiram e as novas ganham numero novo.
         self.abrir()
+
+    def desligar(self):
+        if not self.ligada:
+            return
+        self.ligada = False
+        self.fechar()
+        self.cap = None
 
     def abrir(self):
         self.aberta_em = time.monotonic()
@@ -492,6 +519,8 @@ class Camera:
         return q
 
     def estado(self, agora):
+        if not self.ligada:
+            return "desligada"
         if self.acabou:
             return "fim do video"
         if agora - max(self.ultimo, self.aberta_em) > SEM_IMAGEM_S:
@@ -514,9 +543,27 @@ class Camera:
 
     def fechar(self):
         try:
-            self.cap.release()
+            if self.cap is not None:
+                self.cap.release()
         except Exception:
             pass
+
+
+def cameras_em_uso(cams, usar):
+    """Indices que a caixa deve ler: 0 = todas."""
+    return {c.indice for c in cams} if usar == 0 else {usar}
+
+
+def aplicar_uso(cams, usar):
+    """Desliga as cameras fora da escolha ANTES de ligar as outras: duas
+    conexoes abertas ao mesmo tempo custam CPU e, na Intelbras, bloqueio."""
+    quero = cameras_em_uso(cams, usar)
+    for c in cams:
+        if c.indice not in quero:
+            c.desligar()
+    for c in cams:
+        if c.indice in quero:
+            c.ligar()
 
 
 # ------------------------------------------------- cadastro pelo botao
@@ -776,11 +823,22 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16p
 .ok{color:var(--verde)} .mal{color:var(--rubi)}
 ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
 .morto{opacity:.4}
+.usar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.usar span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-right:4px}
+.usar button{background:var(--caixa);border:1px solid var(--linha);color:var(--fraco);border-radius:8px;
+             padding:5px 12px;font:inherit;font-size:14px;cursor:pointer}
+.usar button.ativa{background:var(--verde);border-color:var(--verde);color:#08231B;font-weight:600}
+.usar button:disabled{opacity:.5;cursor:default}
+#usarMsg{color:var(--fraco);font-size:13px}
 </style>
 <header><h1>Audit<i>ix</i> IA</h1><span class="sub">arena · identificação na AI BOX</span>
 <span class="sub" id="tempo"></span></header>
 <main>
-  <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras"></div>
+  <section>
+    <div class="usar" id="usar" hidden><span>câmera</span><span id="usarBotoes"></span>
+      <em id="usarMsg"></em></div>
+    <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras"></div>
+  </section>
   <aside>
     <div class="n" id="aut"><b id="nAut">--</b><span>autorizados identificados</span>
       <div class="nomes" id="nomes"></div></div>
@@ -806,8 +864,10 @@ setInterval(async () => {
     $('nomes').innerHTML = e.autorizados.map(esc).join('<br>') || '—';
     $('nDesc').textContent = e.desconhecidos.length;
     $('cams').innerHTML = e.cameras.map(c => '<div class="cam"><span>câmera ' + c.indice +
-      '</span><b class="' + (c.estado === 'ok' ? 'ok' : 'mal') + '" style="font-size:15px">' +
-      esc(c.estado) + ' · ' + c.qps.toFixed(1) + '/s</b></div>').join('');
+      '</span><b class="' + (c.estado === 'ok' ? 'ok' : c.estado === 'desligada' ? '' : 'mal') +
+      '" style="font-size:15px' + (c.estado === 'desligada' ? ';color:var(--fraco)' : '') + '">' +
+      esc(c.estado) + (c.estado === 'desligada' ? '' : ' · ' + c.qps.toFixed(1) + '/s') +
+      '</b></div>').join('');
     $('qps').textContent = e.qps.toFixed(1) + ' leituras/s';
     if (e.video_qps != null) {
       $('linhaVideo').hidden = false;
@@ -816,6 +876,20 @@ setInterval(async () => {
     $('ms').textContent = Math.round(e.ms) + ' ms';
     $('tempo').textContent = e.tempo;
     $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
+    /* ESCOLHER A CAMERA. So com duas ou mais. Muda o que a caixa LE e
+       analisa, nao so o que a pagina mostra: a camera fora da escolha fecha. */
+    if (e.cameras.length > 1) {
+      $('usar').hidden = false;
+      const op = [[0, 'as duas']].concat(e.cameras.map(c => [c.indice, 'câmera ' + c.indice]));
+      const chave = op.map(o => o[0]).join(',') + '|' + e.usar + '|' + (e.troca_espera > 0);
+      if ($('usarBotoes').dataset.chave !== chave) {
+        $('usarBotoes').dataset.chave = chave;
+        $('usarBotoes').innerHTML = op.map(([v, t]) => '<button type="button" data-usar="' + v + '"' +
+          (v === e.usar ? ' class="ativa"' : '') + (e.troca_espera > 0 ? ' disabled' : '') + '>' + t +
+          '</button>').join('');
+      }
+      $('usarMsg').textContent = e.troca_msg || '';
+    }
     if (e.cadastro) {
       $('cad').hidden = false;
       const sel = $('cadNome');
@@ -827,6 +901,15 @@ setInterval(async () => {
     document.body.classList.remove('morto');
   }catch(_){ document.body.classList.add('morto'); }
 }, 700);
+$('usarBotoes').addEventListener('click', async ev => {
+  const b = ev.target.closest('button');
+  if (!b || b.disabled) return;
+  $('usarMsg').textContent = 'trocando…';
+  try {
+    await fetch('/usar', {method: 'POST', headers: {'Content-Type': 'application/json'},
+                          body: JSON.stringify({camera: Number(b.dataset.usar)})});
+  } catch (_) { $('usarMsg').textContent = 'a caixa não respondeu'; }
+});
 $('cadBotao').addEventListener('click', async () => {
   $('cadBotao').disabled = true;
   $('cadMsg').textContent = 'começando…';
@@ -845,6 +928,7 @@ class Tela:
     def __init__(self, porta, preparo=False):
         self.jpeg, self.estado, self.clientes = None, {}, 0
         self.preparo, self.pedido = preparo, None
+        self.pedido_usar = None     # camera pedida pela pagina (0 = todas)
         self._trava = threading.Lock()
         tela = self
 
@@ -855,6 +939,8 @@ class Tela:
                 pass
 
             def do_POST(self):
+                if self.path.startswith("/usar"):
+                    return self._usar()
                 # SO NO MODO PREPARO. Na prova (sem --preparo) cadastrar na
                 # hora e proibido, e a rota responde 403.
                 if not self.path.startswith("/cadastrar") or not tela.preparo:
@@ -870,6 +956,23 @@ class Tela:
                         corpo, cod = b'{"ok": true}', 200
                     else:
                         corpo, cod = b'{"erro": "falta o nome"}', 400
+                self.send_response(cod)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(corpo)))
+                self.end_headers()
+                self.wfile.write(corpo)
+
+            def _usar(self):
+                # Fora do modo preparo de proposito: escolher a camera e
+                # montar a estacao, nao cadastrar nem mexer no juiz. Quem
+                # aplica e o laco (ele e o dono das cameras).
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    tela.pedido_usar = max(0, int(json.loads(self.rfile.read(n) or b"{}")
+                                                  .get("camera", 0)))
+                    corpo, cod = b'{"ok": true}', 200
+                except Exception:
+                    corpo, cod = b'{"erro": "camera invalida"}', 400
                 self.send_response(cod)
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(corpo)))
@@ -981,6 +1084,9 @@ def main():
     from aibox.sala import carregar_env
     carregar_env()
     p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")
+    p.add_argument("--usar", type=int, default=int(_num("ARENA_USAR", "0")),
+                   help="qual camera ler ao subir: 0 = todas (padrao), 1 ou 2. "
+                        "A pagina troca depois")
     p.add_argument("--camera", action="append",
                    help="rtsp://..., numero da webcam ou arquivo de video; "
                         "repita para usar duas cameras")
@@ -1062,7 +1168,13 @@ def main():
     juiz = Juiz(nomes, M, dono)
     codecs = [os.environ.get("CAMERA_ARENA_CODEC" if i == 0 else f"CAMERA_ARENA{i + 1}_CODEC")
               for i in range(len(fontes))]
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.como_caixa, codecs[i])
+    # ARENA_USAR (ou --usar): qual camera a caixa le ao subir. 0 = todas, que
+    # e o de sempre. A pagina troca depois, com um clique.
+    usar = a.usar if 0 <= a.usar <= len(fontes) else 0
+    if usar:
+        print(f"[arena] usando so a camera {usar} (ARENA_USAR); a pagina troca", flush=True)
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.como_caixa, codecs[i],
+                   ligada=(usar in (0, i + 1)))
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)
@@ -1106,12 +1218,31 @@ def main():
         print("[arena] MODO PREPARO: a pagina tem o botao Cadastrar. Na prova, rode "
               "sem --preparo", flush=True)
 
+    troca_em, troca_msg = -TROCA_MIN_S, ""
     while not parar.is_set():
         agora = time.monotonic()
         if a.segundos and agora - inicio >= a.segundos:
             break
-        if all(c.acabou for c in cams):
+        if all(c.acabou or not c.ligada for c in cams):
             break
+        if tela.pedido_usar is not None:
+            pedido, tela.pedido_usar = tela.pedido_usar, None
+            if pedido > len(cams) or len(cams) < 2:
+                troca_msg = f"nao existe a camera {pedido}"
+            elif pedido == usar:
+                troca_msg = ""
+            elif agora - troca_em < TROCA_MIN_S:
+                troca_msg = (f"espere {TROCA_MIN_S - (agora - troca_em):.0f} s entre trocas "
+                             "(a Intelbras bloqueia conexoes seguidas)")
+            else:
+                usar, troca_em = pedido, agora
+                aplicar_uso(cams, usar)
+                quadro_tela.clear()
+                troca_msg = "trocado: " + ("as duas" if usar == 0 else f"so a camera {usar}")
+                txt = f"{relogio(agora - inicio)} camera: " + \
+                      ("as duas" if usar == 0 else f"so a {usar}")
+                log.append(txt)
+                print(f"[arena] {txt} (pela pagina)", flush=True)
         trabalhou = False
         if tela.pedido and coleta is None:
             nome, tela.pedido = tela.pedido, None
@@ -1121,6 +1252,8 @@ def main():
             else:
                 cadastro_msg = f"{nome} nao esta na galeria"
         for cam in cams:
+            if not cam.ligada:
+                continue
             img = cam.ler()
             if img is None:
                 cam.talvez_reabrir(agora)
@@ -1244,6 +1377,8 @@ def main():
             ms=float(np.mean(tempos)) if tempos else 0.0,
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
             video_qps=fluido.qps(agora) if fluido is not None else None,
+            usar=usar, troca_msg=troca_msg,
+            troca_espera=max(0.0, TROCA_MIN_S - (agora - troca_em)) if len(cams) > 1 else 0.0,
             cadastro=(dict(nomes=juiz.nomes, ativo=coleta is not None,
                            msg=(f"{coleta.nome}: {coleta.msg}" if coleta else cadastro_msg))
                       if a.preparo else None))

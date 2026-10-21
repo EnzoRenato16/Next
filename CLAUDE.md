@@ -371,6 +371,19 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
 - **Codec por câmera também aqui** (`CAMERA_ARENA_CODEC`,
   `CAMERA_ARENA2_CODEC`, portado do PR #2): sem isso a Intelbras como
   segunda câmera (H.265) dava "sem imagem" nesta pasta.
+- **Escolher a câmera na tela** (pedido do Enzo em 21/10). **Arena:** com
+  `CAMERA_ARENA` e `CAMERA_ARENA2`, a página tem "as duas / câmera 1 /
+  câmera 2". Muda o que a caixa LÊ, não só o que mostra: a câmera fora da
+  escolha FECHA a conexão e não gasta CPU. `ARENA_USAR=1` (ou `--usar 1`)
+  escolhe ao subir. O rastreador da câmera religada é o mesmo (um novo
+  recomeçaria `c1-1` e quem entrasse herdaria o nome de quem estava antes).
+  **Sala:** `CAMERA_RTSP2` (e `CAMERA_RTSP_CODEC` / `CAMERA_RTSP2_CODEC`)
+  liga "câmera 1 / câmera 2" na tela ao vivo. A sala analisa UMA por vez:
+  trocar fecha uma e abre a outra, e trilhas, ByteTrack e nomes começam do
+  zero (senão o salto de uma cena para a outra viraria queda). `SALA_CAMERA=2`
+  escolhe ao subir. **Nas duas:** 10 s no mínimo entre trocas
+  (`TROCA_MIN_S`), por causa do bloqueio 403 da Intelbras; os botões ficam
+  apagados nesse tempo. A troca da arena entra nos eventos ("camera: so a 2").
 - **`testes/npu_yunet.py`** prova que o `decodificar_yunet` (o pós-processo
   escrito à mão para as 12 saídas cruas do `.dlc`) dá o MESMO resultado do
   `cv2.FaceDetectorYN` numa foto (diferença 0,0000), sem SNPE: roda no PC.

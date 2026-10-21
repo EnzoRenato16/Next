@@ -50,6 +50,22 @@ from aibox import rede as rede_queda, regras  # noqa: E402
 LOTE_CALIB = 200           # o servidor recusa acima de 500
 ENVIA_CALIB_S = 15.0
 RECONECTA_S = 3.0
+# TROCAR A CAMERA PELA PAGINA abre uma conexao nova, e a Intelbras bloqueia o IP
+# (403) depois de conexoes seguidas (armadilha 5 do CLAUDE.md).
+TROCA_MIN_S = 10.0
+
+
+def recomecar_rastreio(vis):
+    """Camera nova, sala nova: o rastreador do detector (ByteTrack) comeca do
+    zero, senao uma pessoa da outra camera "continua" num corpo daqui."""
+    pred = getattr(getattr(vis, "m", None), "predictor", None)
+    alvos = [getattr(vis, "trilhas", None)] + list(getattr(pred, "trackers", None) or [])
+    for alvo in alvos:
+        try:
+            if alvo is not None and hasattr(alvo, "reset"):
+                alvo.reset()
+        except Exception:
+            pass
 # Camera que TRAVA sem cair: o gst-launch fica de pe, o cano fica mudo, e o
 # laco esperava quadro para sempre — sem reconectar e sem avisar ninguem.
 # Passado este tempo sem quadro novo, reabre como se tivesse caido.
@@ -69,7 +85,7 @@ def carregar_env():
         os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
 
 
-def abrir_camera(url):
+def abrir_camera(url, codec=None):
     """RTSP vai pelo GStreamer; webcam e arquivo continuam no OpenCV.
 
     A escolha e pelo endereco e nao por configuracao: quem instala nao deveria
@@ -77,7 +93,9 @@ def abrir_camera(url):
     porque inteiro, com as mensagens medidas, no topo de aibox/gstcam.py."""
     if str(url).startswith("rtsp"):
         from aibox.gstcam import Gst
-        return Gst(url)
+        # codec POR camera (CAMERA_RTSP_CODEC / CAMERA_RTSP2_CODEC): a HAIZ
+        # manda H.264 e a Intelbras H.265 no fluxo principal. None = CAM_CODEC.
+        return Gst(url, codec=codec or None)
     import cv2
     # TCP em vez de UDP: numa rede de escola o UDP perde pacote e o quadro
     # chega rasgado, o que o detector le como corpo torto — alarme falso com
@@ -145,6 +163,11 @@ def main():
     carregar_env()
     p = argparse.ArgumentParser(description="Auditix IA dentro da AIBOX")
     p.add_argument("--camera", default=os.environ.get("CAMERA_RTSP"))
+    # SEGUNDA CAMERA, escolhida pela pagina ao vivo. A sala analisa UMA por vez
+    # (o rastreador e as regras sao de uma cena so); a outra fica fechada.
+    p.add_argument("--camera2", default=os.environ.get("CAMERA_RTSP2"))
+    p.add_argument("--usar", type=int, default=int(os.environ.get("SALA_CAMERA", "1")),
+                   help="com duas cameras: qual comeca (1 ou 2); a pagina troca")
     p.add_argument("--olho", default=os.environ.get("OLHO", "yolo"))
     p.add_argument("--modelo", default=os.environ.get("MODELO"))
     p.add_argument("--servidor", default=os.environ.get("SERVIDOR", "http://127.0.0.1:8000"))
@@ -183,7 +206,13 @@ def main():
         print("falta a camera. ponha CAMERA_RTSP=... no .env, ou use --camera.\n"
               "para testar sem camera IP, --camera 0 abre a webcam do PC.")
         return 2
-    fonte = int(a.camera) if str(a.camera).isdigit() else a.camera
+    def _fonte(x):
+        return int(x) if str(x).isdigit() else x
+    fontes = [(_fonte(a.camera), os.environ.get("CAMERA_RTSP_CODEC"))]
+    if a.camera2:
+        fontes.append((_fonte(a.camera2), os.environ.get("CAMERA_RTSP2_CODEC")))
+    usando = a.usar if 1 <= a.usar <= len(fontes) else 1
+    fonte, codec = fontes[usando - 1]
 
     # A ORIGEM SAI NA TELA, sem senha. A primeira versao escrevia sempre
     # "(rtsp do .env)", inclusive quando a origem era um arquivo de video —
@@ -261,7 +290,11 @@ def main():
                 print("[aibox] --fluido so funciona com camera RTSP (gstcam)")
         return c
 
-    cap = ligar(abrir_camera(fonte))
+    if janela is not None:
+        janela.cameras(len(fontes), usando)
+    if len(fontes) > 1:
+        print(f"[aibox] duas cameras: usando a {usando}; a pagina ao vivo troca")
+    cap = ligar(abrir_camera(fonte, codec))
     # FALHA CEDO E EM VOZ ALTA. Sem isto, uma URL errada entra no laco de
     # reconexao e fica tentando para sempre, calada — e quem esta instalando
     # passa vinte minutos achando que a camera e que esta ruim.
@@ -290,11 +323,41 @@ def main():
     desde_quadro = t0
     custo.cpu_pct()                      # primeira leitura, so para ancorar
 
+    troca_em = -TROCA_MIN_S
     try:
         while True:
             if a.segundos and time.monotonic() - t0 >= a.segundos:
                 print(f"[aibox] {a.segundos:.0f}s cumpridos, encerrando.")
                 break
+            pedido = janela.pedido_camera() if janela is not None else None
+            if pedido is not None:
+                agora_s = time.monotonic()
+                if not 1 <= pedido <= len(fontes):
+                    janela.troca(usando, f"nao existe a camera {pedido}", 0.0)
+                elif pedido == usando:
+                    janela.troca(usando, "", 0.0)
+                elif agora_s - troca_em < TROCA_MIN_S:
+                    falta = TROCA_MIN_S - (agora_s - troca_em)
+                    janela.troca(usando, f"espere {falta:.0f} s entre trocas (a Intelbras "
+                                         "bloqueia conexoes seguidas)", falta)
+                else:
+                    # Fecha a de agora ANTES de abrir a outra: duas conexoes
+                    # juntas custam CPU e, na Intelbras, bloqueio.
+                    cap.release()
+                    usando, troca_em = pedido, agora_s
+                    fonte, codec = fontes[usando - 1]
+                    cap = ligar(abrir_camera(fonte, codec))
+                    # CENA NOVA: trilhas, rastreador e nomes comecam do zero.
+                    # Sem isto a trilha de alguem da outra camera "pularia"
+                    # para um corpo daqui, e um salto de posicao vira queda.
+                    rebanho = trilhas.Rebanho()
+                    recomecar_rastreio(vis)
+                    if cara is not None:
+                        cara.nomes.clear()
+                    desde_quadro = time.monotonic()
+                    janela.troca(usando, f"trocado: camera {usando}", TROCA_MIN_S)
+                    print(f"[aibox] camera {usando} (pela pagina ao vivo)")
+                    continue
             ok, img = cap.read()
             if ok is None:
                 # NAO e camera caida: e "ainda nao chegou quadro novo". A
@@ -306,7 +369,7 @@ def main():
                     print(f"[aibox] {TRAVADA_S:g}s sem quadro: reabrindo a camera")
                     perdidos += 1
                     cap.release()
-                    cap = ligar(abrir_camera(fonte))
+                    cap = ligar(abrir_camera(fonte, codec))
                     desde_quadro = time.monotonic()
                     continue
                 time.sleep(0.002)
@@ -317,7 +380,7 @@ def main():
                 # morrer no meio da aula nao e.
                 cap.release()
                 time.sleep(RECONECTA_S)
-                cap = ligar(abrir_camera(fonte))
+                cap = ligar(abrir_camera(fonte, codec))
                 desde_quadro = time.monotonic()
                 continue
 
