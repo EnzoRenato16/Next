@@ -232,12 +232,24 @@ def gravar_lista(nome, arrays):
     return lista
 
 
-def quantizar(dlc, lista, saida, a16):
+def quantizar(dlc, lista, saida, a16, saidas=None):
+    """Quantiza e ja deixa pronto o "cache" do HTP V68 (o grafo compilado para
+    a NPU), para a caixa nao compilar na hora. O cache guarda QUAIS saidas
+    existem: sem --set_output_tensors ele so tem a ultima camada, e o YuNet
+    na caixa devolvia so o kps_32."""
     cmd = [binario("snpe-dlc-quantize"), "--input_dlc", dlc, "--input_list", lista,
-           "--output_dlc", saida, "--enable_htp", "--htp_socs", "qcs6490"]
+           "--output_dlc", saida]
     if a16:
         cmd += ["--act_bitwidth", "16"]
+    if not saidas:
+        cmd += ["--enable_htp", "--htp_socs", "qcs6490"]
     rodar(*cmd)
+    if saidas:
+        try:
+            rodar(binario("snpe-dlc-graph-prepare"), "--input_dlc", saida, "--output_dlc", saida,
+                  "--htp_socs", "qcs6490", "--set_output_tensors", ",".join(saidas))
+        except SystemExit:
+            diga(f"[{os.path.basename(saida)}] sem cache do HTP: a caixa compila na hora (so demora mais para abrir)")
 
 
 # ---------------------------------------------------------- comparacoes ---
@@ -412,7 +424,9 @@ if __name__ == "__main__":
 
     for k, lista in listas:
         f = os.path.join(TRAB, f"{k}_f.dlc")
-        quantizar(f, lista, os.path.join(SAIDA, f"{k}_a8.dlc"), a16=False)
+        sai = [f"{t}_{p}" for t in ("cls", "obj", "bbox", "kps") for p in (8, 16, 32)] \
+            if k == "yunet" else None
+        quantizar(f, lista, os.path.join(SAIDA, f"{k}_a8.dlc"), a16=False, saidas=sai)
         if k != "yunet":
             quantizar(f, lista, os.path.join(SAIDA, f"{k}.dlc"), a16=True)
     shutil.copy(os.path.join(SAIDA, "yunet_a8.dlc"), os.path.join(SAIDA, "yunet.dlc"))

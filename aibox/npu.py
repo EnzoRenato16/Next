@@ -261,7 +261,9 @@ class DetectorNPU:
     def __init__(self, dlc=None, nota=0.7, nms=0.3, top_k=50):
         import cv2
         self.cv2 = cv2
-        self.rede = Rede(dlc or os.path.join(NPU_DIR, "yunet.dlc"))
+        # As 12 saidas pelo nome: na NPU o SNPE so devolvia a ultima (kps_32).
+        self.rede = Rede(dlc or os.path.join(NPU_DIR, "yunet.dlc"),
+                         saidas=[f"{t}_{p}" for t in ("cls", "obj", "bbox", "kps") for p in (8, 16, 32)])
         f = self.rede.forma()
         self.alt, self.larg = (f[1], f[2]) if _nhwc(f) else (f[2], f[3])
         self.nota, self.nms, self.top_k = nota, nms, top_k
