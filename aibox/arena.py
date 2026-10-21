@@ -391,10 +391,11 @@ class Rastreador:
 
 # ---------------------------------------------------------------- cameras
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps, latencia=0):
+    def __init__(self, indice, fonte, largura, altura, fps, latencia=0, codec=None):
         self.indice, self.fonte = indice, fonte
         self.largura, self.altura, self.fps = largura, altura, fps
         self.latencia = latencia
+        self.codec = codec      # None = o CAM_CODEC de sempre
         self.chegou = 0.0       # quando o quadro de agora saiu da camera
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
         self.cap = None
@@ -411,7 +412,7 @@ class Camera:
         if str(self.fonte).startswith("rtsp"):
             from aibox.gstcam import Gst
             self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True,
-                           latencia=self.latencia)
+                           latencia=self.latencia, codec=self.codec)
         else:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
@@ -1049,7 +1050,13 @@ def main():
         print(f"[arena] a galeria e do motor {modelo}, mas {e}")
         return 2
     juiz = Juiz(nomes, M, dono)
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.latencia)
+    # CODEC POR CAMERA. O CAM_CODEC e um so, e as duas cameras da arena nao
+    # falam o mesmo: a HAIZ manda H.264 e a Intelbras .108 manda H.265 no
+    # fluxo principal (21/10). Com um codec so, uma delas ficava "sem imagem".
+    # CAMERA_ARENA_CODEC e CAMERA_ARENA2_CODEC no .env; sem eles, o CAM_CODEC.
+    codecs = [os.environ.get("CAMERA_ARENA_CODEC" if i == 0 else f"CAMERA_ARENA{i + 1}_CODEC")
+              or None for i in range(len(fontes))]
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.latencia, codecs[i])
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)

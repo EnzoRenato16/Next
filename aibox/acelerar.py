@@ -60,6 +60,11 @@ def cpu_do_filho(pid):
 def testar(url):
     # ANTES do import: o gstcam le o decodificador quando e importado.
     os.environ[CHAVE] = "qtivdec"
+    # O PORQUE, se falhar. Em 21/10 o qtivdec deu 0 quadros com 16% de CPU (o
+    # video chegava e a imagem nao saia) e nada no terminal dizia por que.
+    # GST_DEBUG=2 faz o gst-launch escrever avisos e erros (negociacao de
+    # formato, memoria) sem ligar o resto. Vale so para este teste.
+    os.environ.setdefault("GST_DEBUG", "2")
     import numpy as np
     from aibox.gstcam import Gst, sem_senha
     print(f"[acelerar] testando o qtivdec em {sem_senha(url)} por {SEGUNDOS:.0f} s")
@@ -81,6 +86,9 @@ def testar(url):
     pct = f"{100 * cpu / dur:.0f}%" if cpu is not None else "?"
     print(f"[acelerar] {quadros} quadros em {dur:.0f} s, {lisos} lisos, "
           f"decodificacao usando {pct} de CPU")
+    if quadros < MINIMO_QUADROS:
+        print("[acelerar] as linhas WARN/ERROR acima, do GStreamer, dizem onde o "
+              "video parou: copie-as para quem for investigar (sem a senha)")
     return quadros >= MINIMO_QUADROS and lisos <= quadros // 2
 
 
