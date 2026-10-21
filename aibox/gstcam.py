@@ -26,6 +26,7 @@ import os
 import re
 import subprocess
 import threading
+import time
 
 import numpy as np
 
@@ -69,7 +70,7 @@ def _codec(codec=None):
 
 
 def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None,
-             sem_corrompido=False):
+             sem_corrompido=False, latencia=100):
     largura, altura = largura or LARG, altura or ALT
     depay, parse, dec = _codec(codec)
     # QUADRO CORROMPIDO, opcional (so o video fluido da arena usa). Na HAIZ
@@ -115,7 +116,10 @@ def _comando(url, largura=None, altura=None, fps=None, bordas=False, codec=None,
         # TCP e nao UDP: em rede de escola o UDP perde pacote e o quadro chega
         # rasgado, o que o detector le como corpo torto — alarme falso com
         # causa na rede, que e o pior tipo para diagnosticar.
-        "protocols=tcp", "latency=100",
+        # LATENCY e o buffer de reordenar pacotes do rtspsrc, em ms: atraso
+        # puro na imagem. 100 e o de sempre (a sala); a arena pede 0
+        # (ARENA_LATENCIA), porque no TCP o pacote ja chega em ordem.
+        "protocols=tcp", f"latency={int(latencia)}",
         "!", depay, "!", parse, "!", *dec, *teto,
         # A FILA VAZA DE PROPOSITO (leaky=downstream, 2 quadros). Sem ela, o
         # GStreamer BLOQUEIA quando o cano enche, e como a analise e mais lenta
@@ -133,7 +137,7 @@ class Gst:
     """Um cv2.VideoCapture que por dentro e um processo do GStreamer."""
 
     def __init__(self, url, largura=None, altura=None, fps=None, bordas=False, codec=None,
-                 sem_corrompido=False):
+                 sem_corrompido=False, latencia=100):
         # Sem argumentos, o tamanho de sempre (CAM_LARG x CAM_ALT): e o que a
         # sala usa. A arena pede outro, porque rosto precisa de pixel.
         self.larg, self.alt = largura or LARG, altura or ALT
@@ -147,7 +151,7 @@ class Gst:
         # disputa com a inferencia. Sem a variavel, nao muda nada.
         from aibox import nucleos
         self.p = subprocess.Popen(_comando(url, self.larg, self.alt, fps, bordas, codec,
-                                           sem_corrompido),
+                                           sem_corrompido, latencia),
                                   stdout=subprocess.PIPE,
                                   preexec_fn=(nucleos.soltar_nos_pequenos
                                               if os.name == "posix" else None))
@@ -161,6 +165,10 @@ class Gst:
         #
         # Aqui o descarte e explicito e o atraso fica limitado a um quadro.
         self.ultimo = None
+        # Quando o quadro devolvido pelo ultimo read() saiu do cano (monotonic).
+        # E daqui que a arena mede a latencia: idade do quadro na decisao.
+        self.chegou = 0.0
+        self._chegada = 0.0
         self.vivo = True
         # Quem mais quer ver cada quadro, alem da analise: a tela fluida
         # (--fluido). So recebe a REFERENCIA do quadro, na hora — codificar
@@ -190,6 +198,7 @@ class Gst:
                 if self.ultimo is not None:
                     self.perdidos += 1
                 self.ultimo = q
+                self._chegada = time.monotonic()
                 self.lidos += 1
             espiao = self.espiar
             if espiao is not None:
@@ -205,6 +214,8 @@ class Gst:
         volta do laco."""
         with self._trava:
             q, self.ultimo = self.ultimo, None
+            if q is not None:
+                self.chegou = self._chegada
         if q is None:
             return (False, None) if not self.vivo else (None, None)
         return True, q

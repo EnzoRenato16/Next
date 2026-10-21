@@ -103,6 +103,16 @@ $P aibox/galeria.py conferir
   e comparar CPU e leituras/s. Só deixar no `.env` se a imagem sair normal.
 - `ARENA_DETECCAO=960` deixa a busca de rosto ~40% mais barata (rostos muito
   pequenos podem sumir).
+- **Fluxo principal da HAIZ em 1920x1080 a 10–12 quadros/s** (página web da
+  câmera). A arena já reduz para 1920, então o rosto não perde pixel, e a CPU
+  deixa de decodificar 4 MP a 30/s (o maior peso hoje). Comparar `ms` e
+  `latencia` na linha de status antes e depois.
+- `latencia` na página e no resultado é a idade do quadro na decisão (desde
+  que saiu do GStreamer); "tempo por quadro" é só a análise. O buffer do
+  `rtspsrc` é 0 na arena (`ARENA_LATENCIA`, a sala segue com 100); se a
+  imagem vier rasgada, `ARENA_LATENCIA=100` no `.env`.
+- `NUCLEOS=grandes` agora também vale na arena (rosto nos 4 núcleos grandes,
+  decodificação nos 4 pequenos). Só deixar no `.env` se `ms` cair.
 
 ## Problemas conhecidos
 
