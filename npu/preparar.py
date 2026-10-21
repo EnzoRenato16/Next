@@ -357,6 +357,8 @@ def comparar_pose(npu, ort_s, fotos, dlcs):
             if boas.any():
                 kr, kq = r[boas, 5:].reshape(-1, 17, 3), q[boas, 5:].reshape(-1, 17, 3)
                 vis = kr[:, :, 2] > 0.5
+                if not vis.any():
+                    continue
                 erros.append(np.abs(kr[:, :, :2] - kq[:, :, :2])[vis].mean() / POSE)
                 conf.append(np.abs(r[boas, 4] - q[boas, 4]).mean())
         diga(f"\n[pose] {os.path.basename(dlc)} ({'NPU' if rede.na_npu else 'CPU do SNPE'}): "
