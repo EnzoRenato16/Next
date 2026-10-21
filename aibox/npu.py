@@ -77,6 +77,7 @@ def _tipos(lib):
         "Snpe_SNPEBuilder_SetRuntimeProcessorOrder": (I, [H, H]),
         "Snpe_SNPEBuilder_SetPerformanceProfile": (I, [H, I]),
         "Snpe_SNPEBuilder_SetOutputTensors": (I, [H, H]),
+        "Snpe_SNPEBuilder_SetUnconsumedTensorsAsOutputs": (I, [H, I]),
         "Snpe_SNPEBuilder_Build": (H, [H]),
         "Snpe_RuntimeList_Create": (H, []),
         "Snpe_RuntimeList_Add": (I, [H, I]),
@@ -156,6 +157,11 @@ class Rede:
             lib.Snpe_RuntimeList_Add(rl, RUNTIME[r])
         lib.Snpe_SNPEBuilder_SetRuntimeProcessorOrder(b, rl)
         lib.Snpe_SNPEBuilder_SetPerformanceProfile(b, BURST)
+        # Sem isto o SNPE so devolve a saida da ULTIMA camada (o YuNet tem 12
+        # saidas e vinha so o kps_32). Assim vem toda saida que ninguem consome.
+        f = getattr(lib, "Snpe_SNPEBuilder_SetUnconsumedTensorsAsOutputs", None)
+        if f is not None and not saidas:
+            f(b, 1)
         if saidas:
             sl = lib.Snpe_StringList_Create()
             for s in saidas:

@@ -99,6 +99,7 @@ def modelos():
         YOLO("yolo11n-pose.pt").export(format="onnx", imgsz=POSE, opset=12,
                                        simplify=True, dynamic=False)
         os.chdir(cwd)
+    slices_explicitos(pose)
     nomes = {}
     for k, p in (("yunet", yunet), ("arcface", arc), ("pose", pose)):
         m = onnx.load(p)
@@ -117,8 +118,43 @@ def mostrar_slices(caminho):
             const[n.output[0]] = numpy_helper.to_array(n.attribute[0].t)
     for n in m.graph.node:
         if n.op_type == "Slice" and "model.23" in n.name:
-            print("SLICE", n.name, [(i, const.get(i, "?").tolist() if i in const else "?") for i in n.input[1:]],
-                  "de", n.input[0], flush=True)
+            diga("SLICE", n.name, [(i, const.get(i, "?").tolist() if i in const else "?") for i in n.input[1:]],
+                 "de", n.input[0])
+
+
+def slices_explicitos(caminho):
+    """Todo Slice ganha 'axes' e 'steps' explicitos. Sem 'steps', o conversor
+    do SNPE 2.26 monta um StridedSlice com passo 0 ("Stride is zero at index
+    0") no cabecalho do YOLO-pose. Mesma conta, so escrita por extenso."""
+    import onnx
+    from onnx import helper, numpy_helper
+    m = onnx.load(caminho)
+    const = {i.name: numpy_helper.to_array(i) for i in m.graph.initializer}
+    for n in m.graph.node:
+        if n.op_type == "Constant" and n.attribute and n.attribute[0].name == "value":
+            const[n.output[0]] = numpy_helper.to_array(n.attribute[0].t)
+    mudou = 0
+    for n in m.graph.node:
+        if n.op_type != "Slice":
+            continue
+        starts = const.get(n.input[1])
+        if starts is None:
+            continue
+        k = len(np.atleast_1d(starts))
+        ins = list(n.input) + [""] * (5 - len(n.input))
+        if not ins[3]:
+            nome = n.name + "_axes"
+            m.graph.initializer.append(numpy_helper.from_array(np.arange(k, dtype=np.int64), nome))
+            ins[3] = nome
+        if not ins[4]:
+            nome = n.name + "_steps"
+            m.graph.initializer.append(numpy_helper.from_array(np.ones(k, dtype=np.int64), nome))
+            ins[4] = nome
+            mudou += 1
+        del n.input[:]
+        n.input.extend(ins)
+    onnx.save(m, caminho)
+    diga(f"[pose] {mudou} Slice ganharam passo explicito")
 
 
 def converter(onnx_path, dlc, nome_in, dims):
