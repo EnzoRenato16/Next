@@ -48,6 +48,14 @@ for f in /root/lib/libSNPE.so /usr/lib/libSNPE.so; do
   [ -r "$f" ] && echo "simbolos Snpe_ em $f: $(nm -D "$f" 2>/dev/null | grep -c ' T Snpe_')"
 done
 
+echo; echo "== funcoes do C API do SNPE (o que o npu.py chama) =="
+for f in /root/lib/libSNPE.so /usr/lib/libSNPE.so; do
+  [ -r "$f" ] || continue
+  nm -D --defined-only "$f" 2>/dev/null | awk '{print $3}' |
+    grep -E '^Snpe_(SNPE_|SNPEBuilder_|ITensor_|TensorMap_|Util_|DlContainer_(Open|Delete)|TensorShape_|StringList_|RuntimeList_|ErrorCode_)' | sort | tr '\n' ' '
+  echo; echo "($f)"
+done
+
 echo; echo "== Python da caixa: o que ele ja tem =="
 $P - <<'PY'
 import importlib, platform
