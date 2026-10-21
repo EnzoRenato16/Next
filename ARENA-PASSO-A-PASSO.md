@@ -127,6 +127,17 @@ grep CAMERA_ARENA .env
 Se quiser testar com uma câmera só, apague a linha `CAMERA_ARENA2`:
 `sed -i '/^CAMERA_ARENA2/d' .env`
 
+**Câmeras com codec diferente** (a HAIZ manda H.264 e a Intelbras `.108`
+manda H.265 no fluxo principal): diga o codec de cada uma, senão a que não
+bate fica "sem imagem".
+
+```bash
+echo 'CAMERA_ARENA_CODEC=h264' >> .env
+echo 'CAMERA_ARENA2_CODEC=h265' >> .env
+```
+
+Sem essas linhas vale o `CAM_CODEC` de sempre, para as duas.
+
 ## 5. Cadastrar os autorizados (a galeria)
 
 A galeria é o arquivo `~/auditix/arena/galeria.json`, só com os autorizados

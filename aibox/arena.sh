@@ -66,6 +66,22 @@ if grep -q '^CAMERA_ARENA.*subtype=1' .env 2>/dev/null || [[ " $* " == *"subtype
   echo "     o principal. Rosto pequeno nao se recupera depois."
 fi
 
+# A SALA E A ARENA NUNCA JUNTAS. As duas abririam a camera e dividiriam a
+# CPU: com a sala ligada (YOLO nos 8 nucleos) a arena cai para umas 2
+# leituras por segundo. O servico para pelo proprio servico.sh (continua
+# instalado); uma sala.py nossa aberta na mao recebe INT, que fecha direito.
+if [ -f .servico.pid ] && kill -0 "$(cat .servico.pid)" 2>/dev/null; then
+  echo "  servico da sala estava rodando: parando (volta com servico.sh iniciar)"
+  bash aibox/servico.sh parar >/dev/null
+fi
+sala=$(pgrep -u "$(id -u)" -f "python[^ ]* .*aibox/sala\.py" 2>/dev/null | tr '\n' ' ')
+if [ -n "$sala" ]; then
+  echo "  sala.py aberta (pid $sala): fechando, para a arena ter a CPU inteira"
+  # shellcheck disable=SC2086
+  kill -INT $sala 2>/dev/null
+  sleep 3
+fi
+
 ip=$(hostname -I 2>/dev/null | awk '{print $1}')
 echo
 echo "  No notebook, abra:  http://${ip:-IP_DA_CAIXA}:8080"

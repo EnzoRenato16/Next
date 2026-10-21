@@ -391,9 +391,12 @@ class Rastreador:
 
 # ---------------------------------------------------------------- cameras
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps):
+    def __init__(self, indice, fonte, largura, altura, fps, latencia=0, codec=None):
         self.indice, self.fonte = indice, fonte
         self.largura, self.altura, self.fps = largura, altura, fps
+        self.latencia = latencia
+        self.codec = codec      # None = o CAM_CODEC de sempre
+        self.chegou = 0.0       # quando o quadro de agora saiu da camera
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
         self.cap = None
         self.ultimo = 0.0
@@ -408,7 +411,8 @@ class Camera:
         self.aberta_em = time.monotonic()
         if str(self.fonte).startswith("rtsp"):
             from aibox.gstcam import Gst
-            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True)
+            self.cap = Gst(self.fonte, self.largura, self.altura, self.fps, bordas=True,
+                           latencia=self.latencia, codec=self.codec)
         else:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
@@ -424,6 +428,8 @@ class Camera:
                 self.acabou = True
             return None
         self.ultimo = time.monotonic()
+        # Webcam e arquivo nao dizem quando o quadro chegou: conta de agora.
+        self.chegou = getattr(self.cap, "chegou", 0.0) or self.ultimo
         self.espera = REABRIR_S
         self.quadros += 1
         return q
@@ -725,7 +731,8 @@ ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
     <div class="n"><span>câmeras</span><div id="cams"></div></div>
     <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
       <div class="cam" id="linhaVideo" hidden><span>vídeo</span><b id="vqps" style="font-size:15px">--</b></div>
-      <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div></div>
+      <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div>
+      <div class="cam"><span>latência (quadro → decisão)</span><b id="lat" style="font-size:15px">--</b></div></div>
     <div class="n" id="cad" hidden><span>cadastro (modo preparo)</span>
       <div style="display:flex;gap:8px;margin-top:8px"><select id="cadNome" style="flex:1"></select>
       <button id="cadBotao" type="button">Cadastrar</button></div>
@@ -751,6 +758,7 @@ setInterval(async () => {
       $('vqps').textContent = e.video_qps.toFixed(1) + ' quadros/s';
     }
     $('ms').textContent = Math.round(e.ms) + ' ms';
+    $('lat').textContent = Math.round(e.lat_ms) + ' ms';
     $('tempo').textContent = e.tempo;
     $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
     if (e.cadastro) {
@@ -896,6 +904,9 @@ def main():
     # ~21 px na busca, que o YuNet ainda acha.
     p.add_argument("--deteccao", type=int, default=int(_num("ARENA_DETECCAO", "1280")),
                    help="largura em que o YuNet procura rosto (0 = quadro cheio)")
+    # O buffer do rtspsrc (ms). 0 na arena: ver LATENCY em aibox/gstcam.py.
+    p.add_argument("--latencia", type=int, default=int(_num("ARENA_LATENCIA", "0")),
+                   help="buffer do rtspsrc em ms (o padrao da sala e 100)")
     p.add_argument("--galeria", default=os.environ.get("GALERIA") or galeria.PADRAO)
     p.add_argument("--porta", type=int, default=int(_num("ARENA_PORTA", "8080")))
     p.add_argument("--tela", type=int, default=1280, help="largura da imagem na pagina")
@@ -923,6 +934,15 @@ def main():
     modelo = galeria.motor_de(a.galeria)
     configurar(modelo)
 
+    # ANTES de carregar os modelos e de abrir camera ou thread: o que nasce
+    # depois herda os nucleos grandes, e o gst-launch nasce nos pequenos (ver
+    # aibox/nucleos.py). Sem isto, NUCLEOS=grandes so mandava a decodificacao
+    # para os pequenos, e o rosto continuava espalhado pelos oito. Desligado
+    # ate ser medido, como na sala.
+    if os.environ.get("NUCLEOS", "").strip().lower() == "grandes":
+        from aibox import nucleos
+        print(f"[arena] nucleos: {nucleos.prender_nos_grandes()}", flush=True)
+
     import cv2
     from daten.app import config as dcfg
     from daten.app.recognizer import FaceEngine
@@ -934,7 +954,13 @@ def main():
         print(f"[arena] a galeria e do motor {modelo}, mas {e}")
         return 2
     juiz = Juiz(nomes, M, dono)
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
+    # CODEC POR CAMERA. O CAM_CODEC e um so, e as duas cameras da arena nao
+    # falam o mesmo: a HAIZ manda H.264 e a Intelbras .108 manda H.265 no
+    # fluxo principal (21/10). Com um codec so, uma delas ficava "sem imagem".
+    # CAMERA_ARENA_CODEC e CAMERA_ARENA2_CODEC no .env; sem eles, o CAM_CODEC.
+    codecs = [os.environ.get("CAMERA_ARENA_CODEC" if i == 0 else f"CAMERA_ARENA{i + 1}_CODEC")
+              or None for i in range(len(fontes))]
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.latencia, codecs[i])
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)
@@ -970,6 +996,11 @@ def main():
     inicio = time.monotonic()
     descarte = {}               # trilha -> ultimo aviso de rosto descartado (--calibrar)
     log, tempos, ultimo_status = [], [], 0.0
+    # LATENCIA: idade do quadro quando a decisao dele sai, desde que saiu do
+    # cano da camera. Inclui a espera ate o laco pegar o quadro e a analise;
+    # nao inclui o que a camera e a rede levam antes (isso daqui nao se ve).
+    # O "tempo por quadro" so conta a analise.
+    latencias = []
     qps_cam = {c.indice: [] for c in cams}
     vistos_por_cam = {c.indice: [] for c in cams}
     quadro_tela = {}
@@ -1071,9 +1102,11 @@ def main():
                 elif fim == "prazo":
                     cadastro_msg = f"{coleta.nome}: {coleta.msg}"
                     coleta = None
-            ms = (time.monotonic() - t0) * 1000
-            tempos.append(ms)
+            fim_t = time.monotonic()
+            tempos.append((fim_t - t0) * 1000)
             tempos = tempos[-30:]
+            latencias.append((fim_t - cam.chegou) * 1000)
+            latencias = latencias[-30:]
             qps_cam[cam.indice].append(time.monotonic())
             vistos_por_cam[cam.indice] = vistos
             if fluido is not None:
@@ -1093,6 +1126,7 @@ def main():
                           qps=len(qps_cam[c.indice]) / 5.0) for c in cams],
             qps=sum(len(v) for v in qps_cam.values()) / 5.0,
             ms=float(np.mean(tempos)) if tempos else 0.0,
+            lat_ms=float(np.mean(latencias)) if latencias else 0.0,
             tempo=relogio(agora - inicio), eventos=log[-8:][::-1],
             video_qps=fluido.qps(agora) if fluido is not None else None,
             cadastro=(dict(nomes=juiz.nomes, ativo=coleta is not None,
@@ -1119,7 +1153,7 @@ def main():
             print(f"[arena {estado['tempo']}] autorizados {len(r['autorizados'])}/"
                   f"{r['total_autorizados']} ({', '.join(r['autorizados']) or '-'})"
                   f" | desconhecidos {len(r['desconhecidos'])} | {cam_txt}"
-                  f" | {estado['ms']:.0f} ms"
+                  f" | {estado['ms']:.0f} ms, latencia {estado['lat_ms']:.0f} ms"
                   + (f" | video {estado['video_qps']:.1f}/s" if fluido is not None else ""),
                   flush=True)
         if not trabalhou:
@@ -1137,6 +1171,7 @@ def main():
         cameras=[dict(indice=c.indice, estado=c.estado(agora), quadros=c.quadros)
                  for c in cams],
         tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
+        latencia_media_ms=round(float(np.mean(latencias)), 1) if latencias else None,
         limiares=dict(motor=MOTOR, limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO,
                       margem=MARGEM, minimo=MINIMO, minimo_desc=MINIMO_DESC,
                       mesmo_desconhecido=MESMO_DESCONHECIDO,
@@ -1150,6 +1185,8 @@ def main():
         print(f"  camera {c['indice']}: {c['estado']}, {c['quadros']} quadros analisados")
     if tempos:
         print(f"  tempo medio por quadro:    {resultado['tempo_medio_por_quadro_ms']} ms")
+        print(f"  latencia media:            {resultado['latencia_media_ms']} ms"
+              " (do quadro sair da camera ate a decisao)")
     print(f"  duracao:                   {relogio(resultado['duracao_s'])}")
     print("====================================================")
     pasta = os.path.join(RAIZ, "arena", "resultados")
