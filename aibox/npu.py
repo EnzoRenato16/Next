@@ -1,4 +1,4 @@
-"""A NPU (Hexagon V68 / HTP) da AIBOX, pelo SNPE 2.12 que ja vem na caixa.
+"""A NPU (Hexagon V68 / HTP) da AIBOX, pelo SNPE 2.26 que vai no pacote (npu-lib/).
 
 VERSAO NPU (ramo npu/divisao-npu-cpu). A versao da final e a outra pasta.
 
@@ -11,8 +11,9 @@ As redes eram ~todo o custo de CPU da arena e da sala; o resto e barato.
 COMO O PYTHON FALA COM A NPU. O ONNX Runtime da caixa (1.16.3) nao tem o
 provedor da NPU, e o SNPE 2.x nao tem modulo Python. Mas o libSNPE.so tem um
 C API (as funcoes Snpe_*), e o ctypes chama C direto, sem compilar nada. O
-modelo vai como .dlc quantizado (8 bits), convertido no GitHub Actions com o
-MESMO SNPE 2.12 da caixa (.github/workflows/npu-modelos.yml).
+modelo vai como .dlc quantizado, convertido no GitHub Actions com o SNPE 2.26
+(.github/workflows/npu-modelos.yml), o MESMO cujas bibliotecas vao no pacote. O
+2.12 da caixa fica de fora: .dlc de uma versao com biblioteca de outra e azar.
 
 NADA QUEBRA SE A NPU FALTAR. Qualquer erro aqui (lib que nao abre, sem
 permissao no /dev/adsprpc-smd, .dlc que falta) vira um aviso e o chamador
@@ -24,6 +25,9 @@ Variaveis:
                          que e do mesmo SNPE que gerou os .dlc; depois /root/lib)
     NPU_RUNTIME=dsp      dsp (a NPU), gpu ou cpu; a ordem cai para cpu no fim
     NPU_DIR=...          onde ficam os .dlc (padrao: daten/models/npu)
+    NPU_ESTRITO=1        so a NPU, sem a CPU do SNPE de reserva (para testar)
+    NPU_YUNET=...        qual .dlc do YuNet (padrao yunet.dlc, 8 bits)
+    NPU_CONFERIR=1       (arena.py) mede cada rosto tambem na CPU e compara
 """
 import ctypes
 import os
@@ -152,7 +156,12 @@ class Rede:
             raise _erro(lib, f"abrir {dlc}")
         b = lib.Snpe_SNPEBuilder_Create(cont)
         rl = lib.Snpe_RuntimeList_Create()
-        ordem = [runtime] + (["cpu"] if runtime != "cpu" else [])
+        # NPU_ESTRITO=1: so a NPU, sem a CPU do SNPE de reserva. O na_npu
+        # abaixo diz se a NPU EXISTE, nao se ESTA rede ficou nela: com a CPU na
+        # lista, uma rede que a NPU recusa sobe na CPU e o aviso ainda diz
+        # "NPU". Nos testes, estrito: se nao couber na NPU, erro na cara.
+        estrito = os.environ.get("NPU_ESTRITO", "0").strip() == "1"
+        ordem = [runtime] + (["cpu"] if runtime != "cpu" and not estrito else [])
         for r in ordem:
             lib.Snpe_RuntimeList_Add(rl, RUNTIME[r])
         lib.Snpe_SNPEBuilder_SetRuntimeProcessorOrder(b, rl)
@@ -262,7 +271,10 @@ class DetectorNPU:
         import cv2
         self.cv2 = cv2
         # As 12 saidas pelo nome: na NPU o SNPE so devolvia a ultima (kps_32).
-        self.rede = Rede(dlc or os.path.join(NPU_DIR, "yunet.dlc"),
+        # NPU_YUNET=yunet_a16.dlc troca para o de 16 bits nas ativacoes (mais
+        # lento, mais fiel em rosto pequeno). Padrao: o de 8 bits ja medido.
+        dlc = dlc or os.path.join(NPU_DIR, os.environ.get("NPU_YUNET", "yunet.dlc"))
+        self.rede = Rede(dlc,
                          saidas=[f"{t}_{p}" for t in ("cls", "obj", "bbox", "kps") for p in (8, 16, 32)])
         f = self.rede.forma()
         self.alt, self.larg = (f[1], f[2]) if _nhwc(f) else (f[2], f[3])

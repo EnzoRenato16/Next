@@ -459,6 +459,15 @@ if __name__ == "__main__":
         quantizar(f, lista, os.path.join(SAIDA, f"{k}_a8.dlc"), a16=False, saidas=sai)
         if k != "yunet":
             quantizar(f, lista, os.path.join(SAIDA, f"{k}.dlc"), a16=True)
+        else:
+            # A RESERVA DO YUNET: 16 bits nas ativacoes. O yunet.dlc (8 bits)
+            # e o rapido, mas rosto pequeno e o primeiro a perder nota com 8
+            # bits, e isso so aparece na NPU (aqui a CPU do SNPE faz em float).
+            # Na caixa: NPU_YUNET=yunet_a16.dlc e o npu_teste.py compara.
+            try:
+                quantizar(f, lista, os.path.join(SAIDA, "yunet_a16.dlc"), a16=True, saidas=sai)
+            except SystemExit:
+                diga("[yunet_a16.dlc] o quantizador recusou 16 bits; fica so o de 8")
         if k == "arcface":
             # Tentativas de chegar mais perto do original (cosseno >= ~0.99),
             # para a galeria que ja existe continuar valendo sem recadastro.
@@ -477,7 +486,9 @@ if __name__ == "__main__":
     for nome, func in (
             ("yunet", lambda: comparar_yunet(cv2, npu, validar_telas,
                                              [os.path.join(TRAB, "yunet_f.dlc"),
-                                              os.path.join(SAIDA, "yunet_a8.dlc")])),
+                                              os.path.join(SAIDA, "yunet_a8.dlc")] +
+                                             [os.path.join(SAIDA, "yunet_a16.dlc")]
+                                             * os.path.exists(os.path.join(SAIDA, "yunet_a16.dlc")))),
             ("arcface", lambda: comparar_arcface(npu, ort.InferenceSession(MOD["arcface"]), pares, alvo,
                                                  [os.path.join(TRAB, "arcface_f.dlc"),
                                                   os.path.join(SAIDA, "arcface.dlc"),

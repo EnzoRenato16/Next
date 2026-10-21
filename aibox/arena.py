@@ -267,13 +267,17 @@ class Juiz:
             return []
 
         ev = []
+        # QUANTO DEMOROU PARA DECIDIR, desde que o rosto apareceu na tela. E a
+        # metrica que a banca pediu ("tempo por quadro" nao diz isso: 50 ms por
+        # quadro com 14 leituras para decidir sao segundos).
+        levou = round(agora - (t.comeco if t.comeco is not None else agora), 2)
         if novo[0] == "autorizado":
             if t.estado != "autorizado" or t.nome != novo[1]:
                 antes = (t.estado, t.numero)
                 t.estado, t.nome, t.numero = "autorizado", novo[1], None
                 self.identificados.add(t.nome)
                 ev.append(dict(tipo="autorizado", nome=t.nome,
-                               nota=round(melhor, 3), trilha=t.id, quando=agora,
+                               nota=round(melhor, 3), trilha=t.id, quando=agora, levou=levou,
                                era_desconhecido=antes[1] if antes[0] == "desconhecido" else None))
             t.nota = melhor
         elif t.estado == "analisando":
@@ -284,7 +288,7 @@ class Juiz:
             t.numero = numero
             if novo_alerta:
                 ev.append(dict(tipo="desconhecido", numero=numero,
-                               nota=round(melhor, 3), trilha=t.id, quando=agora,
+                               nota=round(melhor, 3), trilha=t.id, quando=agora, levou=levou,
                                parecido=parecido, com=com))
             else:
                 ev.append(dict(tipo="juntou", numero=numero, trilha=t.id,
@@ -390,11 +394,33 @@ class Rastreador:
 
 
 # ---------------------------------------------------------------- cameras
+def como_gst(q, largura, altura):
+    """O que o cano da caixa faz (gstcam, bordas=True): cabe em largura x
+    altura sem esticar, faixa preta centrada no que sobra."""
+    import cv2
+    h, w = q.shape[:2]
+    e = min(largura / w, altura / h)
+    nw, nh = int(round(w * e)), int(round(h * e))
+    r = cv2.resize(q, (nw, nh), interpolation=cv2.INTER_AREA if e < 1 else cv2.INTER_LINEAR)
+    if (nw, nh) == (largura, altura):
+        return r
+    t = np.zeros((altura, largura, 3), np.uint8)
+    y, x = (altura - nh) // 2, (largura - nw) // 2
+    t[y:y + nh, x:x + nw] = r
+    return t
+
+
 class Camera:
-    def __init__(self, indice, fonte, largura, altura, fps):
+    def __init__(self, indice, fonte, largura, altura, fps, como_caixa=False):
         self.indice, self.fonte = indice, fonte
         self.largura, self.altura, self.fps = largura, altura, fps
         self.arquivo = not str(fonte).startswith("rtsp") and not str(fonte).isdigit()
+        # --como-caixa: video gravado na caixa (aibox/gravar.sh) lido com o
+        # MESMO tamanho e o MESMO ritmo da prova. Sem isto um .mp4 de
+        # 2880x1620 a 30/s e lido inteiro e quadro a quadro: rosto maior e 5x
+        # mais leituras que na caixa, e o limiar calibrado no PC nao vale la.
+        self.como_caixa = como_caixa and self.arquivo
+        self.pular = 1
         self.cap = None
         self.ultimo = 0.0
         self.aberta_em = 0.0
@@ -413,10 +439,20 @@ class Camera:
             import cv2
             f = int(self.fonte) if str(self.fonte).isdigit() else self.fonte
             self.cap = cv2.VideoCapture(f)
+            if self.como_caixa and self.fps:
+                fps_arq = float(self.cap.get(cv2.CAP_PROP_FPS) or 0)
+                self.pular = max(1, int(round(fps_arq / self.fps))) if fps_arq > self.fps else 1
+                print(f"[arena] {os.path.basename(str(self.fonte))}: como na caixa, "
+                      f"{self.largura}x{self.altura}, 1 quadro a cada {self.pular} "
+                      f"(arquivo a {fps_arq:.0f}/s, teto {self.fps}/s)", flush=True)
 
     def ler(self):
         """(quadro ou None). Arquivo que acabou marca `acabou`."""
+        for _ in range(self.pular - 1):
+            self.cap.grab()
         ok, q = self.cap.read()
+        if ok and self.como_caixa and q.shape[:2] != (self.altura, self.largura):
+            q = como_gst(q, self.largura, self.altura)
         if ok is None:
             return None
         if not ok:
@@ -879,6 +915,41 @@ def relogio(s):
     return f"{int(s // 60):02d}:{int(s % 60):02d}"
 
 
+def tempo_ate_decidir(eventos):
+    """Mediana e pior tempo entre o rosto aparecer e virar AUTORIZADO ou
+    DESCONHECIDO. None sem decisao nenhuma."""
+    t = [e["levou"] for e in eventos
+         if e.get("tipo") in ("autorizado", "desconhecido") and e.get("levou") is not None]
+    if not t:
+        return None
+    return dict(mediana=round(float(np.median(t)), 2), pior=round(float(max(t)), 2),
+                decisoes=len(t))
+
+
+def conferencia(c):
+    """(texto, dict) do NPU_CONFERIR. Serve para a NPU se: cosseno do ArcFace
+    >= 0,98 no pior caso, nota contra a galeria mudando <= 0,02, e o YuNet da
+    NPU dando pelo menos tantas leituras boas quanto o da CPU."""
+    d = dict(rostos=len(c["cos"]), quadros_comparados=c["quadros"],
+             leituras_boas_cpu=c["boas_cpu"], leituras_boas_npu=c["boas_npu"])
+    partes = []
+    if c["cos"]:
+        d.update(cos_medio=round(float(np.mean(c["cos"])), 4),
+                 cos_pior=round(float(min(c["cos"])), 4))
+        partes.append(f"ArcFace cos medio {d['cos_medio']:.4f}, pior {d['cos_pior']:.4f}"
+                      f" ({d['rostos']} rostos)")
+    if c["dnota"]:
+        d["nota_muda_max"] = round(float(max(c["dnota"])), 3)
+        partes.append(f"nota muda ate {d['nota_muda_max']:.3f}")
+    if c["quadros"]:
+        partes.append(f"YuNet leituras boas CPU {c['boas_cpu']} x NPU {c['boas_npu']}"
+                      f" em {c['quadros']} quadros")
+    if c["nota_dif"]:
+        d["yunet_nota_npu_menos_cpu"] = round(float(np.mean(c["nota_dif"])), 3)
+        partes.append(f"nota do detector NPU-CPU {d['yunet_nota_npu_menos_cpu']:+.3f}")
+    return ("; ".join(partes) or "nada medido ainda (ninguem na frente da camera?)"), d
+
+
 def main():
     from aibox.sala import carregar_env
     carregar_env()
@@ -908,6 +979,9 @@ def main():
                         "na prova, cadastro na hora e proibido)")
     p.add_argument("--calibrar", action="store_true",
                    help="imprime a nota de cada leitura (para escolher o limiar no local)")
+    p.add_argument("--como-caixa", action="store_true",
+                   help="video gravado (aibox/gravar.sh): le no tamanho --largura x "
+                        "--altura e no ritmo --fps, como a caixa le a camera")
     a = p.parse_args()
 
     fontes = a.camera or [c for c in (os.environ.get("CAMERA_ARENA"),
@@ -938,6 +1012,15 @@ def main():
     # (por canal, cosseno 0,999 com a CPU: a galeria vale) estiver na caixa.
     # NPU_ARCFACE=0 deixa o ArcFace na CPU.
     from aibox import npu
+    # NPU_CONFERIR=1: SO PARA O LABORATORIO. Cada rosto bom tambem e medido
+    # pelo ArcFace da CPU (cosseno e nota contra a galeria, NPU x CPU), e a
+    # cada 10 quadros o YuNet da CPU procura no MESMO quadro (leituras boas de
+    # um e do outro). E o unico jeito de medir a quantizacao das ATIVACOES:
+    # no GitHub o SNPE roda na CPU dele, que desquantiza a rede e faz a conta
+    # em float. Fica mais lento: nao usar na prova.
+    conferir = os.environ.get("NPU_CONFERIR", "0") == "1"
+    detect_cpu, medir_cpu = motor.detect, medir
+    conf = dict(cos=[], dnota=[], boas_cpu=0, boas_npu=0, quadros=0, nota_dif=[])
     det_npu = npu.tentar(npu.DetectorNPU, "YuNet")
     if det_npu is not None:
         motor.detect = det_npu.detect
@@ -946,8 +1029,11 @@ def main():
         arc_npu = npu.tentar(npu.ArcFaceNPU, "ArcFace")
         if arc_npu is not None:
             medir = arc_npu.embedding
+    if conferir:
+        print("[arena] NPU_CONFERIR=1: medindo NPU contra CPU (mais lento; so no "
+              "laboratorio)", flush=True)
     juiz = Juiz(nomes, M, dono)
-    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None)
+    cams = [Camera(i + 1, f, a.largura, a.altura, a.fps or None, a.como_caixa)
             for i, f in enumerate(fontes)]
     try:
         tela = Tela(a.porta, preparo=a.preparo)
@@ -1014,6 +1100,17 @@ def main():
             t0 = time.monotonic()
             dcfg.DETECT_WIDTH = a.deteccao or img.shape[1]
             linhas = motor.detect(img)
+            if conferir and det_npu is not None and cam.quadros % 10 == 1:
+                outras = detect_cpu(img)
+                conf["quadros"] += 1
+                conf["boas_npu"] += sum(leitura_boa(l)[0] for l in linhas)
+                conf["boas_cpu"] += sum(leitura_boa(l)[0] for l in outras)
+                for lc in outras:
+                    perto = [ln for ln in linhas
+                             if abs(ln[0] + ln[2] / 2 - lc[0] - lc[2] / 2) < lc[2] / 2
+                             and abs(ln[1] + ln[3] / 2 - lc[1] - lc[3] / 2) < lc[3] / 2]
+                    if perto:
+                        conf["nota_dif"].append(float(perto[0][14] - lc[14]))
             caixas = [tuple(float(x) for x in l[:4]) for l in linhas]
             ids = cam.rast.associar(caixas, t0)
             vistos, rostos = [], []
@@ -1039,6 +1136,14 @@ def main():
                 v = None
                 if boa:
                     v = medir(img, l)
+                    if conferir and medir is not medir_cpu:
+                        u = np.asarray(v, np.float32)
+                        u = u / (np.linalg.norm(u) + 1e-9)
+                        w = np.asarray(medir_cpu(img, l), np.float32)
+                        w = w / (np.linalg.norm(w) + 1e-9)
+                        conf["cos"].append(float(u @ w))
+                        if len(juiz.M):
+                            conf["dnota"].append(float(np.abs(juiz.M @ u - juiz.M @ w).max()))
                     for ev in juiz.ler(ident, v, t0 - inicio, cam.indice):
                         if ev["tipo"] == "juntou":
                             txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o mesmo "
@@ -1054,10 +1159,12 @@ def main():
                             log.append(txt)
                             continue
                         txt = (f"{relogio(t0 - inicio)} AUTORIZADO {ev['nome']} ({ev['nota']:.2f})"
+                               f" em {ev['levou']:.1f} s"
                                + (f", era o desconhecido #{ev['era_desconhecido']}"
                                   if ev.get("era_desconhecido") else "")
                                if ev["tipo"] == "autorizado" else
                                f"{relogio(t0 - inicio)} ALERTA desconhecido #{ev['numero']}"
+                               f" em {ev['levou']:.1f} s"
                                + (f" (o mais parecido era o #{ev['com']}: {ev['parecido']:.2f})"
                                   if ev.get("parecido") is not None else ""))
                         print("[arena] " + txt, flush=True)
@@ -1135,6 +1242,8 @@ def main():
                   f" | {estado['ms']:.0f} ms"
                   + (f" | video {estado['video_qps']:.1f}/s" if fluido is not None else ""),
                   flush=True)
+            if conferir:
+                print("[conferir] " + conferencia(conf)[0], flush=True)
         if not trabalhou:
             time.sleep(0.01)
 
@@ -1150,6 +1259,8 @@ def main():
         cameras=[dict(indice=c.indice, estado=c.estado(agora), quadros=c.quadros)
                  for c in cams],
         tempo_medio_por_quadro_ms=round(float(np.mean(tempos)), 1) if tempos else None,
+        tempo_ate_decidir_s=tempo_ate_decidir(juiz.eventos),
+        conferencia_npu=conferencia(conf)[1] if conferir else None,
         limiares=dict(motor=MOTOR, limiar=LIMIAR, limiar_baixo=LIMIAR_BAIXO,
                       margem=MARGEM, minimo=MINIMO, minimo_desc=MINIMO_DESC,
                       mesmo_desconhecido=MESMO_DESCONHECIDO,
@@ -1163,6 +1274,12 @@ def main():
         print(f"  camera {c['indice']}: {c['estado']}, {c['quadros']} quadros analisados")
     if tempos:
         print(f"  tempo medio por quadro:    {resultado['tempo_medio_por_quadro_ms']} ms")
+    td = resultado["tempo_ate_decidir_s"]
+    if td:
+        print(f"  tempo ate decidir:         mediana {td['mediana']} s, pior {td['pior']} s"
+              f" ({td['decisoes']} decisoes)")
+    if conferir:
+        print(f"  NPU contra CPU:            {conferencia(conf)[0]}")
     print(f"  duracao:                   {relogio(resultado['duracao_s'])}")
     print("====================================================")
     pasta = os.path.join(RAIZ, "arena", "resultados")

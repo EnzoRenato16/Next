@@ -336,6 +336,38 @@ $P aibox/medir.py
 Ele separa o teto da câmera do teto do modelo — e isso importa, porque otimizar
 o modelo contra um teto que é da câmera é trabalho jogado fora.
 
+## Versão NPU: o que a revisão de 21/10 mudou (ramo `npu/divisao-npu-cpu`)
+
+- **O CI não mede a quantização das ativações.** No GitHub o SNPE roda o
+  `.dlc` na CPU dele, que desquantiza a rede e faz a conta em float. Os 0,999
+  do ArcFace e os 276 de 276 do YuNet medem os pesos; os 8/16 bits das
+  ativações só existem na NPU. A qualidade vale o que a CAIXA medir.
+- **`npu_teste.py` lia ruído.** Pegava o quadro com `cv2.VideoCapture`, que
+  nesta caixa não abre RTSP (armadilha 1), caía numa imagem aleatória, não
+  achava rosto e **pulava a comparação do ArcFace calado**. Agora lê ~12
+  quadros pelo `gstcam`, compara YuNet CPU x NPU por faixa de tamanho (e nas
+  leituras BOAS, que é o que o juiz usa) e o ArcFace em todos os rostos, com a
+  nota contra a galeria. Sem rosto, diz "NÃO MEDIDO". Precisa de alguém na
+  frente da câmera.
+- **`NPU_ESTRITO=1`**: sem a CPU do SNPE de reserva. O "rodando na NPU" do
+  `tentar` diz que a NPU existe, não que a rede ficou nela.
+- **`NPU_CONFERIR=1` na arena**: cada rosto bom também é medido na CPU
+  (cosseno e quanto a nota contra a galeria muda) e a cada 10 quadros o YuNet
+  da CPU procura no mesmo quadro. Só laboratório: fica mais lento.
+- **`npu_rodada2.sh` não mexe mais na câmera** sem `MUDAR_CAMERA=1`, e com
+  ele **volta sozinho no fim**, mesmo com Ctrl+C (antes deixava a HAIZ em
+  1080p/12, e a versão atual seria calibrada com outra câmera).
+- **`NPU_YUNET=yunet_a16.dlc`**: o YuNet com 16 bits nas ativações, reserva
+  se o de 8 perder rosto pequeno (sai do próximo `npu-pacote`).
+- **Tempo até decidir** (do rosto aparecer até AUTORIZADO/DESCONHECIDO) no
+  terminal ("em 0,8 s"), no resultado e no JSON: é a métrica que a banca pede.
+- **`bash aibox/gravar.sh 300`** grava o RTSP sem decodificar (CPU ~0) e
+  **`arena.py --camera X.mp4 --como-caixa`** relê no tamanho e no ritmo da
+  caixa. É como calibrar sem a caixa. Tem rosto: fica em `arena/` (fora do Git).
+- **Uma galeria só.** O `pc copiar` usa `cp -n`: depois de uma passada em
+  `~/auditix`, a cópia de `~/auditix-npu` fica velha para sempre. No `.env` da
+  pasta NPU: `GALERIA=/home/grupo11/auditix/arena/galeria.json`.
+
 ## O hardware que a caixa tem e o Auditix ainda não usa
 
 Achado no laboratório, com `gst-inspect-1.0` e `ls /root/lib`:
