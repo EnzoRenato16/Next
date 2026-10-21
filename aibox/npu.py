@@ -382,9 +382,12 @@ class OlhoNPU:
         self.lado = f[1] if _nhwc(f) else f[2]
         self.conf = float(os.environ.get("CAM_CONF", conf or 0.35))
         from ultralytics.trackers.byte_tracker import BYTETracker
-        from ultralytics.utils import IterableSimpleNamespace, yaml_load
+        import yaml
+        from ultralytics.utils import IterableSimpleNamespace
         from ultralytics.utils.checks import check_yaml
-        cfg = IterableSimpleNamespace(**yaml_load(check_yaml("bytetrack.yaml")))
+        # yaml puro: o yaml_load do Ultralytics mudou de nome entre versoes
+        with open(check_yaml("bytetrack.yaml"), encoding="utf-8") as f:
+            cfg = IterableSimpleNamespace(**yaml.safe_load(f))
         self.trilhas = BYTETracker(cfg, frame_rate=30)
 
     def ver(self, img):
