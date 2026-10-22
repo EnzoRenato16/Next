@@ -3323,7 +3323,11 @@ el('btn-exemplo').addEventListener('click', () => {
 
 /* -------------------------------------------------------------- abertura -- */
 (function(){
-  try{ if(window.self !== window.top){
+  /* Dentro da Central (mesma origem, aba Webcam) a camera funciona: o aviso e
+     so para quem abre a pagina por um link de outro site. */
+  let naCentral = false;
+  try{ naCentral = window.self !== window.top && window.top.location.origin === location.origin; }catch(e){}
+  try{ if(window.self !== window.top && !naCentral){
     el('desltxt').innerHTML = 'Esta é uma <b>prévia visual</b>. Por link o navegador não libera ' +
       'câmera nem o download dos modelos. Use <b>Ver com exemplo</b>, ou abra o arquivo no Chrome.';
   } }catch(e){}
