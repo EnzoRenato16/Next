@@ -846,123 +846,240 @@ def desenhar(cv2, img, juiz, vistos, largura_tela):
 PAGINA = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Auditix IA na arena</title><style>
-:root{color-scheme:dark;--verde:#5FBFA0;--rubi:#E8707F;--ambar:#E5C07B;
-      --fundo:#0C1512;--caixa:#16302A;--linha:#2C5A4C;--texto:#E3F2EC;--fraco:#8FB3A7}
+/* O MESMO VISUAL DA CENTRAL (auditix-central.html), mas tudo daqui: a caixa
+   nao tem as fontes do PC, entao fica a fonte do sistema. A pagina so mexe no
+   que MUDOU (cada pedaco tem a sua chave): com a CPU da caixa cheia, redesenhar
+   tudo a cada 0,7 s seria trabalho jogado fora no navegador do notebook. */
+:root{color-scheme:dark;--fundo:#070D0C;--fundo2:#0B1413;--card:#0F1A18;--card2:#132320;
+      --linha:#1E3530;--linha2:#284840;--texto:#E4F1EC;--fraco:#9DB8AF;--apagado:#6B8880;
+      --verde:#5FBFA0;--verdeluz:rgba(95,191,160,.13);--rubi:#F0707F;--rubiluz:rgba(240,112,127,.14);
+      --ambar:#E8C06F;--ambarluz:rgba(232,192,111,.13);
+      --mono:ui-monospace,Menlo,Consolas,monospace}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-body{margin:0;background:var(--fundo);color:var(--texto);
-     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:14px 18px;
-       border-bottom:1px solid var(--linha)}
-h1{margin:0;font-size:21px}h1 i{font-style:normal;color:var(--verde)}
-.sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;padding:16px}
-@media (max-width:900px){main{grid-template-columns:1fr}}
-.palco{background:#000;border:1px solid var(--linha);border-radius:12px;overflow:hidden;line-height:0}
-.palco img{width:100%;height:auto}
-.n{background:var(--caixa);border:1px solid var(--linha);border-radius:12px;padding:14px 16px;margin-bottom:12px}
-.n b{display:block;font-size:40px;line-height:1.1;font-variant-numeric:tabular-nums}
-.n span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase}
-#aut b{color:var(--verde)} #desc b{color:var(--rubi)}
-.nomes{margin-top:6px;font-size:14px}
-.cam{display:flex;justify-content:space-between;font-size:14px}
-.ok{color:var(--verde)} .mal{color:var(--rubi)}
-ol{margin:6px 0 0;padding-left:20px;font-size:13.5px;color:var(--fraco)}
-.morto{opacity:.4}
-.usar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-.usar span{color:var(--fraco);font-size:12px;letter-spacing:.1em;text-transform:uppercase;margin-right:4px}
-.usar button{background:var(--caixa);border:1px solid var(--linha);color:var(--fraco);border-radius:8px;
-             padding:5px 12px;font:inherit;font-size:14px;cursor:pointer}
-.usar button.ativa{background:var(--verde);border-color:var(--verde);color:#08231B;font-weight:600}
-.usar button:disabled{opacity:.5;cursor:default}
-#usarMsg{color:var(--fraco);font-size:13px}
+body{margin:0;color:var(--texto);font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     background:radial-gradient(1100px 520px at 85% -10%,rgba(95,191,160,.10),transparent 60%),var(--fundo);min-height:100vh}
+button,select{font:inherit;color:inherit}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+       padding:12px 20px;background:rgba(7,13,12,.85);backdrop-filter:blur(8px);border-bottom:1px solid var(--linha)}
+.marca{display:flex;align-items:center;gap:10px}
+.marca b{font-size:19px;letter-spacing:-.3px}.marca b i{font-style:normal;color:var(--verde)}
+.marca small{display:block;color:var(--apagado);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase}
+.dir{margin-left:auto;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;border:1px solid var(--linha);
+      background:var(--fundo2);color:var(--fraco);font-size:12.5px;white-space:nowrap}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--apagado)}
+.chip.ok i{background:var(--verde);box-shadow:0 0 0 3px var(--verdeluz)}
+.chip.mal{color:var(--rubi)}.chip.mal i{background:var(--rubi);animation:pisca 1s infinite}
+.chip.av i{background:var(--ambar)}
+.relogio{font:500 16px var(--mono)}
+main{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:18px;padding:18px 20px 30px;max-width:1680px;margin:0 auto}
+.palco{position:relative;background:#000;border:1px solid var(--linha2);border-radius:14px;overflow:hidden;line-height:0}
+.palco img{width:100%;height:auto;display:block}
+.hud{position:absolute;left:12px;right:12px;top:12px;display:flex;justify-content:space-between;align-items:center;
+     line-height:1.3;pointer-events:none;font:12.5px var(--mono);color:#fff;text-shadow:0 1px 2px #000}
+.vivo{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:6px;background:rgba(240,112,127,.92);
+      font:600 11px system-ui,sans-serif;letter-spacing:.14em;text-shadow:none}
+.vivo i{width:7px;height:7px;border-radius:50%;background:#fff;animation:pisca 1.2s infinite}
+.vivo.off{background:rgba(120,135,130,.85)}.vivo.off i{animation:none}
+.barra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.rot{color:var(--apagado);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;margin-right:2px}
+.btn{border:1px solid var(--linha2);background:var(--card);padding:6px 13px;border-radius:10px;cursor:pointer;font-size:13px}
+.btn:hover{border-color:var(--verde)}
+.btn.ativa{background:var(--verde);border-color:var(--verde);color:#062019;font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+#usarMsg{color:var(--apagado);font-size:12.5px;font-style:normal}
+.lado{display:flex;flex-direction:column;gap:14px}
+.card{background:linear-gradient(180deg,var(--card),var(--fundo2));border:1px solid var(--linha);border-radius:14px;padding:15px 16px}
+.card h2{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:12.5px;font-weight:600;letter-spacing:.13em;
+         text-transform:uppercase;color:var(--fraco)}
+.card h2 small{margin-left:auto;font-weight:400;letter-spacing:0;text-transform:none;color:var(--apagado);font-size:12px}
+.placar{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.num{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--card),var(--fundo2));border:1px solid var(--linha);
+     border-radius:14px;padding:14px 16px}
+.num::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--verde)}
+.num.rubi::before{background:var(--rubi)}
+.num span{color:var(--apagado);font-size:11px;letter-spacing:.13em;text-transform:uppercase}
+.num b{display:block;font:600 44px/1.1 system-ui,sans-serif;letter-spacing:-1px;font-variant-numeric:tabular-nums;color:var(--verde)}
+.num b small{font-size:20px;color:var(--apagado);letter-spacing:0;font-weight:500}
+.num.rubi b{color:var(--rubi)}
+.num.pulsa{animation:acende .9s ease-out}
+.pessoas{display:flex;flex-direction:column;gap:6px}
+.p{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--fundo2);border:1px solid transparent}
+.p .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);color:var(--apagado);
+       font-weight:700;font-size:13px}
+.p b{font-weight:600}
+.p em{margin-left:auto;font-style:normal;font-size:12px;color:var(--apagado)}
+.p.sim{border-color:rgba(95,191,160,.4);background:linear-gradient(90deg,var(--verdeluz),var(--fundo2))}
+.p.sim .av{background:var(--verde);color:#062019}
+.p.sim em{color:var(--verde);font-weight:600}
+.desc{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.desc span{padding:3px 9px;border-radius:999px;background:var(--rubiluz);color:var(--rubi);font:600 12px var(--mono)}
+.cams{display:flex;flex-direction:column;gap:8px}
+.cam{display:flex;align-items:center;gap:8px;font-size:13.5px}
+.cam i{width:8px;height:8px;border-radius:50%;background:var(--apagado)}
+.cam.ok i{background:var(--verde);box-shadow:0 0 0 3px var(--verdeluz)}
+.cam.mal i{background:var(--rubi);animation:pisca 1s infinite}
+.cam em{margin-left:auto;font:12.5px var(--mono);font-style:normal;color:var(--fraco)}
+.desemp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.d{background:var(--fundo2);border:1px solid var(--linha);border-radius:11px;padding:9px 12px}
+.d span{display:block;color:var(--apagado);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase}
+.d b{display:block;font:500 19px var(--mono);margin:2px 0 3px}
+.d svg{display:block;width:100%;height:26px}
+.ev{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px;max-height:300px;overflow:auto}
+.ev li{padding:7px 10px;border-radius:9px;background:var(--fundo2);font-size:12.5px;border-left:3px solid var(--linha2);
+       color:var(--fraco);font-family:var(--mono)}
+.ev li.a{border-left-color:var(--verde);color:var(--texto)}
+.ev li.x{border-left-color:var(--rubi);color:var(--texto)}
+.ev li.t{border-left-color:var(--ambar)}
+#cad select{flex:1;background:var(--fundo2);border:1px solid var(--linha2);border-radius:10px;padding:6px 10px}
+#cadMsg{color:var(--fraco);font-size:13px;margin-top:8px}
+body.morto .vivo{background:rgba(120,135,130,.85)}
+@keyframes pisca{50%{opacity:.25}}
+@keyframes acende{from{box-shadow:0 0 0 0 rgba(95,191,160,.55)}to{box-shadow:0 0 0 14px rgba(95,191,160,0)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}}
+@media (max-width:980px){main{grid-template-columns:1fr;padding:14px 16px}header{padding:10px 16px}
+  /* No celular o placar vem logo depois da imagem, e os eventos por ultimo. */
+  main>section{display:contents}.lado{order:2}#cardEv{order:3;margin-top:0!important}}
 </style>
-<header><h1>Audit<i>ix</i> IA</h1><span class="sub">arena · identificação na AI BOX</span>
-<span class="sub" id="tempo"></span></header>
+<header>
+  <div class="marca">
+    <svg width="32" height="32" viewBox="0 0 34 34" aria-hidden="true"><rect x="1" y="1" width="32" height="32" rx="9" fill="#0F1A18" stroke="#284840"/><path d="M9 23 17 9l8 14" fill="none" stroke="#5FBFA0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><circle cx="17" cy="20" r="2.4" fill="#7FE0BF"/></svg>
+    <div><b>Audit<i>ix</i> IA</b><small>arena · identificação na AI BOX</small></div>
+  </div>
+  <div class="dir">
+    <span class="chip" id="conexao"><i></i><span>conectando…</span></span>
+    <span class="chip" id="cmodo" hidden><i></i><span>modo preparo</span></span>
+    <span class="relogio" id="tempo">--:--</span>
+  </div>
+</header>
 <main>
   <section>
-    <div class="usar" id="usar" hidden><span>câmera</span><span id="usarBotoes"></span>
-      <em id="usarMsg"></em></div>
-    <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras"></div>
+    <div class="barra" id="usar" hidden><span class="rot">câmera</span><span id="usarBotoes"></span><em id="usarMsg"></em></div>
+    <div class="palco"><img src="/video" alt="imagem ao vivo das câmeras">
+      <div class="hud"><span class="vivo" id="vivo"><i></i>AO VIVO</span><span id="hud"></span></div></div>
+    <div class="card" id="cardEv" style="margin-top:14px"><h2>Eventos<small>mais novo em cima</small></h2><ol class="ev" id="ev"></ol></div>
   </section>
-  <aside>
-    <div class="n" id="aut"><b id="nAut">--</b><span>autorizados identificados</span>
-      <div class="nomes" id="nomes"></div></div>
-    <div class="n" id="desc"><b id="nDesc">--</b><span>alertas de desconhecido</span></div>
-    <div class="n"><span>câmeras</span><div id="cams"></div></div>
-    <div class="n"><span>desempenho</span><div class="cam"><span>análise</span><b id="qps" style="font-size:15px">--</b></div>
-      <div class="cam" id="linhaVideo" hidden><span>vídeo</span><b id="vqps" style="font-size:15px">--</b></div>
-      <div class="cam"><span>tempo por quadro</span><b id="ms" style="font-size:15px">--</b></div></div>
-    <div class="n" id="cad" hidden><span>cadastro (modo preparo)</span>
-      <div style="display:flex;gap:8px;margin-top:8px"><select id="cadNome" style="flex:1"></select>
-      <button id="cadBotao" type="button">Cadastrar</button></div>
-      <div id="cadMsg" class="nomes" style="color:var(--fraco)"></div></div>
-    <div class="n"><span>últimos eventos</span><ol id="ev"></ol></div>
+  <aside class="lado">
+    <div class="placar">
+      <div class="num" id="cAut"><span>autorizados</span><b id="nAut">--</b></div>
+      <div class="num rubi" id="cDesc"><span>desconhecidos</span><b id="nDesc">--</b></div>
+    </div>
+    <div class="card"><h2>Galeria<small id="galS"></small></h2><div class="pessoas" id="pessoas"></div>
+      <div class="desc" id="descs"></div></div>
+    <div class="card"><h2>Câmeras</h2><div class="cams" id="cams"></div></div>
+    <div class="card"><h2>Desempenho</h2><div class="desemp">
+      <div class="d"><span>leituras/s</span><b id="qps">--</b><svg id="sq" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+      <div class="d"><span>ms por quadro</span><b id="ms">--</b><svg id="sm" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+      <div class="d" id="linhaVideo" hidden><span>vídeo</span><b id="vqps">--</b></div></div></div>
+    <div class="card" id="cad" hidden><h2>Cadastro<small>modo preparo</small></h2>
+      <div style="display:flex;gap:8px"><select id="cadNome"></select><button class="btn ativa" id="cadBotao" type="button">Cadastrar</button></div>
+      <div id="cadMsg"></div></div>
   </aside>
 </main>
 <script>
 const $ = i => document.getElementById(i);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* So escreve no DOM quando o pedaco mudou. */
+const chaves = {};
+function trocar(id, chave, html){
+  if(chaves[id] === chave) return false;
+  chaves[id] = chave; $(id).innerHTML = html; return true;
+}
+const H = {qps: [], ms: []};
+function linha(id, xs, cor){
+  if(xs.length < 2) return;
+  const max = Math.max(...xs) * 1.15 || 1;
+  const pts = xs.map((v, i) => (i / (xs.length - 1) * 120).toFixed(1) + ',' + (25 - v / max * 23).toFixed(1)).join(' ');
+  $(id).innerHTML = '<polyline points="0,26 ' + pts + ' 120,26" fill="' + cor + '" fill-opacity=".12"/>' +
+    '<polyline points="' + pts + '" fill="none" stroke="' + cor + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+}
+let antes = {aut: -1, desc: -1}, falhas = 0;
 setInterval(async () => {
-  try{
-    const e = await (await fetch('/estado')).json();
-    $('nAut').textContent = e.autorizados.length + ' de ' + e.total_autorizados;
-    $('nomes').innerHTML = e.autorizados.map(esc).join('<br>') || '—';
-    $('nDesc').textContent = e.desconhecidos.length;
-    $('cams').innerHTML = e.cameras.map(c => '<div class="cam"><span>câmera ' + c.indice +
-      '</span><b class="' + (c.estado === 'ok' ? 'ok' : c.estado === 'desligada' ? '' : 'mal') +
-      '" style="font-size:15px' + (c.estado === 'desligada' ? ';color:var(--fraco)' : '') + '">' +
-      esc(c.estado) + (c.estado === 'desligada' ? '' : ' · ' + c.qps.toFixed(1) + '/s') +
-      '</b></div>').join('');
-    $('qps').textContent = e.qps.toFixed(1) + ' leituras/s';
-    if (e.video_qps != null) {
-      $('linhaVideo').hidden = false;
-      $('vqps').textContent = e.video_qps.toFixed(1) + ' quadros/s';
+  let e;
+  try{ e = await (await fetch('/estado', {cache: 'no-store'})).json(); falhas = 0; }
+  catch(_){
+    if(++falhas >= 3){
+      document.body.classList.add('morto');
+      $('conexao').className = 'chip mal'; $('conexao').lastElementChild.textContent = 'sem conexão com a caixa';
+      $('vivo').className = 'vivo off';
     }
-    $('ms').textContent = Math.round(e.ms) + ' ms';
-    $('tempo').textContent = e.tempo;
-    $('ev').innerHTML = e.eventos.map(x => '<li>' + esc(x) + '</li>').join('');
-    /* ESCOLHER A CAMERA. So com duas ou mais. Muda o que a caixa LE e
-       analisa, nao so o que a pagina mostra: a camera fora da escolha fecha. */
-    if (e.cameras.length > 1) {
-      $('usar').hidden = false;
-      const op = [[0, 'as duas']].concat(e.cameras.map(c => [c.indice, 'câmera ' + c.indice]));
-      const chave = op.map(o => o[0]).join(',') + '|' + e.usar + '|' + (e.troca_espera > 0);
-      if ($('usarBotoes').dataset.chave !== chave) {
-        $('usarBotoes').dataset.chave = chave;
-        $('usarBotoes').innerHTML = op.map(([v, t]) => '<button type="button" data-usar="' + v + '"' +
-          (v === e.usar ? ' class="ativa"' : '') + (e.troca_espera > 0 ? ' disabled' : '') + '>' + t +
-          '</button>').join('');
-      }
-      $('usarMsg').textContent = e.troca_msg || '';
-    }
-    if (e.cadastro) {
-      $('cad').hidden = false;
-      const sel = $('cadNome');
-      if (sel.options.length !== e.cadastro.nomes.length)
-        sel.innerHTML = e.cadastro.nomes.map(n => '<option>' + esc(n) + '</option>').join('');
-      $('cadBotao').disabled = e.cadastro.ativo;
-      $('cadMsg').textContent = e.cadastro.msg || '';
-    }
-    document.body.classList.remove('morto');
-  }catch(_){ document.body.classList.add('morto'); }
+    return;
+  }
+  document.body.classList.remove('morto');
+  $('vivo').className = 'vivo';
+  const camOk = e.cameras.some(c => c.estado === 'ok');
+  $('conexao').className = 'chip ' + (camOk ? 'ok' : 'mal');
+  $('conexao').lastElementChild.textContent = camOk ? 'identificando' : 'nenhuma câmera com imagem';
+  $('tempo').textContent = e.tempo;
+  $('cmodo').hidden = !e.cadastro;
+
+  /* O placar. O numero que mudou acende uma vez. */
+  const na = e.autorizados.length, nd = e.desconhecidos.length;
+  $('nAut').innerHTML = na + '<small> de ' + e.total_autorizados + '</small>';
+  $('nDesc').textContent = nd;
+  if(antes.aut >= 0 && na !== antes.aut){ $('cAut').classList.remove('pulsa'); void $('cAut').offsetWidth; $('cAut').classList.add('pulsa'); }
+  if(antes.desc >= 0 && nd !== antes.desc){ $('cDesc').classList.remove('pulsa'); void $('cDesc').offsetWidth; $('cDesc').classList.add('pulsa'); }
+  antes = {aut: na, desc: nd};
+
+  const gal = e.galeria || e.autorizados;
+  const sim = new Set(e.autorizados);
+  trocar('pessoas', gal.join('|') + '#' + e.autorizados.join('|'), gal.map(n =>
+    '<div class="p' + (sim.has(n) ? ' sim' : '') + '"><span class="av">' + esc(n.slice(0, 1).toUpperCase()) + '</span><b>' + esc(n) +
+    '</b><em>' + (sim.has(n) ? '✓ identificado' : 'aguardando') + '</em></div>').join(''));
+  $('galS').textContent = gal.length + ' autorizado' + (gal.length === 1 ? '' : 's');
+  trocar('descs', e.desconhecidos.join(','), e.desconhecidos.map(d => '<span>desconhecido #' + d + '</span>').join(''));
+
+  trocar('cams', JSON.stringify(e.cameras.map(c => [c.indice, c.estado, c.qps.toFixed(1)])), e.cameras.map(c =>
+    '<div class="cam ' + (c.estado === 'ok' ? 'ok' : c.estado === 'desligada' ? '' : 'mal') + '"><i></i>câmera ' + c.indice +
+    '<em>' + esc(c.estado) + (c.estado === 'desligada' ? '' : ' · ' + c.qps.toFixed(1) + '/s') + '</em></div>').join(''));
+
+  H.qps.push(e.qps); H.ms.push(e.ms); if(H.qps.length > 60){ H.qps.shift(); H.ms.shift(); }
+  $('qps').textContent = e.qps.toFixed(1);
+  $('ms').textContent = Math.round(e.ms);
+  linha('sq', H.qps, '#5FBFA0'); linha('sm', H.ms, '#7FB2E8');
+  $('hud').textContent = e.qps.toFixed(1) + ' leituras/s · ' + Math.round(e.ms) + ' ms';
+  if(e.video_qps != null){ $('linhaVideo').hidden = false; $('vqps').textContent = e.video_qps.toFixed(1) + '/s'; }
+
+  trocar('ev', e.eventos.join('\\n'), e.eventos.map(x =>
+    '<li class="' + (/AUTORIZADO/.test(x) ? 'a' : /ALERTA/.test(x) ? 'x' : /troca|deixou|camera/.test(x) ? 't' : '') + '">' + esc(x) + '</li>').join('') ||
+    '<li>nada ainda</li>');
+
+  /* ESCOLHER A CAMERA. So com duas ou mais. Muda o que a caixa LE e
+     analisa, nao so o que a pagina mostra: a camera fora da escolha fecha. */
+  if(e.cameras.length > 1){
+    $('usar').hidden = false;
+    const op = [[0, 'as duas']].concat(e.cameras.map(c => [c.indice, 'câmera ' + c.indice]));
+    trocar('usarBotoes', op.map(o => o[0]).join(',') + '|' + e.usar + '|' + (e.troca_espera > 0), op.map(([v, t]) =>
+      '<button type="button" class="btn' + (v === e.usar ? ' ativa' : '') + '" data-usar="' + v + '"' +
+      (e.troca_espera > 0 ? ' disabled' : '') + '>' + t + '</button>').join(' '));
+    $('usarMsg').textContent = e.troca_msg || '';
+  }
+  if(e.cadastro){
+    $('cad').hidden = false;
+    const sel = $('cadNome');
+    if(sel.options.length !== e.cadastro.nomes.length)
+      sel.innerHTML = e.cadastro.nomes.map(n => '<option>' + esc(n) + '</option>').join('');
+    $('cadBotao').disabled = e.cadastro.ativo;
+    $('cadMsg').textContent = e.cadastro.msg || '';
+  }
 }, 700);
 $('usarBotoes').addEventListener('click', async ev => {
   const b = ev.target.closest('button');
-  if (!b || b.disabled) return;
+  if(!b || b.disabled) return;
   $('usarMsg').textContent = 'trocando…';
-  try {
+  try{
     await fetch('/usar', {method: 'POST', headers: {'Content-Type': 'application/json'},
                           body: JSON.stringify({camera: Number(b.dataset.usar)})});
-  } catch (_) { $('usarMsg').textContent = 'a caixa não respondeu'; }
+  }catch(_){ $('usarMsg').textContent = 'a caixa não respondeu'; }
 });
 $('cadBotao').addEventListener('click', async () => {
   $('cadBotao').disabled = true;
   $('cadMsg').textContent = 'começando…';
-  try {
+  try{
     await fetch('/cadastrar', {method: 'POST', headers: {'Content-Type': 'application/json'},
                                body: JSON.stringify({nome: $('cadNome').value})});
-  } catch (_) { $('cadMsg').textContent = 'a caixa não respondeu'; }
+  }catch(_){ $('cadMsg').textContent = 'a caixa não respondeu'; }
 });
 </script>
 """.encode("utf-8")
@@ -1425,6 +1542,7 @@ def main():
         r = juiz.resumo()
         estado = dict(
             autorizados=r["autorizados"], total_autorizados=r["total_autorizados"],
+            galeria=juiz.nomes,
             desconhecidos=r["desconhecidos"],
             cameras=[dict(indice=c.indice, estado=c.estado(agora),
                           qps=len(qps_cam[c.indice]) / 5.0) for c in cams],

@@ -396,6 +396,9 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   o vídeo é o mesmo JPEG da página dela. Se a caixa roda a ARENA, a Central
   mostra o vídeo e diz "modo arena". Testada com a `Vivo` de verdade numa
   caixa falsa (`batimento.mjs` 19/19, `ciente.mjs` 23/23).
+  A página da ARENA (porta 8080 da caixa) ganhou o mesmo visual: placar
+  grande, a galeria com quem já foi identificado (`estado.galeria`), câmeras,
+  desempenho com gráfico e eventos coloridos. Só reescreve o pedaço que mudou.
 - **Seguir primeiro, reconhecer depois: `ARENA_RECONFERIR_S`** (pedido do
   Enzo em 21/10, desligado por padrão = 0). Quem já foi decidido só passa
   pelo modelo de rosto de novo a cada N s; o rastreador leva o nome junto.
