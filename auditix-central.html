@@ -247,7 +247,9 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 .alarme .acoes .btn{padding:13px 22px;font-size:16px;border-radius:12px}
 .alarme p{color:#C99AA2;font-size:12.5px;margin:16px 0 0}
 
-.visor{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72)}
+/* O visor fica POR CIMA do alarme: "ver o corpo" e aberto de dentro dele, e
+   por baixo ficava invisivel e prendia a tela (achado no laboratorio, 22/10). */
+.visor{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72)}
 .visor .caixa{width:min(520px,100%);background:var(--card);border:1px solid var(--linha-2);border-radius:18px;padding:18px}
 .visor svg{width:100%;aspect-ratio:1;background:var(--fundo-2);border-radius:12px;color:var(--ink-2)}
 .visor header{display:flex;align-items:center;margin-bottom:10px}
