@@ -553,12 +553,18 @@ try{
   if(q){ caixa = q.startsWith('http') ? q : 'http://' + q; caixaFixa = true; localStorage.setItem('auditix.caixa', caixa); }
   else caixa = localStorage.getItem('auditix.caixa');
 }catch(e){}
-caixa = (caixa || 'http://192.168.50.10:8080').replace(/\/+$/, '');
+/* Endereco sem maquina ("http://:8080", de um Conectar com o campo vazio)
+   ficava salvo e prendia a Central nele. */
+const CAIXA_PADRAO = 'http://192.168.50.10:8080';
+const temMaquina = u => /^https?:\/\/[^\/:]+/.test(u || '');
+caixa = (temMaquina(caixa) ? caixa : CAIXA_PADRAO).replace(/\/+$/, '');
 
 function usarCaixa(url, fixa){
-  url = url.replace(/\/+$/, '');
+  url = (url || '').replace(/\/+$/, '');
+  if(!url){ url = CAIXA_PADRAO; fixa = false; }
   if(!/^https?:\/\//.test(url)) url = 'http://' + url;
   if(!/:\d+$/.test(url)) url += ':8080';
+  if(!temMaquina(url)){ url = CAIXA_PADRAO; fixa = false; }
   if(url === caixa && el('video').src) return;
   caixa = url; caixaFixa = !!fixa; falhasCaixa = 0;
   try{ localStorage.setItem('auditix.caixa', caixa); }catch(e){}
