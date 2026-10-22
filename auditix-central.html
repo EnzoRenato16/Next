@@ -299,9 +299,10 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
   </div>
   <nav class="abas" role="tablist">
     <button class="aba" role="tab" data-vista="vivo" aria-selected="true">Ao vivo</button>
+    <button class="aba" role="tab" data-vista="webcam">Webcam</button>
     <button class="aba" role="tab" data-vista="ocorr" id="aba-ocorr"><span class="ponto"></span>Ocorrências</button>
-    <button class="aba" role="tab" data-vista="cadastro">Cadastro facial</button>
-    <button class="aba" role="tab" data-vista="cadeia">Cadeia de hash</button>
+    <button class="aba" role="tab" data-vista="cadastro">Cadastro</button>
+    <button class="aba" role="tab" data-vista="cadeia">Cadeia</button>
   </nav>
   <div class="estados">
     <span class="chip" id="st-caixa"><i></i><span>caixa</span></span>
@@ -333,6 +334,7 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
           <b id="sem-tit">Sem imagem da caixa</b>
           <p id="sem-txt">A Central não está conseguindo falar com a caixa. Confira se a análise da sala está rodando (<code>bash aibox/ir.sh</code>) e se o endereço abaixo está certo.</p>
           <form id="f-caixa"><input id="i-caixa" spellcheck="false" aria-label="endereço da caixa"><button class="btn forte">Conectar</button></form>
+          <button class="btn" type="button" data-ir="webcam">Usar a webcam deste PC</button>
         </div>
       </div>
       <div class="barra">
@@ -340,6 +342,7 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
         <span id="cams"><button class="btn" disabled>câmera 1</button></span>
         <em id="cams-msg"></em>
         <span class="dir">
+          <button class="btn" type="button" data-ir="webcam">Webcam do PC</button>
           <a class="btn" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
           <button class="btn" id="b-cheia">Tela cheia</button>
         </span>
@@ -417,6 +420,19 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
       <tbody id="tab"></tbody>
     </table></div>
   </div>
+</section>
+
+<!-- ================================================================== WEBCAM -->
+<!-- SEM A CAIXA: a Sala do navegador (auditix-sala.html, servida em /), com a
+     webcam deste PC. E o MESMO cerebro da caixa (mesmas 12 caracteristicas e os
+     mesmos pesos, testes/aibox.mjs), so que o corpo e medido pelo MediaPipe aqui
+     no navegador. Grava no mesmo servidor: os alertas aparecem nesta Central,
+     com sirene e "Estou ciente", como os da caixa. Tudo offline (vendor/). -->
+<section class="vista" id="v-webcam" hidden>
+  <p class="dica">Queda, corrida e briga pela webcam deste PC, sem a AIBOX. Os alertas entram na Central como os da caixa.
+    Clique em ligar a câmera dentro do quadro e permita a webcam no navegador.
+    <a href="/" target="_blank" rel="noopener">abrir em tela própria ↗</a></p>
+  <div class="moldura"><iframe data-src="/" title="sala pela webcam do PC" allow="camera; microphone; fullscreen"></iframe></div>
 </section>
 
 <!-- ================================================================ CADASTRO -->
@@ -519,6 +535,7 @@ function abrir(v){
   if(v === 'ocorr') pintarOcorr();
 }
 document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => abrir(b.dataset.vista)));
+document.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if(b) abrir(b.dataset.ir); });
 
 /* =========================================================== relógio ===== */
 function tic(){

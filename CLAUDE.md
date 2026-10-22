@@ -396,6 +396,10 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   o vídeo é o mesmo JPEG da página dela. Se a caixa roda a ARENA, a Central
   mostra o vídeo e diz "modo arena". Testada com a `Vivo` de verdade numa
   caixa falsa (`batimento.mjs` 19/19, `ciente.mjs` 23/23).
+  **Aba Webcam (sem a caixa):** a Sala do navegador (`/`, MediaPipe, tudo em
+  `vendor/`) dentro da Central, com a webcam do PC. Feita para a apresentação
+  da queda no estande, onde a AIBOX não pode ser usada (22/10). Os alertas
+  dela caem no mesmo servidor e tocam o alarme da Central.
   A página da ARENA (porta 8080 da caixa) ganhou o mesmo visual: placar
   grande, a galeria com quem já foi identificado (`estado.galeria`), câmeras,
   desempenho com gráfico e eventos coloridos. Só reescreve o pedaço que mudou.
