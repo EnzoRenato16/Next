@@ -34,22 +34,30 @@ BRANCO = (240, 240, 240)
 PAGINA = """<!doctype html><html lang="pt-BR"><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Auditix IA na AIBOX</title><style>
-:root{color-scheme:dark;--verde:#5FBFA0;--fundo:#0C1512;--caixa:#16302A;
-      --linha:#2C5A4C;--texto:#E3F2EC;--fraco:#8FB3A7}
+:root{color-scheme:dark;--verde:#5FBFA0;--fundo:#070D0C;--caixa:#0F1A18;
+      --linha:#1E3530;--texto:#E4F1EC;--fraco:#8FB3A7}
 *{box-sizing:border-box}
-body{margin:0;background:var(--fundo);color:var(--texto);
-     font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+body{margin:0;color:var(--texto);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+     background:radial-gradient(1000px 500px at 85% -10%,rgba(95,191,160,.10),transparent 60%),var(--fundo)}
 header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;
        padding:18px 20px;border-bottom:1px solid var(--linha)}
 h1{margin:0;font-size:21px;letter-spacing:-.3px}
 h1 i{font-style:normal;color:var(--verde)}
 nav{margin-left:auto;display:flex;gap:16px}
 nav a{color:var(--verde);font-size:14px;text-decoration:none}
+nav a.central{background:var(--verde);color:#062019;font-weight:600;padding:4px 12px;border-radius:9px}
+.n b{font-family:ui-monospace,Menlo,Consolas,monospace}
 nav a:hover{text-decoration:underline}
 .sub{color:var(--fraco);font-size:12px;letter-spacing:.14em;text-transform:uppercase}
 main{padding:20px;max-width:1100px;margin:0 auto}
-.palco{position:relative;background:#000;border:1px solid var(--linha);
-       border-radius:12px;overflow:hidden;line-height:0}
+.palco{position:relative;background:#000;border:1px solid #284840;
+       border-radius:14px;overflow:hidden;line-height:0}
+.vivo{position:absolute;top:12px;left:12px;z-index:2;display:inline-flex;align-items:center;gap:7px;
+      padding:4px 9px;border-radius:6px;background:rgba(240,112,127,.9);color:#fff;
+      font:600 11px/1.4 system-ui,sans-serif;letter-spacing:.14em}
+.vivo i{width:7px;height:7px;border-radius:50%;background:#fff;animation:pisca 1.2s infinite}
+@keyframes pisca{50%{opacity:.25}}
+.n{background:linear-gradient(180deg,#0F1A18,#0B1413)!important}
 .palco img{width:100%;height:auto;display:block}
 .nums{display:grid;gap:10px;margin-top:16px;
       grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
@@ -75,7 +83,7 @@ main{padding:20px;max-width:1100px;margin:0 auto}
 <main>
   <div class="usar" id="usar" hidden><span>câmera</span><span id="usarBotoes"></span>
     <em id="usarMsg"></em></div>
-  <div class="palco"><img src="/video" alt="imagem ao vivo da camera da sala"></div>
+  <div class="palco"><span class="vivo"><i></i>AO VIVO</span><img src="/video" alt="imagem ao vivo da camera da sala"></div>
   <div class="nums">
     <div class="n"><b id="fps">--</b><span>analise/s</span></div>
     <div class="n"><b id="video">--</b><span>video/s</span></div>
@@ -137,6 +145,7 @@ setInterval(async () => {
     if(e.servidor && !$('atalhos').dataset.pronto){
       $('atalhos').dataset.pronto = '1';
       $('atalhos').innerHTML =
+        '<a class="central" href="' + e.servidor + '/central">Abrir a Central</a>' +
         '<a href="' + e.servidor + '/cadastro">Cadastrar rosto</a>' +
         '<a href="' + e.servidor + '/painel">Painel de eventos</a>' +
         '<a href="' + e.servidor + '/cadeia">Conferir a cadeia</a>';
@@ -182,7 +191,7 @@ class Vivo:
                            ram=0.0, corpos=0, enviados=0, falhas=0,
                            pendentes=0, ultimo_ms=None, video=0.0,
                            servidor="", imagem="", detalhe=None,
-                           cameras_n=1, usando=1, troca_msg="")
+                           cameras_n=1, usando=1, troca_msg="", pessoas=[])
         self.clientes = 0
         self._pedido = None         # camera pedida pela pagina, o laco aplica
         self._troca_ate = 0.0
@@ -310,6 +319,20 @@ def _fabricar(vivo):
             """Calado. O log do laco e o que importa nesta janela, e uma linha
             por quadro do MJPEG esconderia qualquer alerta de queda."""
 
+        def _cors(self):
+            # A CENTRAL do PC (servidor.py, /central) le os numeros e troca a
+            # camera daqui, de outra origem. So leitura de estado e a troca de
+            # camera passam por aqui; o video e uma <img>, que nao precisa.
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+
+        def do_OPTIONS(self):
+            self.send_response(204)
+            self._cors()
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
         def do_POST(self):
             # So a troca de camera. Fica na caixa (e nao no servidor do PC)
             # porque e a caixa que abre a camera.
@@ -325,6 +348,7 @@ def _fabricar(vivo):
                 except Exception:
                     corpo, cod = b'{"erro": "camera invalida"}', 400
             self.send_response(cod)
+            self._cors()
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(corpo)))
             self.end_headers()
@@ -340,6 +364,7 @@ def _fabricar(vivo):
                                troca_espera=max(0.0, vivo._troca_ate - time.monotonic()))
                     corpo = json.dumps(est).encode()
                 self.send_response(200)
+                self._cors()
                 self.send_header("Content-Type", "application/json")
                 self.send_header("Content-Length", str(len(corpo)))
                 self.send_header("Cache-Control", "no-store")

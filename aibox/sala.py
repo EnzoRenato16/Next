@@ -318,7 +318,8 @@ def main():
     # A caixa diz ao servidor que esta viva e se esta enxergando. Ver o porque
     # em aibox/batimento.py — e o servidor, nao ela, quem percebe o silencio.
     bat = batimento.Batimento(a.servidor, a.local,
-                              balcao=balcao.porta if balcao is not None else None)
+                              balcao=balcao.porta if balcao is not None else None,
+                              vivo=a.web if janela is not None else None)
     print(f"[aibox] batimento: '{bat.caixa}' a cada {batimento.BATIDA_S:g}s")
     desde_quadro = t0
     custo.cpu_pct()                      # primeira leitura, so para ancorar
@@ -469,7 +470,15 @@ def main():
                     corpos=len(rebanho.trilhas), enviados=fala.enviados,
                     falhas=fala.falhas, pendentes=fala.pendentes,
                     ultimo_ms=fala.ultimo_ms, servidor=fala.base,
-                    imagem=bat.estado(), detalhe=bat.valor)
+                    imagem=bat.estado(), detalhe=bat.valor,
+                    # Quem esta na tela agora, para a Central listar: o numero
+                    # (ou o nome), a nota da rede de queda e se algum relogio
+                    # (queda ou corrida) esta armado. Sem ponto nem imagem.
+                    pessoas=[dict(id=t.id, nome=getattr(t, "nome", None),
+                                  nota=round(float(t.notaQueda), 3),
+                                  analisavel=bool(t.analisavel),
+                                  queda=bool(t.quedaDesde), corre=bool(t.correDesde))
+                             for t in rebanho.trilhas.values()][:20])
                 if pintor is not None:
                     # Quem desenha e o pintor, no ritmo da camera. Aqui so vai
                     # a lista (NOVA, porque o dicionario muda de tamanho

@@ -50,6 +50,7 @@ from pydantic import BaseModel, Field
 AQUI = Path(__file__).parent
 PAGINA = AQUI / "auditix-sala.html"
 PAINEL = AQUI / "auditix-painel.html"
+CENTRAL = AQUI / "auditix-central.html"
 # Os modelos de rosto e de corpo moram aqui, versionados junto do projeto. Vinham
 # de CDN, e uma rede que bloqueie jsdelivr ou googleapis deixava a tela presa em
 # "Carregando o detector de corpo..." para sempre. Numa apresentacao isso e o
@@ -1057,6 +1058,8 @@ class Batida(BaseModel):
     # endereco a rede a enxerga, e um IP digitado errado no .env dela faria a
     # tela /cadastro procurar o balcao no lugar errado.
     balcao: int | None = Field(default=None, ge=1, le=65535)
+    # A porta da imagem ao vivo da caixa (a Central mostra a camera por ela).
+    vivo: int | None = Field(default=None, ge=1, le=65535)
 
 
 def _gravar_elo(tipo: str, quem: str, local: str) -> tuple[int, str, str]:
@@ -1104,7 +1107,8 @@ def batimento(b: Batida, req: Request) -> dict:
         cx.update(local=b.local, estado=b.estado, intervalo=b.intervalo_s,
                   detalhe=b.detalhe, quadro_ha_s=b.quadro_ha_s, fps=b.fps,
                   pendentes=b.pendentes, visto=time.monotonic(),
-                  ip=req.client.host if req.client else None, balcao=b.balcao)
+                  ip=req.client.host if req.client else None, balcao=b.balcao,
+                  vivo=b.vivo)
         antes = cx["episodio"]
         if b.estado == "parada":
             # Parada DE PROPOSITO: vira registro (a cadeia diz quando o sistema
@@ -1156,8 +1160,8 @@ async def vigiar_silencio() -> None:
             print(f"[saude] vigia falhou: {erro}")
 
 
-def _endereco_balcao(cx: dict) -> str | None:
-    ip, porta = cx.get("ip"), cx.get("balcao")
+def _endereco_balcao(cx: dict, chave: str = "balcao") -> str | None:
+    ip, porta = cx.get("ip"), cx.get(chave)
     if not ip or not porta:
         return None
     # IPv6 vai entre colchetes na URL; sem eles a porta se mistura ao endereco.
@@ -1185,7 +1189,9 @@ def saude() -> dict:
                 "quadro_ha_s": cx.get("quadro_ha_s"),
                 "pendentes": cx.get("pendentes"),
                 # Onde a tela /cadastro acha a camera de cadastro desta caixa.
-                "balcao": _endereco_balcao(cx)})
+                "balcao": _endereco_balcao(cx),
+                # Onde a Central acha a imagem ao vivo desta caixa.
+                "vivo": _endereco_balcao(cx, "vivo")})
     return {"caixas": sorted(lista, key=lambda c: c["caixa"]),
             "sem_sinal_s": SEM_SINAL_S}
 
@@ -2056,6 +2062,15 @@ def pagina_painel() -> FileResponse:
     return FileResponse(PAINEL, headers={"Cache-Control": "no-store, must-revalidate"})
 
 
+@app.get("/central")
+def pagina_central() -> FileResponse:
+    """A Central: camera com a IA (da caixa), ocorrencias, cadastro e cadeia
+    numa tela so. Le os mesmos endpoints do painel; grava so o "estou ciente"."""
+    if not CENTRAL.exists():
+        raise HTTPException(404, f"não achei {CENTRAL.name} ao lado do servidor")
+    return FileResponse(CENTRAL, headers={"Cache-Control": "no-store, must-revalidate"})
+
+
 @app.get("/api/painel")
 def painel() -> dict:
     """O que o Power BI consome. Agregado, nunca linha a linha de pessoa."""
@@ -2088,6 +2103,7 @@ if __name__ == "__main__":
               "o resto da rede so le")
     print(f"[auditix] sala   -> http://127.0.0.1:{porta}/")
     print(f"[auditix] painel -> http://127.0.0.1:{porta}/painel")
+    print(f"[auditix] central -> http://127.0.0.1:{porta}/central  (camera, alertas, cadastro e cadeia)")
     # Sem esta linha, um .env nao lido (ou salvo como .env.txt) some sem
     # rastro: o servidor simplesmente nao avisa ninguem e a tela fica igual.
     if WEBHOOK:

@@ -384,6 +384,18 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   escolhe ao subir. **Nas duas:** 10 s no mínimo entre trocas
   (`TROCA_MIN_S`), por causa do bloqueio 403 da Intelbras; os botões ficam
   apagados nesse tempo. A troca da arena entra nos eventos ("camera: so a 2").
+- **Central (`/central`, `auditix-central.html`)** (pedido do Enzo em 22/10:
+  "tudo num lugar só"). Tela escura de sala de controle no PC: câmera da
+  caixa com a IA (MJPEG da `vivo.py`), alertas ao vivo com "Estou ciente" e a
+  mesma sirene do painel, quem está na tela com a nota de queda, saúde da
+  caixa com gráficos, linha do tempo, aba Ocorrências, e `/cadastro` e
+  `/cadeia` em abas (iframe). Acha a caixa pelo batimento (campo novo `vivo`,
+  a porta da imagem ao vivo; `/api/saude` devolve o endereço), ou
+  `?caixa=IP`, ou 192.168.50.10:8080. A `vivo.py` agora responde com CORS no
+  `/estado` e no `/camera`, e o `/estado` traz `pessoas`. Não pesa na caixa:
+  o vídeo é o mesmo JPEG da página dela. Se a caixa roda a ARENA, a Central
+  mostra o vídeo e diz "modo arena". Testada com a `Vivo` de verdade numa
+  caixa falsa (`batimento.mjs` 19/19, `ciente.mjs` 23/23).
 - **Seguir primeiro, reconhecer depois: `ARENA_RECONFERIR_S`** (pedido do
   Enzo em 21/10, desligado por padrão = 0). Quem já foi decidido só passa
   pelo modelo de rosto de novo a cada N s; o rastreador leva o nome junto.

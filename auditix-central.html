@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Central Auditix</title>
+<link rel="stylesheet" href="vendor/fontes/fontes.css">
+<style>
+/* ===========================================================================
+   Central Auditix: a sala inteira numa tela so.
+
+   O que cada pedaco le, para ninguem procurar:
+     · a camera com a IA e os numeros da caixa  -> a CAIXA (vivo.py, porta
+       8080): /video (MJPEG, uma <img>) e /estado (JSON, com CORS). O endereco
+       vem do batimento (/api/saude, campo "vivo"); sem batimento, o que
+       estiver salvo, ou 192.168.50.10:8080.
+     · alertas, ocorrencias, pessoas, cadeia     -> este servidor, os mesmos
+       endpoints do /painel.
+     · cadastro facial e conferencia da cadeia   -> as paginas /cadastro e
+       /cadeia, dentro da Central (iframe, mesma origem).
+
+   Grava UMA coisa so, como o painel: o "Estou ciente". O resto e leitura.
+
+   Nao aumenta o trabalho da caixa: o video e o MESMO JPEG que a pagina da
+   caixa ja recebe (um encode por quadro, qualquer que seja o numero de
+   telas), e os numeros sao um JSON pequeno por segundo.
+   =========================================================================== */
+:root{
+  color-scheme: dark;
+  --fundo:#070D0C; --fundo-2:#0B1413; --card:#0F1A18; --card-2:#132320;
+  --linha:#1E3530; --linha-2:#284840;
+  --ink:#E4F1EC; --ink-2:#9DB8AF; --ink-3:#6B8880;
+  --verde:#5FBFA0; --verde-forte:#7FE0BF; --verde-luz:rgba(95,191,160,.12);
+  --rubi:#F0707F;  --rubi-luz:rgba(240,112,127,.14);
+  --ambar:#E8C06F; --ambar-luz:rgba(232,192,111,.13);
+  --azul:#7FB2E8;  --azul-luz:rgba(127,178,232,.13);
+  --disp:'Bricolage Grotesque','Public Sans',system-ui,sans-serif;
+  --corpo:'Public Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'DM Mono',ui-monospace,Menlo,monospace;
+  --r:14px;
+  --ease:cubic-bezier(.2,.8,.2,1);
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0;background:var(--fundo);color:var(--ink)}
+body{font:14px/1.5 var(--corpo);min-height:100vh;
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(95,191,160,.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(127,178,232,.06), transparent 60%),
+    var(--fundo)}
+button{font:inherit;color:inherit}
+a{color:var(--verde)}
+
+/* ------------------------------------------------------------ topo ------ */
+.topo{position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:18px;
+  padding:12px 22px;background:rgba(7,13,12,.82);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--linha)}
+.marca{display:flex;align-items:center;gap:10px;white-space:nowrap}
+.marca svg{flex:none}
+.marca b{font:600 19px/1 var(--disp);letter-spacing:-.3px}
+.marca b i{font-style:normal;color:var(--verde)}
+.marca small{display:block;color:var(--ink-3);font-size:10.5px;letter-spacing:.16em;
+  text-transform:uppercase;margin-top:3px}
+.abas{display:flex;gap:4px;padding:4px;background:var(--fundo-2);border:1px solid var(--linha);
+  border-radius:12px;overflow-x:auto;scrollbar-width:none}
+.abas::-webkit-scrollbar{display:none}
+.aba{display:flex;align-items:center;gap:7px;background:none;border:0;padding:7px 13px;
+  border-radius:9px;color:var(--ink-2);cursor:pointer;white-space:nowrap;font-weight:500;
+  transition:background .2s var(--ease),color .2s var(--ease)}
+.aba:hover{color:var(--ink);background:var(--card)}
+.aba[aria-selected="true"]{background:var(--card-2);color:var(--ink);
+  box-shadow:inset 0 0 0 1px var(--linha-2)}
+.aba .ponto{width:6px;height:6px;border-radius:50%;background:var(--rubi);display:none}
+.aba.alerta .ponto{display:block;animation:pisca 1s infinite}
+.estados{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;
+  border:1px solid var(--linha);background:var(--fundo-2);color:var(--ink-2);font-size:12.5px;
+  white-space:nowrap}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--ink-3);flex:none}
+.chip.ok i{background:var(--verde);box-shadow:0 0 0 3px var(--verde-luz)}
+.chip.av i{background:var(--ambar);box-shadow:0 0 0 3px var(--ambar-luz)}
+.chip.mal{color:var(--rubi);border-color:rgba(240,112,127,.4)}
+.chip.mal i{background:var(--rubi);box-shadow:0 0 0 3px var(--rubi-luz);animation:pisca 1s infinite}
+.relogio{font:500 15px var(--mono);color:var(--ink);letter-spacing:.02em;min-width:68px;text-align:right}
+.btn{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--linha-2);
+  background:var(--card);color:var(--ink);padding:7px 13px;border-radius:10px;cursor:pointer;
+  font-size:13px;white-space:nowrap;transition:background .2s var(--ease),border-color .2s}
+.btn:hover{background:var(--card-2);border-color:var(--verde)}
+.btn[aria-pressed="true"]{border-color:var(--verde);color:var(--verde-forte)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.forte{background:var(--verde);border-color:var(--verde);color:#062019;font-weight:600}
+.btn.rubi{background:var(--rubi);border-color:var(--rubi);color:#2A070D;font-weight:600}
+
+main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
+.vista{animation:entra .35s var(--ease)}
+
+/* ------------------------------------------------------------ ao vivo --- */
+.grade{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:18px;align-items:start}
+.cartao{background:linear-gradient(180deg,var(--card),var(--fundo-2));border:1px solid var(--linha);
+  border-radius:var(--r);padding:16px 16px}
+.cartao h2{display:flex;align-items:center;gap:8px;margin:0 0 12px;font:600 13px/1 var(--corpo);
+  letter-spacing:.12em;text-transform:uppercase;color:var(--ink-2)}
+.cartao h2 small{margin-left:auto;font:400 12px var(--corpo);letter-spacing:0;text-transform:none;color:var(--ink-3)}
+
+.palco{position:relative;border-radius:var(--r);overflow:hidden;background:#000;
+  border:1px solid var(--linha-2);aspect-ratio:16/9;line-height:0}
+.palco img{width:100%;height:100%;object-fit:contain;display:block}
+.palco::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(180deg,rgba(0,0,0,.45),transparent 18%,transparent 78%,rgba(0,0,0,.55))}
+.hud{position:absolute;inset:0;z-index:2;pointer-events:none;line-height:1.3;font-family:var(--mono)}
+.hud .c{position:absolute;display:flex;gap:10px;align-items:center;font-size:12.5px;color:#fff;
+  text-shadow:0 1px 2px rgba(0,0,0,.8)}
+.hud .h-tl{top:14px;left:16px}.hud .h-tr{top:14px;right:16px}
+.hud .h-bl{bottom:14px;left:16px}.hud .h-br{bottom:14px;right:16px}
+.vivo-tag{display:inline-flex;align-items:center;gap:7px;padding:4px 9px;border-radius:6px;
+  background:rgba(240,112,127,.9);color:#fff;font:600 11px var(--corpo);letter-spacing:.14em}
+.vivo-tag i{width:7px;height:7px;border-radius:50%;background:#fff;animation:pisca 1.2s infinite}
+.vivo-tag.off{background:rgba(120,135,130,.85)}
+.vivo-tag.off i{animation:none}
+.canto{position:absolute;width:26px;height:26px;border:2px solid rgba(127,224,191,.75);z-index:2}
+.canto.a{top:10px;left:10px;border-right:0;border-bottom:0;border-radius:6px 0 0 0}
+.canto.b{top:10px;right:10px;border-left:0;border-bottom:0;border-radius:0 6px 0 0}
+.canto.c{bottom:10px;left:10px;border-right:0;border-top:0;border-radius:0 0 0 6px}
+.canto.d{bottom:10px;right:10px;border-left:0;border-top:0;border-radius:0 0 6px 0}
+.varre{position:absolute;left:0;right:0;height:120px;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(95,191,160,.07),transparent);
+  animation:varre 6s linear infinite}
+.palco.queda{box-shadow:0 0 0 2px var(--rubi),0 0 40px rgba(240,112,127,.35)}
+.semcaixa{position:absolute;inset:0;z-index:3;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:12px;padding:24px;text-align:center;line-height:1.5;
+  background:radial-gradient(circle at 50% 40%,#10201c,#050908)}
+.semcaixa b{font:600 20px var(--disp)}
+.semcaixa p{margin:0;color:var(--ink-2);max-width:52ch}
+.semcaixa form{display:flex;gap:8px;flex-wrap:wrap;justify-content:center}
+.semcaixa input{background:var(--fundo-2);border:1px solid var(--linha-2);color:var(--ink);
+  border-radius:10px;padding:8px 12px;font:13px var(--mono);min-width:240px}
+
+.barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0 0}
+.barra .rot{color:var(--ink-3);font-size:11.5px;letter-spacing:.14em;text-transform:uppercase}
+.barra em{color:var(--ink-3);font-style:normal;font-size:12.5px}
+.barra .dir{margin-left:auto;display:flex;gap:8px}
+
+.kpis{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-top:16px}
+.kpi{position:relative;overflow:hidden;background:linear-gradient(180deg,var(--card),var(--fundo-2));
+  border:1px solid var(--linha);border-radius:var(--r);padding:14px 16px}
+.kpi span{display:block;color:var(--ink-3);font-size:11px;letter-spacing:.13em;text-transform:uppercase}
+.kpi b{display:block;font:600 30px/1.15 var(--disp);margin-top:6px;font-variant-numeric:tabular-nums;letter-spacing:-.5px}
+.kpi small{display:block;color:var(--ink-3);font-size:12px;margin-top:2px}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--linha-2)}
+.kpi.verde::before{background:var(--verde)}.kpi.rubi::before{background:var(--rubi)}
+.kpi.ambar::before{background:var(--ambar)}.kpi.azul::before{background:var(--azul)}
+.kpi.rubi b{color:var(--rubi)}
+
+.linha-tempo{margin-top:16px}
+.linha-tempo #lt{display:block;width:100%;height:150px}
+.linha-tempo text{fill:var(--ink-3);font:11px var(--mono)}
+.linha-tempo circle{cursor:pointer}
+.lado{display:flex;flex-direction:column;gap:14px}
+.feed{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;
+  max-height:390px;overflow:auto;scrollbar-width:thin}
+.ev{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 10px;
+  border-radius:10px;background:var(--fundo-2);border:1px solid transparent}
+.ev.novo{animation:chega .6s var(--ease)}
+.ev.pend{border-color:rgba(240,112,127,.45);background:linear-gradient(90deg,var(--rubi-luz),var(--fundo-2))}
+.ev .ic{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--card-2)}
+.ev .ic svg{width:16px;height:16px}
+.ev .t{min-width:0}
+.ev .t b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev .t small{color:var(--ink-3);font-size:12px}
+.ev .q{font:12px var(--mono);color:var(--ink-3);text-align:right;white-space:nowrap}
+.ev .acao{grid-column:2/4;display:flex;gap:6px;justify-content:flex-end}
+.ev .acao .btn{padding:5px 10px;font-size:12px}
+.grave .ic{background:var(--rubi-luz);color:var(--rubi)}
+.cego .ic{background:var(--ambar-luz);color:var(--ambar)}
+.corre .ic{background:var(--azul-luz);color:var(--azul)}
+.rosto .ic{background:var(--verde-luz);color:var(--verde)}
+.vazio{color:var(--ink-3);font-size:13px;padding:14px 4px;text-align:center}
+
+.gente{display:flex;flex-direction:column;gap:8px}
+.pess{display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center}
+.pess b{font-weight:600}
+.pess .tag{font:11px var(--mono);color:var(--ink-3)}
+.pess .tag.on{color:var(--rubi)}
+.medidor{grid-column:1/3;height:6px;border-radius:99px;background:var(--fundo-2);overflow:hidden;position:relative}
+.medidor i{position:absolute;left:0;top:0;bottom:0;border-radius:99px;background:var(--verde);transition:width .5s var(--ease)}
+.medidor.alto i{background:var(--rubi)}
+
+.tele{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tm{background:var(--fundo-2);border:1px solid var(--linha);border-radius:11px;padding:10px 12px}
+.tm span{display:block;color:var(--ink-3);font-size:10.5px;letter-spacing:.13em;text-transform:uppercase}
+.tm b{display:block;font:500 19px var(--mono);margin:2px 0 4px;font-variant-numeric:tabular-nums}
+.tm svg{display:block;width:100%;height:30px}
+.tm.mal b{color:var(--rubi)}.tm.av b{color:var(--ambar)}
+
+/* --------------------------------------------------------- ocorrencias --- */
+.grade-oc{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px}
+.oc-kpis{grid-template-columns:repeat(4,minmax(0,1fr));margin:0 0 18px}
+.graf{width:100%;height:220px;display:block}
+.graf text{fill:var(--ink-3);font:11px var(--mono)}
+.legenda{display:flex;gap:16px;color:var(--ink-3);font-size:12px;margin-top:8px}
+.legenda i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.barras{display:flex;flex-direction:column;gap:10px}
+.barras .l{display:grid;grid-template-columns:130px 1fr 34px;gap:10px;align-items:center;font-size:13px}
+.barras .l span:first-child{color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barras .trilho{height:10px;border-radius:99px;background:var(--fundo-2);overflow:hidden}
+.barras .trilho i{display:block;height:100%;border-radius:99px;background:var(--verde)}
+.barras .l.grave .trilho i{background:var(--rubi)}
+.barras .l.corre .trilho i{background:var(--azul)}
+.barras .l.cego .trilho i{background:var(--ambar)}
+.barras .l b{font:500 13px var(--mono);text-align:right}
+.filtros{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto;text-transform:none;letter-spacing:0;font-weight:400}
+.cartao h2 small+.filtros{margin-left:12px}
+.tabela{width:100%;border-collapse:collapse;font-size:13px}
+.tabela th{text-align:left;font:500 11px var(--corpo);letter-spacing:.12em;text-transform:uppercase;
+  color:var(--ink-3);padding:10px 10px;border-bottom:1px solid var(--linha)}
+.tabela td{padding:10px 10px;border-bottom:1px solid var(--linha);vertical-align:middle}
+.tabela tr:hover td{background:rgba(255,255,255,.015)}
+.tabela .mono{font-family:var(--mono);color:var(--ink-3);font-size:12px}
+.selo{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12px;
+  font-weight:600;background:var(--card-2);color:var(--ink-2)}
+.selo.grave{background:var(--rubi-luz);color:var(--rubi)}
+.selo.cego{background:var(--ambar-luz);color:var(--ambar)}
+.selo.corre{background:var(--azul-luz);color:var(--azul)}
+.selo.rosto{background:var(--verde-luz);color:var(--verde)}
+.origem{font:10.5px var(--mono);letter-spacing:.08em;color:var(--ink-3);margin-left:6px}
+.ok-c{color:var(--verde);font-size:12.5px}
+.esp-c{color:var(--rubi);font-size:12.5px;font-weight:600}
+.rolar{overflow-x:auto}
+
+/* --------------------------------------------------------- embutidos ----- */
+.moldura{border:1px solid var(--linha);border-radius:var(--r);overflow:hidden;background:var(--fundo-2)}
+.moldura iframe{display:block;width:100%;height:calc(100vh - 150px);min-height:620px;border:0}
+.dica{color:var(--ink-3);font-size:12.5px;margin:0 0 10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+
+/* ------------------------------------------------------------ alarme ---- */
+.alarme{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px;
+  background:radial-gradient(circle at 50% 45%,rgba(240,112,127,.38),rgba(20,4,8,.92) 70%);
+  animation:pulso 1.4s ease-in-out infinite}
+.alarme .caixa{width:min(560px,100%);background:#160A0D;border:1px solid rgba(240,112,127,.55);
+  border-radius:20px;padding:28px 28px 22px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.alarme .sobre{display:flex;align-items:center;gap:8px;color:var(--rubi);font:600 12px var(--corpo);
+  letter-spacing:.2em;text-transform:uppercase}
+.alarme h3{margin:10px 0 4px;font:600 54px/1 var(--disp);letter-spacing:-1px;color:#fff;text-transform:lowercase}
+.alarme .onde{font-size:17px;color:#F6D9DE}
+.alarme .ha{font:14px var(--mono);color:#E9A7B1;margin-top:6px}
+.alarme .acoes{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap}
+.alarme .acoes .btn{padding:13px 22px;font-size:16px;border-radius:12px}
+.alarme p{color:#C99AA2;font-size:12.5px;margin:16px 0 0}
+
+.visor{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72)}
+.visor .caixa{width:min(520px,100%);background:var(--card);border:1px solid var(--linha-2);border-radius:18px;padding:18px}
+.visor svg{width:100%;aspect-ratio:1;background:var(--fundo-2);border-radius:12px;color:var(--ink-2)}
+.visor header{display:flex;align-items:center;margin-bottom:10px}
+.visor header b{font:600 17px var(--disp)}
+.visor header .btn{margin-left:auto}
+.visor p{color:var(--ink-3);font-size:12.5px;margin:10px 0 0}
+
+@keyframes pisca{50%{opacity:.25}}
+@keyframes varre{from{top:-120px}to{top:100%}}
+@keyframes entra{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes chega{from{opacity:0;transform:translateX(14px);background:var(--verde-luz)}to{opacity:1;transform:none}}
+@keyframes pulso{50%{background-color:rgba(240,112,127,.12)}}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+@media (max-width:1180px){
+  .grade{grid-template-columns:1fr}
+  .grade-oc{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .estados .chip.x{display:none}
+}
+@media (max-width:720px){
+  .topo{flex-wrap:wrap;gap:10px;padding:10px 16px}
+  .estados{margin-left:0;width:100%;justify-content:flex-start}
+  .abas{order:3;width:100%}
+  main{padding:14px 16px 30px}
+  .kpis,.oc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi b{font-size:24px}
+  .hud .h-tr,.hud .h-br{display:none}
+  .alarme h3{font-size:40px}
+  .barras .l{grid-template-columns:100px 1fr 30px}
+  .tabela .some{display:none}
+}
+</style>
+</head>
+<body>
+
+<header class="topo">
+  <div class="marca">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true">
+      <rect x="1" y="1" width="32" height="32" rx="9" fill="#0F1A18" stroke="#284840"/>
+      <path d="M9 23 17 9l8 14" fill="none" stroke="#5FBFA0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="17" cy="20" r="2.4" fill="#7FE0BF"/>
+    </svg>
+    <div><b>Audit<i>ix</i> IA</b><small>central de segurança</small></div>
+  </div>
+  <nav class="abas" role="tablist">
+    <button class="aba" role="tab" data-vista="vivo" aria-selected="true">Ao vivo</button>
+    <button class="aba" role="tab" data-vista="ocorr" id="aba-ocorr"><span class="ponto"></span>Ocorrências</button>
+    <button class="aba" role="tab" data-vista="cadastro">Cadastro facial</button>
+    <button class="aba" role="tab" data-vista="cadeia">Cadeia de hash</button>
+  </nav>
+  <div class="estados">
+    <span class="chip" id="st-caixa"><i></i><span>caixa</span></span>
+    <span class="chip" id="st-camera"><i></i><span>câmera</span></span>
+    <span class="chip x" id="st-cadeia"><i></i><span>cadeia</span></span>
+    <span class="chip x" id="st-banco"><i></i><span>banco</span></span>
+    <button class="btn" id="b-som" aria-pressed="false">Ativar som</button>
+    <span class="relogio" id="relogio">--:--:--</span>
+  </div>
+</header>
+
+<main>
+<!-- ================================================================ AO VIVO -->
+<section class="vista" id="v-vivo">
+  <div class="grade">
+    <div>
+      <div class="palco" id="palco">
+        <img id="video" alt="câmera da sala com o esqueleto que a IA mediu">
+        <div class="varre"></div>
+        <span class="canto a"></span><span class="canto b"></span><span class="canto c"></span><span class="canto d"></span>
+        <div class="hud">
+          <div class="c h-tl"><span class="vivo-tag" id="tag-vivo"><i></i>AO VIVO</span><span id="hud-cam">câmera 1</span></div>
+          <div class="c h-tr"><span id="hud-hora">--:--:--</span></div>
+          <div class="c h-bl"><span id="hud-gente">-- pessoas</span></div>
+          <div class="c h-br"><span id="hud-ritmo">-- análises/s</span></div>
+        </div>
+        <div class="semcaixa" id="semcaixa" hidden>
+          <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#6B8880" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7 16 12l7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/><path d="m2 2 20 20"/></svg>
+          <b id="sem-tit">Sem imagem da caixa</b>
+          <p id="sem-txt">A Central não está conseguindo falar com a caixa. Confira se a análise da sala está rodando (<code>bash aibox/ir.sh</code>) e se o endereço abaixo está certo.</p>
+          <form id="f-caixa"><input id="i-caixa" spellcheck="false" aria-label="endereço da caixa"><button class="btn forte">Conectar</button></form>
+        </div>
+      </div>
+      <div class="barra">
+        <span class="rot">câmera</span>
+        <span id="cams"><button class="btn" disabled>câmera 1</button></span>
+        <em id="cams-msg"></em>
+        <span class="dir">
+          <a class="btn" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
+          <button class="btn" id="b-cheia">Tela cheia</button>
+        </span>
+      </div>
+      <div class="kpis">
+        <div class="kpi rubi"><span>aguardando ciente</span><b id="k-pend">--</b><small>alertas graves sem resposta</small></div>
+        <div class="kpi ambar"><span>ocorrências hoje</span><b id="k-hoje">--</b><small id="k-hoje-s">queda, briga, corrida, ajuda</small></div>
+        <div class="kpi verde"><span>resposta mediana</span><b id="k-resp">--</b><small>do alerta ao "estou ciente"</small></div>
+        <div class="kpi azul"><span>reconhecidos</span><b id="k-rost">--</b><small>pessoas com cadastro vistas</small></div>
+        <div class="kpi"><span>alertas da caixa</span><b id="k-env">--</b><small id="k-env-s">enviados ao servidor</small></div>
+      </div>
+      <div class="cartao linha-tempo">
+        <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Linha do tempo<small id="lt-s">última hora</small>
+          <span class="filtros" id="lt-jan">
+            <button class="btn" data-min="60" aria-pressed="true">1 h</button>
+            <button class="btn" data-min="360" aria-pressed="false">6 h</button>
+            <button class="btn" data-min="1440" aria-pressed="false">24 h</button>
+          </span></h2>
+        <svg id="lt" viewBox="0 0 1000 150" preserveAspectRatio="none"></svg>
+      </div>
+    </div>
+
+    <aside class="lado">
+      <div class="cartao">
+        <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>Agora<small id="feed-s"></small></h2>
+        <ul class="feed" id="feed"><li class="vazio">carregando…</li></ul>
+      </div>
+      <div class="cartao">
+        <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a6.5 6.5 0 0 1 13 0"/></svg>Na tela<small>nota da rede de queda</small></h2>
+        <div class="gente" id="gente"><div class="vazio">ninguém na imagem</div></div>
+      </div>
+      <div class="cartao">
+        <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>Saúde da caixa<small id="tele-s"></small></h2>
+        <div class="tele">
+          <div class="tm" id="t-fps"><span>análises/s</span><b>--</b><svg viewBox="0 0 120 30" preserveAspectRatio="none"></svg></div>
+          <div class="tm" id="t-rede"><span>modelo (ms)</span><b>--</b><svg viewBox="0 0 120 30" preserveAspectRatio="none"></svg></div>
+          <div class="tm" id="t-cpu"><span>cpu</span><b>--</b><svg viewBox="0 0 120 30" preserveAspectRatio="none"></svg></div>
+          <div class="tm" id="t-lat"><span>quadro → banco (ms)</span><b>--</b><svg viewBox="0 0 120 30" preserveAspectRatio="none"></svg></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<!-- ============================================================ OCORRÊNCIAS -->
+<section class="vista" id="v-ocorr" hidden>
+  <div class="kpis oc-kpis">
+    <div class="kpi rubi"><span>graves em 24 h</span><b id="o-graves">--</b><small>queda, briga, pedido de ajuda</small></div>
+    <div class="kpi azul"><span>corridas em 24 h</span><b id="o-corr">--</b><small>regra geométrica</small></div>
+    <div class="kpi verde"><span>respondidos</span><b id="o-resp">--</b><small id="o-resp-s">graves com "estou ciente"</small></div>
+    <div class="kpi ambar"><span>a caixa ficou cega</span><b id="o-cego">--</b><small>sem sinal, sem imagem, tampada</small></div>
+  </div>
+  <div class="grade-oc">
+    <div class="cartao">
+      <h2>Últimas 24 horas<small>por hora</small></h2>
+      <svg class="graf" id="g-horas" viewBox="0 0 720 220" preserveAspectRatio="none"></svg>
+      <div class="legenda"><span><i style="background:var(--rubi)"></i>graves</span><span><i style="background:var(--azul)"></i>corrida</span><span><i style="background:var(--linha-2)"></i>outros</span></div>
+    </div>
+    <div class="cartao">
+      <h2>Por tipo<small>últimos 500 registros</small></h2>
+      <div class="barras" id="g-tipos"></div>
+    </div>
+  </div>
+  <div class="cartao" style="margin-top:18px">
+    <h2>Registro<small></small>
+      <span class="filtros" id="filtros">
+        <button class="btn" data-f="todos" aria-pressed="true">todos</button>
+        <button class="btn" data-f="graves" aria-pressed="false">graves</button>
+        <button class="btn" data-f="pend" aria-pressed="false">sem ciente</button>
+        <a class="btn" href="/painel" target="_blank" rel="noopener">painel analítico ↗</a>
+      </span>
+    </h2>
+    <div class="rolar"><table class="tabela">
+      <thead><tr><th>#</th><th>quando</th><th>o quê</th><th>quem</th><th class="some">onde</th><th>resposta</th><th>prova</th><th class="some">hash</th></tr></thead>
+      <tbody id="tab"></tbody>
+    </table></div>
+  </div>
+</section>
+
+<!-- ================================================================ CADASTRO -->
+<section class="vista" id="v-cadastro" hidden>
+  <p class="dica">Cadastro de rosto: a imagem não é guardada, só 128 números, girados com a chave do servidor.
+    <a href="/cadastro" target="_blank" rel="noopener">abrir em tela própria ↗</a></p>
+  <div class="moldura"><iframe data-src="/cadastro" title="cadastro facial" allow="camera; microphone"></iframe></div>
+</section>
+
+<!-- ================================================================== CADEIA -->
+<section class="vista" id="v-cadeia" hidden>
+  <p class="dica">O navegador baixa os eventos e recalcula cada hash sozinho. Nada é gravado aqui.
+    <a href="/cadeia" target="_blank" rel="noopener">abrir em tela própria ↗</a></p>
+  <div class="moldura"><iframe data-src="/cadeia" title="cadeia de hash"></iframe></div>
+</section>
+</main>
+
+<!-- ================================================================== ALARME -->
+<div class="alarme" id="alarme" hidden role="alertdialog" aria-labelledby="al-tit">
+  <div class="caixa">
+    <div class="sobre"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 1 21h22L12 2zm0 6 .01 0L12 14m0 3h.01" stroke="#160A0D" stroke-width="2"/></svg><span id="al-sobre">alerta grave</span></div>
+    <h3 id="al-tit">queda</h3>
+    <div class="onde" id="al-onde"></div>
+    <div class="ha" id="al-ha"></div>
+    <div class="acoes">
+      <button class="btn rubi" id="al-ciente">Estou ciente</button>
+      <button class="btn" id="al-corpo" hidden>Ver o corpo</button>
+    </div>
+    <p id="al-mais"></p>
+    <p>"Estou ciente" vira uma linha na cadeia de hash, com o horário. É o que prova que alguém reagiu, e em quanto tempo.</p>
+  </div>
+</div>
+
+<div class="visor" id="visor" hidden>
+  <div class="caixa">
+    <header><b id="vi-tit">O corpo</b><button class="btn" id="vi-fechar">Fechar</button></header>
+    <svg id="vi-svg" viewBox="0 0 400 400"></svg>
+    <p id="vi-nota"></p>
+  </div>
+</div>
+
+<script>
+'use strict';
+const el = id => document.getElementById(id);
+
+/* ======================================================== vocabulário ==== */
+const GRAVES = new Set(['queda','briga','pedido_ajuda','agitacao','objeto_perigoso','patrimonio_sumiu']);
+const CEGUEIRA = new Set(['sem_sinal','camera_sem_imagem','camera_tampada']);
+const ALARMES = new Set([...GRAVES, ...CEGUEIRA]);
+const ESCONDIDOS = new Set(['ciente','teste-conexao']);
+const ROTULO = {
+  sem_sinal:'caixa sem sinal', camera_sem_imagem:'câmera sem imagem',
+  camera_tampada:'câmera tampada', sinal_voltou:'sinal voltou', caixa_parada:'análise parada',
+  queda:'queda', corrida:'corrida', briga:'briga', pedido_ajuda:'pedido de ajuda',
+  objeto_perigoso:'objeto perigoso', patrimonio_sumiu:'patrimônio sumiu',
+  reconhecido:'reconhecido', desconhecido:'desconhecido', entrada:'entrada', saida:'saída'
+};
+const nome = t => ROTULO[t] || String(t).replace(/_/g, ' ');
+const REGRA = new Set(['briga','corrida']);
+function classe(t){
+  if(GRAVES.has(t)) return 'grave';
+  if(CEGUEIRA.has(t)) return 'cego';
+  if(t === 'corrida') return 'corre';
+  if(t === 'reconhecido') return 'rosto';
+  return '';
+}
+const ICONE = {
+  grave:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0zM12 9v4M12 17h.01"/></svg>',
+  cego:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M2 2l20 20M17.9 17.9A10 10 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2"/></svg>',
+  corre:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="14" cy="4" r="2"/><path d="m6 21 4-6 3 2 2-6 3 3h3M9 9l3-2 3 2"/></svg>',
+  rosto:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>',
+  '':'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/></svg>'
+};
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const momentoDe = e => new Date(e.timestamp.replace(' ', 'T') + 'Z').getTime();
+function duracao(s){
+  s = Math.max(0, Math.round(s));
+  if(s < 60) return s + ' s';
+  const m = Math.floor(s / 60), r = s % 60;
+  return m < 60 ? m + ' min' + (r ? ' ' + r + ' s' : '') : Math.round(m / 60) + ' h';
+}
+function ha(e){ return 'há ' + duracao((Date.now() - momentoDe(e)) / 1000); }
+function hora(e){ return new Date(momentoDe(e)).toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit', second:'2-digit'}); }
+function dia(e){ return new Date(momentoDe(e)).toLocaleDateString('pt-BR', {day:'2-digit', month:'2-digit'}); }
+async function pegar(u, opc){
+  const r = await fetch(u, Object.assign({cache:'no-store'}, opc || {}));
+  if(!r.ok) throw new Error('HTTP ' + r.status);
+  return r.json();
+}
+
+/* ============================================================ abas ======= */
+function abrir(v){
+  document.querySelectorAll('.aba').forEach(b => b.setAttribute('aria-selected', String(b.dataset.vista === v)));
+  document.querySelectorAll('.vista').forEach(s => s.hidden = s.id !== 'v-' + v);
+  /* O iframe so carrega na primeira vez que a aba abre: o cadastro liga a
+     webcam, e a cadeia baixa a base inteira. Nenhum dos dois de graca. */
+  const f = document.querySelector('#v-' + v + ' iframe[data-src]');
+  if(f && !f.src) f.src = f.dataset.src;
+  try{ history.replaceState(null, '', '#' + v); }catch(e){}
+  if(v === 'ocorr') pintarOcorr();
+}
+document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => abrir(b.dataset.vista)));
+
+/* =========================================================== relógio ===== */
+function tic(){
+  const t = new Date().toLocaleTimeString('pt-BR');
+  el('relogio').textContent = t; el('hud-hora').textContent = t;
+}
+setInterval(tic, 1000); tic();
+
+/* ========================================================= a caixa ======= */
+/* Onde a caixa esta: ?caixa= na URL, depois o batimento (o servidor anota o
+   IP de quem bateu), depois o ultimo que funcionou, depois o do laboratorio. */
+let caixa = null, caixaFixa = false, falhasCaixa = 0, ultimoEstado = null;
+try{
+  const q = new URLSearchParams(location.search).get('caixa');
+  if(q){ caixa = q.startsWith('http') ? q : 'http://' + q; caixaFixa = true; localStorage.setItem('auditix.caixa', caixa); }
+  else caixa = localStorage.getItem('auditix.caixa');
+}catch(e){}
+caixa = (caixa || 'http://192.168.50.10:8080').replace(/\/+$/, '');
+
+function usarCaixa(url, fixa){
+  url = url.replace(/\/+$/, '');
+  if(!/^https?:\/\//.test(url)) url = 'http://' + url;
+  if(!/:\d+$/.test(url)) url += ':8080';
+  if(url === caixa && el('video').src) return;
+  caixa = url; caixaFixa = !!fixa; falhasCaixa = 0;
+  try{ localStorage.setItem('auditix.caixa', caixa); }catch(e){}
+  el('l-caixa').href = caixa;
+  el('i-caixa').value = caixa;
+  ligarVideo();
+}
+function ligarVideo(){ el('video').src = caixa + '/video?t=' + Date.now(); }
+el('video').addEventListener('error', () => { setTimeout(ligarVideo, 4000); });
+el('f-caixa').addEventListener('submit', ev => { ev.preventDefault(); usarCaixa(el('i-caixa').value.trim(), true); });
+el('l-caixa').href = caixa; el('i-caixa').value = caixa;
+ligarVideo();
+
+/* Historico para os graficos pequenos da saude: um ponto por segundo. */
+const HIST = { fps:[], rede:[], cpu:[], lat:[] };
+function guardar(k, v){ if(v == null || isNaN(v)) return; HIST[k].push(+v); if(HIST[k].length > 60) HIST[k].shift(); }
+function linha(svg, xs, cor){
+  if(xs.length < 2){ svg.innerHTML = ''; return; }
+  const max = Math.max(...xs) * 1.15 || 1, min = 0;
+  const pts = xs.map((v, i) => (i / (xs.length - 1) * 120).toFixed(1) + ',' + (29 - (v - min) / (max - min) * 27).toFixed(1));
+  svg.innerHTML = '<polyline points="0,30 ' + pts.join(' ') + ' 120,30" fill="' + cor + '" fill-opacity=".12" stroke="none"/>' +
+                  '<polyline points="' + pts.join(' ') + '" fill="none" stroke="' + cor + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/>';
+}
+function tele(id, valor, hist, cor, estado){
+  const t = el(id);
+  t.querySelector('b').textContent = valor;
+  t.className = 'tm' + (estado ? ' ' + estado : '');
+  linha(t.querySelector('svg'), hist, cor);
+}
+
+async function lerCaixa(){
+  let e;
+  try{
+    e = await pegar(caixa + '/estado');
+    falhasCaixa = 0;
+  }catch(err){
+    falhasCaixa++;
+    if(falhasCaixa >= 3) semCaixa('Sem conexão com a caixa',
+      'A Central não está conseguindo falar com ' + caixa + '. Confira se a análise da sala está rodando (bash aibox/ir.sh) e se o endereço está certo.');
+    return;
+  }
+  ultimoEstado = e;
+  /* A ARENA usa a mesma porta e responde outro JSON. A Central mostra o
+     video dela, mas os numeros desta tela sao os da sala. */
+  const arena = e.corpos === undefined && Array.isArray(e.cameras);
+  el('semcaixa').hidden = true;
+  el('tag-vivo').className = 'vivo-tag';
+  if(arena){
+    el('hud-gente').textContent = 'modo arena: ' + (e.autorizados || []).length + ' de ' + (e.total_autorizados || 0) + ' autorizados';
+    el('hud-ritmo').textContent = (e.qps || 0).toFixed(1) + ' leituras/s';
+    el('hud-cam').textContent = 'arena';
+    el('st-camera').className = 'chip ok'; el('st-camera').lastElementChild.textContent = 'modo arena';
+    return;
+  }
+  guardar('fps', e.fps); guardar('rede', e.rede); guardar('cpu', e.cpu); guardar('lat', e.ultimo_ms);
+  el('hud-gente').textContent = e.corpos + (e.corpos === 1 ? ' pessoa' : ' pessoas') + ' na imagem';
+  el('hud-ritmo').textContent = (e.fps || 0).toFixed(1) + ' análises/s · ' + Math.round(e.rede || 0) + ' ms';
+  el('hud-cam').textContent = 'câmera ' + (e.usando || 1);
+  tele('t-fps', (e.fps || 0).toFixed(1), HIST.fps, '#5FBFA0', e.fps < 3 ? 'av' : '');
+  tele('t-rede', Math.round(e.rede || 0), HIST.rede, '#7FB2E8');
+  tele('t-cpu', Math.round(e.cpu || 0) + '%', HIST.cpu, '#E8C06F', e.cpu > 90 ? 'av' : '');
+  tele('t-lat', e.ultimo_ms == null ? '--' : Math.round(e.ultimo_ms), HIST.lat, '#9DB8AF');
+  el('tele-s').textContent = Math.round(e.ram || 0) + ' MB de RAM';
+
+  const img = e.imagem || 'ok';
+  const cam = el('st-camera');
+  cam.className = 'chip ' + (img === 'ok' ? 'ok' : 'mal');
+  cam.lastElementChild.textContent = img === 'ok' ? 'câmera ok' : img === 'tampada' ? 'câmera tampada' : 'câmera sem imagem';
+
+  el('k-env').textContent = e.enviados;
+  el('k-env-s').innerHTML = e.falhas ? '<span style="color:var(--rubi)">' + e.falhas + ' não chegaram</span>'
+    : e.pendentes ? '<span style="color:var(--ambar)">' + e.pendentes + ' na fila, reenviando</span>' : 'todos chegaram ao servidor';
+
+  /* Quem esta na tela: o numero ou o nome, e a nota da rede de queda. */
+  const ps = (e.pessoas || []).slice().sort((a, b) => b.nota - a.nota);
+  const armado = ps.some(p => p.queda);
+  el('palco').classList.toggle('queda', armado);
+  el('gente').innerHTML = ps.length ? ps.slice(0, 8).map(p =>
+    '<div class="pess"><b>' + esc(p.nome || 'pessoa #' + p.id) + '</b>' +
+    '<span class="tag' + (p.queda || p.corre ? ' on' : '') + '">' +
+      (p.queda ? 'QUEDA ARMADA' : p.corre ? 'CORRENDO' : !p.analisavel ? 'sem tronco' : p.nota.toFixed(2)) + '</span>' +
+    '<div class="medidor' + (p.nota > .5 || p.queda ? ' alto' : '') + '"><i style="width:' + Math.min(100, p.nota * 100).toFixed(0) + '%"></i></div></div>'
+  ).join('') : '<div class="vazio">ninguém na imagem</div>';
+
+  /* Escolher a camera: so com duas. A sala analisa uma por vez. */
+  if(e.cameras_n > 1){
+    const chave = e.cameras_n + '|' + e.usando + '|' + (e.troca_espera > 0);
+    const c = el('cams');
+    if(c.dataset.chave !== chave){
+      c.dataset.chave = chave;
+      let h = '';
+      for(let i = 1; i <= e.cameras_n; i++)
+        h += '<button class="btn" data-camera="' + i + '" aria-pressed="' + (i === e.usando) + '"' +
+             (e.troca_espera > 0 ? ' disabled' : '') + '>câmera ' + i + '</button> ';
+      c.innerHTML = h;
+    }
+    el('cams-msg').textContent = e.troca_msg || '';
+  }else{
+    el('cams').innerHTML = '<button class="btn" aria-pressed="true" disabled>câmera 1</button>';
+  }
+}
+el('cams').addEventListener('click', async ev => {
+  const b = ev.target.closest('button[data-camera]');
+  if(!b || b.disabled) return;
+  el('cams-msg').textContent = 'trocando…';
+  try{
+    /* text/plain de proposito: JSON com outro Content-Type pediria um OPTIONS
+       antes, e a caixa le o corpo do mesmo jeito. */
+    await fetch(caixa + '/camera', {method:'POST', headers:{'Content-Type':'text/plain'},
+                                    body: JSON.stringify({camera: +b.dataset.camera})});
+  }catch(e){ el('cams-msg').textContent = 'a caixa não respondeu'; }
+});
+function semCaixa(tit, txt){
+  el('sem-tit').textContent = tit; el('sem-txt').textContent = txt;
+  el('semcaixa').hidden = false;
+  el('tag-vivo').className = 'vivo-tag off';
+  el('palco').classList.remove('queda');
+}
+el('b-cheia').addEventListener('click', () => {
+  const p = el('palco');
+  (p.requestFullscreen || p.webkitRequestFullscreen || (() => {})).call(p);
+});
+
+/* ======================================================= o servidor ====== */
+let saude = null;
+async function lerSaude(){
+  try{
+    saude = await pegar('/api/saude');
+    const cx = (saude.caixas || []).find(c => c.estado !== 'parada') || (saude.caixas || [])[0];
+    const st = el('st-caixa');
+    if(!cx){ st.className = 'chip av'; st.lastElementChild.textContent = 'caixa ainda não bateu'; }
+    else{
+      const bom = cx.estado === 'ok';
+      st.className = 'chip ' + (bom ? 'ok' : cx.estado === 'parada' ? 'av' : 'mal');
+      st.lastElementChild.textContent = bom ? 'caixa ok' + (cx.fps ? ' · ' + cx.fps.toFixed(1) + '/s' : '')
+        : cx.estado === 'parada' ? 'análise parada' : cx.estado === 'sem_sinal' ? 'caixa sem sinal' : 'caixa: ' + cx.estado;
+      if(cx.vivo && !caixaFixa && cx.vivo.replace(/\/+$/, '') !== caixa) usarCaixa(cx.vivo, false);
+    }
+  }catch(e){
+    el('st-caixa').className = 'chip mal'; el('st-caixa').lastElementChild.textContent = 'servidor fora';
+  }
+}
+
+let cadeia = null;
+async function lerCadeia(){
+  try{
+    cadeia = await pegar('/api/verificar');
+    const c = el('st-cadeia');
+    c.className = 'chip x ' + (cadeia.integra ? 'ok' : 'mal');
+    c.lastElementChild.textContent = cadeia.integra ? 'cadeia íntegra · ' + cadeia.total : 'cadeia QUEBRADA em #' + cadeia.quebrou_em;
+    const b = el('st-banco');
+    b.className = 'chip x ' + (cadeia.banco === 'postgres' ? 'ok' : 'av');
+    b.lastElementChild.textContent = cadeia.banco === 'postgres' ? 'Postgres (AWS)' : 'SQLite local';
+  }catch(e){}
+}
+
+/* Eventos: os recentes a cada 2 s (alarme e "Agora"), a base a cada 15 s. */
+let recentes = [], base = [], vistos = new Set(), primeiraVez = true, pessoasN = null, maiorId = 0;
+async function lerRecentes(){
+  try{
+    recentes = await pegar('/api/eventos?limite=40&completo=1');
+    /* Evento novo: a base (linha do tempo, numeros) vem junto, sem esperar
+       os 15 s da leitura pesada. */
+    const topo = recentes.reduce((m, e) => Math.max(m, e.id), 0);
+    if(maiorId && topo > maiorId) lerBase();
+    maiorId = Math.max(maiorId, topo);
+    pintarFeed();
+    pendentes = recentes.filter(pendente).sort((a, b) => a.id - b.id);
+    pintarAlarme();
+    el('k-pend').textContent = pendentes.length;
+    el('aba-ocorr').classList.toggle('alerta', pendentes.length > 0);
+  }catch(e){}
+}
+async function lerBase(){
+  try{
+    base = await pegar('/api/eventos?limite=500&completo=1');
+    const p = await pegar('/api/pessoas').catch(() => null);
+    if(p) pessoasN = p.total;
+    pintarKpis();
+    if(!el('v-ocorr').hidden) pintarOcorr();
+  }catch(e){}
+}
+
+function pintarFeed(){
+  const lista = recentes.filter(e => !ESCONDIDOS.has(e.tipo_evento)).slice(0, 14);
+  el('feed-s').textContent = lista.length ? 'últimos ' + lista.length : '';
+  if(!lista.length){ el('feed').innerHTML = '<li class="vazio">nada registrado ainda</li>'; return; }
+  el('feed').innerHTML = lista.map(e => {
+    const c = classe(e.tipo_evento), pend = pendente(e);
+    const novo = !primeiraVez && !vistos.has(e.id);
+    return '<li class="ev ' + c + (pend ? ' pend' : '') + (novo ? ' novo' : '') + '">' +
+      '<span class="ic">' + (ICONE[c] || ICONE['']) + '</span>' +
+      '<span class="t"><b>' + esc(nome(e.tipo_evento)) + (REGRA.has(e.tipo_evento) ? '<span class="origem">REGRA</span>' : '') +
+      '</b><small>' + esc(e.aluno_id) + ' · ' + esc(e.localizacao) + '</small></span>' +
+      '<span class="q">' + hora(e) + '<br>' + ha(e) + '</span>' +
+      ((pend || e.tem_esqueleto) ? '<span class="acao">' +
+        (e.tem_esqueleto ? '<button class="btn" data-corpo="' + e.id + '">ver o corpo</button>' : '') +
+        (pend ? '<button class="btn rubi" data-ciente="' + e.id + '">Estou ciente</button>' : '') + '</span>' : '') +
+      '</li>';
+  }).join('');
+  lista.forEach(e => vistos.add(e.id));
+  primeiraVez = false;
+}
+
+/* LINHA DO TEMPO: uma faixa por familia de evento, um ponto por evento. Mostra
+   de relance se a sala esta quieta ou se algo se repete. */
+let ltMin = 60;
+try{ ltMin = +localStorage.getItem('auditix.lt') || 60; }catch(e){}
+el('lt-jan').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-min]'); if(!b) return;
+  ltMin = +b.dataset.min;
+  try{ localStorage.setItem('auditix.lt', ltMin); }catch(e){}
+  pintarLinha();
+});
+const FAIXAS = [['grave', 'graves', '#F0707F'], ['corre', 'corrida', '#7FB2E8'],
+                ['rosto', 'reconhecidos', '#5FBFA0'], ['cego', 'sistema', '#E8C06F']];
+function faixa(t){
+  const c = classe(t);
+  if(c) return c;
+  return ['sinal_voltou','caixa_parada'].includes(t) ? 'cego' : null;
+}
+function pintarLinha(){
+  el('lt-jan').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.min === ltMin)));
+  el('lt-s').textContent = ltMin === 60 ? 'última hora' : 'últimas ' + (ltMin / 60) + ' horas';
+  const W = 1000, E = 110, fim = Date.now(), ini = fim - ltMin * 6e4;
+  const X = t => E + (t - ini) / (fim - ini) * (W - E - 10);
+  let s = '';
+  FAIXAS.forEach(([k, rot, cor], i) => {
+    const y = 18 + i * 30;
+    s += '<text x="0" y="' + (y + 4) + '">' + rot + '</text>' +
+         '<line x1="' + E + '" x2="' + (W - 10) + '" y1="' + y + '" y2="' + y + '" stroke="#1E3530"/>';
+  });
+  const passo = ltMin <= 60 ? 10 : ltMin <= 360 ? 60 : 240;
+  for(let m = 0; m <= ltMin; m += passo){
+    const t = fim - m * 6e4, x = X(t);
+    s += '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="6" y2="128" stroke="#1E3530" stroke-dasharray="2 4"/>' +
+         '<text x="' + x.toFixed(1) + '" y="146" text-anchor="' + (m ? 'middle' : 'end') + '">' + (m ? '-' + (m >= 60 ? (m / 60) + 'h' : m + 'min') : 'agora') + '</text>';
+  }
+  base.forEach(e => {
+    const f = faixa(e.tipo_evento), t = momentoDe(e);
+    if(!f || t < ini) return;
+    const i = FAIXAS.findIndex(x => x[0] === f), y = 18 + i * 30;
+    s += '<circle cx="' + X(t).toFixed(1) + '" cy="' + y + '" r="' + (f === 'grave' ? 6 : 4.5) + '" fill="' + FAIXAS[i][2] +
+         '" fill-opacity=".9" stroke="#070D0C" stroke-width="2"' + (e.tem_esqueleto ? ' data-corpo="' + e.id + '"' : '') +
+         '><title>' + esc(nome(e.tipo_evento) + ' · ' + e.aluno_id + ' · ' + hora(e)) + '</title></circle>';
+  });
+  el('lt').innerHTML = s;
+}
+
+function hojeLocal(e){ const d = new Date(momentoDe(e)), h = new Date(); return d.toDateString() === h.toDateString(); }
+function mediana(xs){ if(!xs.length) return null; const s = xs.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
+function pintarKpis(){
+  const ocorr = base.filter(e => (GRAVES.has(e.tipo_evento) || e.tipo_evento === 'corrida') && hojeLocal(e));
+  el('k-hoje').textContent = ocorr.length;
+  const g = ocorr.filter(e => GRAVES.has(e.tipo_evento)).length;
+  el('k-hoje-s').textContent = g + (g === 1 ? ' grave' : ' graves') + ', ' + (ocorr.length - g) + ' corrida(s)';
+  const resp = base.filter(e => ALARMES.has(e.tipo_evento) && e.ciente_s != null).map(e => e.ciente_s);
+  const m = mediana(resp);
+  el('k-resp').textContent = m == null ? '--' : duracao(m);
+  el('k-rost').textContent = pessoasN == null ? '--' : pessoasN;
+  pintarLinha();
+}
+
+/* ======================================================= ocorrências ===== */
+let filtro = 'todos';
+el('filtros').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-f]'); if(!b) return;
+  filtro = b.dataset.f;
+  el('filtros').querySelectorAll('button[data-f]').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  pintarTabela();
+});
+function pintarOcorr(){
+  const agora = Date.now(), dia24 = base.filter(e => agora - momentoDe(e) < 864e5);
+  el('o-graves').textContent = dia24.filter(e => GRAVES.has(e.tipo_evento)).length;
+  el('o-corr').textContent = dia24.filter(e => e.tipo_evento === 'corrida').length;
+  const graves = base.filter(e => GRAVES.has(e.tipo_evento));
+  const resp = graves.filter(e => e.ciente_s != null);
+  el('o-resp').textContent = graves.length ? Math.round(resp.length / graves.length * 100) + '%' : '--';
+  el('o-resp-s').textContent = resp.length + ' de ' + graves.length + ' graves com "estou ciente"';
+  el('o-cego').textContent = dia24.filter(e => CEGUEIRA.has(e.tipo_evento)).length;
+
+  /* 24 barras, uma por hora, empilhadas: graves, corrida, o resto. */
+  const H = Array.from({length:24}, () => ({g:0, c:0, o:0}));
+  const ini = agora - 24 * 36e5;
+  dia24.filter(e => !ESCONDIDOS.has(e.tipo_evento)).forEach(e => {
+    const k = Math.min(23, Math.floor((momentoDe(e) - ini) / 36e5));
+    if(k < 0) return;
+    if(GRAVES.has(e.tipo_evento)) H[k].g++; else if(e.tipo_evento === 'corrida') H[k].c++; else H[k].o++;
+  });
+  const max = Math.max(1, ...H.map(h => h.g + h.c + h.o));
+  const W = 720, A = 190, larg = W / 24;
+  let s = '';
+  for(let y = 0; y <= 2; y++){
+    const yy = 10 + A - A * y / 2;
+    s += '<line x1="0" x2="' + W + '" y1="' + yy + '" y2="' + yy + '" stroke="#1E3530" stroke-dasharray="3 4"/>';
+  }
+  H.forEach((h, i) => {
+    let y = 10 + A;
+    const x = i * larg + 4, w = larg - 8;
+    [['g', '#F0707F'], ['c', '#7FB2E8'], ['o', '#284840']].forEach(([k, cor]) => {
+      if(!h[k]) return;
+      const alt = h[k] / max * A; y -= alt;
+      s += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + alt.toFixed(1) + '" rx="3" fill="' + cor + '"><title>' + h[k] + '</title></rect>';
+    });
+    if(i % 4 === 0){
+      const t = new Date(ini + i * 36e5);
+      s += '<text x="' + (x + w / 2).toFixed(1) + '" y="216" text-anchor="middle">' + String(t.getHours()).padStart(2, '0') + 'h</text>';
+    }
+  });
+  s += '<text x="4" y="22">' + max + '</text>';
+  el('g-horas').innerHTML = s;
+
+  const cont = {};
+  base.filter(e => !ESCONDIDOS.has(e.tipo_evento)).forEach(e => cont[e.tipo_evento] = (cont[e.tipo_evento] || 0) + 1);
+  const ord = Object.entries(cont).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const mx = Math.max(1, ...ord.map(x => x[1]));
+  el('g-tipos').innerHTML = ord.length ? ord.map(([t, n]) =>
+    '<div class="l ' + classe(t) + '"><span>' + esc(nome(t)) + '</span><span class="trilho"><i style="width:' + (n / mx * 100).toFixed(0) + '%"></i></span><b>' + n + '</b></div>'
+  ).join('') : '<div class="vazio">sem registros</div>';
+  pintarTabela();
+}
+function pintarTabela(){
+  let l = base.filter(e => !ESCONDIDOS.has(e.tipo_evento));
+  if(filtro === 'graves') l = l.filter(e => ALARMES.has(e.tipo_evento));
+  if(filtro === 'pend') l = l.filter(e => ALARMES.has(e.tipo_evento) && e.ciente_s == null);
+  l = l.slice(0, 80);
+  el('tab').innerHTML = l.length ? l.map(e => {
+    const c = classe(e.tipo_evento), alarme = ALARMES.has(e.tipo_evento);
+    const resp = !alarme ? '<span class="mono">—</span>'
+      : e.ciente_s != null ? '<span class="ok-c">✓ ciente em ' + duracao(e.ciente_s) + '</span>'
+      : pendente(e) ? '<button class="btn rubi" data-ciente="' + e.id + '">Estou ciente</button>'
+      : '<span class="esp-c">sem resposta</span>';
+    return '<tr><td class="mono">' + e.id + '</td><td>' + dia(e) + ' <span class="mono">' + hora(e) + '</span></td>' +
+      '<td><span class="selo ' + c + '">' + esc(nome(e.tipo_evento)) + '</span>' + (REGRA.has(e.tipo_evento) ? '<span class="origem">REGRA</span>' : '') + '</td>' +
+      '<td>' + esc(e.aluno_id) + '</td><td class="some">' + esc(e.localizacao) + '</td><td>' + resp + '</td>' +
+      '<td>' + (e.tem_esqueleto ? '<button class="btn" data-corpo="' + e.id + '">corpo</button>' : '<span class="mono">—</span>') + '</td>' +
+      '<td class="mono some" title="' + esc(e.hash_atual) + '">' + esc((e.hash_atual || '').slice(0, 12)) + '…</td></tr>';
+  }).join('') : '<tr><td colspan="8" class="vazio">nada neste filtro</td></tr>';
+}
+
+/* ============================================================ alarme ===== */
+/* Mesmas regras do /painel: grave ou cegueira, ninguem ciente, ultimos 10 min.
+   O mais antigo primeiro: e o que esta esperando ha mais tempo. */
+const JANELA_PENDENTE = 10 * 60 * 1000;
+function pendente(e){ return ALARMES.has(e.tipo_evento) && e.ciente_s == null && Date.now() - momentoDe(e) < JANELA_PENDENTE; }
+let pendentes = [], mostrando = null, toque = null, audio = null, somQuer = true;
+try{ somQuer = localStorage.getItem('auditix.som') !== '0'; }catch(e){}
+const somTocando = () => !!audio && audio.state === 'running' && somQuer;
+function pintarSom(){
+  const b = el('b-som');
+  b.setAttribute('aria-pressed', String(somTocando()));
+  b.textContent = somTocando() ? 'Som ligado' : (somQuer ? 'Ativar som' : 'Som desligado');
+}
+function destravarSom(){
+  try{
+    if(!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+    if(audio.state !== 'running') audio.resume().then(pintarSom).catch(() => {});
+  }catch(e){}
+  pintarSom();
+}
+addEventListener('pointerdown', destravarSom, {once:true});
+el('b-som').addEventListener('click', () => {
+  somQuer = !somTocando(); if(somQuer) destravarSom();
+  try{ localStorage.setItem('auditix.som', somQuer ? '1' : '0'); }catch(e){}
+  pintarSom();
+});
+/* Sirene de oscilador puro, a mesma do painel (adaptada do EPI Guard). */
+function sirene(){
+  if(!somTocando()) return;
+  for(let k = 0; k < 3; k++){
+    const osc = audio.createOscillator(), vol = audio.createGain();
+    osc.type = 'square'; osc.frequency.value = 880;
+    const t = audio.currentTime + k * 0.28;
+    vol.gain.setValueAtTime(0.0001, t);
+    vol.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+    vol.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+    osc.connect(vol).connect(audio.destination);
+    osc.start(t); osc.stop(t + 0.22);
+  }
+}
+function pintarAlarme(){
+  const a = el('alarme');
+  if(!pendentes.length){ a.hidden = true; mostrando = null; clearInterval(toque); toque = null; return; }
+  const e = pendentes[0]; mostrando = e;
+  const cego = CEGUEIRA.has(e.tipo_evento);
+  el('al-sobre').textContent = cego ? 'o sistema ficou cego' : 'alerta grave';
+  el('al-tit').textContent = nome(e.tipo_evento);
+  el('al-onde').textContent = e.localizacao + ' · ' + e.aluno_id + (cego ? ' (a Central NÃO está vendo esta sala)' : '');
+  el('al-ha').textContent = ha(e) + ' sem ninguém ciente · ' + hora(e);
+  el('al-corpo').hidden = !e.tem_esqueleto;
+  el('al-mais').textContent = pendentes.length > 1 ? 'Mais ' + (pendentes.length - 1) + ' alerta(s) esperando depois deste.' : '';
+  if(a.hidden){ a.hidden = false; el('al-ciente').focus(); }
+  if(!toque){ sirene(); toque = setInterval(sirene, 2000); }
+}
+async function ciente(id, botao){
+  if(botao) botao.disabled = true;
+  try{
+    const r = await fetch('/api/ciente', {method:'POST', headers:{'Content-Type':'application/json'},
+                                          body: JSON.stringify({evento_id: id})});
+    const d = await r.json();
+    if(!r.ok) throw new Error(d.detail || ('HTTP ' + r.status));
+    [recentes, base].forEach(l => l.forEach(e => { if(e.id === id) e.ciente_s = d.resposta_s; }));
+    pendentes = pendentes.filter(p => p.id !== id);
+    pintarAlarme(); pintarFeed(); pintarKpis(); if(!el('v-ocorr').hidden) pintarTabela();
+    el('k-pend').textContent = pendentes.length;
+    lerBase();
+  }catch(err){
+    el('al-mais').textContent = 'Não consegui registrar: ' + err.message;
+    if(botao) botao.disabled = false;
+  }
+}
+el('al-ciente').addEventListener('click', () => { if(mostrando) ciente(mostrando.id, el('al-ciente')); });
+el('al-corpo').addEventListener('click', () => { if(mostrando) abrirCorpo(mostrando.id); });
+el('al-ciente').addEventListener('focus', () => { el('al-ciente').disabled = false; });
+
+/* ====================================================== o corpo ========== */
+const OSSOS = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,1],[0,2],[1,3],[2,4]];
+const CONF_MIN = 0.3;
+let anima = null;
+function enquadrar(poses){
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  for(const q of poses) for(const p of q){ if(p[2] < CONF_MIN) continue;
+    x0 = Math.min(x0, p[0]); x1 = Math.max(x1, p[0]); y0 = Math.min(y0, p[1]); y1 = Math.max(y1, p[1]); }
+  if(!isFinite(x0)) return [0, 0, 1];
+  const lado = Math.max(x1 - x0, y1 - y0) * 1.25 || 1;
+  return [(x0 + x1) / 2 - lado / 2, (y0 + y1) / 2 - lado / 2, lado];
+}
+function corpo(svg, poses, i, cx){
+  const [x0, y0, lado] = cx, X = v => ((v - x0) / lado * 400).toFixed(1), Y = v => ((v - y0) / lado * 400).toFixed(1);
+  const q = poses[i], cor = i === poses.length - 1 ? '#F0707F' : '#5FBFA0';
+  let h = '';
+  for(let k = 0; k < i; k += Math.max(1, Math.floor(poses.length / 6)))
+    for(const [a, b] of OSSOS){ const p = poses[k][a], r = poses[k][b];
+      if(p[2] >= CONF_MIN && r[2] >= CONF_MIN) h += '<line x1="' + X(p[0]) + '" y1="' + Y(p[1]) + '" x2="' + X(r[0]) + '" y2="' + Y(r[1]) + '" stroke="currentColor" stroke-opacity=".15" stroke-width="2"/>'; }
+  for(const [a, b] of OSSOS){ const p = q[a], r = q[b];
+    if(p[2] >= CONF_MIN && r[2] >= CONF_MIN) h += '<line x1="' + X(p[0]) + '" y1="' + Y(p[1]) + '" x2="' + X(r[0]) + '" y2="' + Y(r[1]) + '" stroke="' + cor + '" stroke-width="5" stroke-linecap="round"/>'; }
+  for(const p of q) if(p[2] >= CONF_MIN) h += '<circle cx="' + X(p[0]) + '" cy="' + Y(p[1]) + '" r="4" fill="currentColor"/>';
+  svg.innerHTML = h;
+}
+async function abrirCorpo(id){
+  el('vi-tit').textContent = 'O corpo no evento #' + id;
+  el('vi-nota').textContent = 'abrindo…'; el('vi-svg').innerHTML = '';
+  el('visor').hidden = false; clearInterval(anima);
+  try{
+    const d = await pegar('/api/esqueleto/' + id), poses = d.poses, cx = enquadrar(poses);
+    let i = 0, pausa = 0;
+    corpo(el('vi-svg'), poses, 0, cx);
+    anima = setInterval(() => {
+      if(i < poses.length - 1){ corpo(el('vi-svg'), poses, ++i, cx); return; }
+      if(++pausa > 12){ i = 0; pausa = 0; corpo(el('vi-svg'), poses, 0, cx); }
+    }, 110);
+    el('vi-nota').textContent = 'Os ' + poses.length + ' últimos quadros do corpo antes do alerta, o último em vermelho. ' +
+      'Só os 17 pontos do corpo: nenhuma imagem e nada que diga de quem é.';
+  }catch(e){ el('vi-nota').textContent = 'Sem esqueleto para este evento.'; }
+}
+function fecharVisor(){ el('visor').hidden = true; clearInterval(anima); }
+el('vi-fechar').addEventListener('click', fecharVisor);
+el('visor').addEventListener('click', e => { if(e.target === el('visor')) fecharVisor(); });
+addEventListener('keydown', e => { if(e.key === 'Escape') fecharVisor(); });
+document.addEventListener('click', e => {
+  const c = e.target.closest('[data-corpo]'); if(c) abrirCorpo(+c.dataset.corpo);
+  const k = e.target.closest('[data-ciente]'); if(k) ciente(+k.dataset.ciente, k);
+});
+
+/* ============================================================ partida ==== */
+pintarSom();
+abrir((location.hash || '#vivo').slice(1).replace(/[^a-z]/g, '') || 'vivo');
+if(!document.querySelector('.aba[aria-selected="true"]')) abrir('vivo');
+lerSaude(); lerCadeia(); lerRecentes(); lerBase(); lerCaixa();
+setInterval(lerCaixa, 1000);
+setInterval(lerRecentes, 2000);
+setInterval(lerSaude, 3000);
+setInterval(lerBase, 15000);
+setInterval(lerCadeia, 15000);
+/* "ha 12 s" anda sozinho entre uma leitura e outra. */
+setInterval(() => { if(pendentes.length) pintarAlarme(); }, 1000);
+</script>
+</body>
+</html>

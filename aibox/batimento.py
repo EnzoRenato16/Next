@@ -71,11 +71,14 @@ def detalhe(img):
 
 
 class Batimento:
-    def __init__(self, base, local, caixa=None, post=None, balcao=None):
+    def __init__(self, base, local, caixa=None, post=None, balcao=None, vivo=None):
         self.base = base.rstrip("/")
         # A porta do balcao de cadastro (aibox/balcao.py), se ligado: e assim
         # que a tela /cadastro do PC descobre onde ele esta, sem configurar IP.
         self.balcao = balcao
+        # A porta da imagem ao vivo (aibox/vivo.py): e por ela que a Central do
+        # PC mostra a camera com a IA, sem ninguem digitar o IP da caixa.
+        self.vivo = vivo
         self.local = local
         self.caixa = (caixa or os.environ.get("CAIXA") or socket.gethostname())[:50]
         self._post_fn = post or _post
@@ -132,7 +135,7 @@ class Batimento:
                     detalhe=None if self.valor is None else round(self.valor, 1),
                     quadro_ha_s=round(agora - self.ultimo_quadro, 1),
                     fps=None if self.fps is None else round(self.fps, 1),
-                    pendentes=self.pendentes, balcao=self.balcao)
+                    pendentes=self.pendentes, balcao=self.balcao, vivo=self.vivo)
 
     def _laco(self):
         anterior = "ok"
