@@ -31,6 +31,20 @@ QUEDA_EIXO = 0.60
 QUEDA_PROP = 1.2
 QUEDA_PROP_SO = 1.4
 QUEDA_BAIXO = 0.40
+# Close e corpo cortado embaixo nao sao julgados (igual ao navegador): ombros
+# a mais de 30% da largura do quadro, ou quadril no pe do quadro sem joelho.
+PERTO_OMBROS = 0.30
+CORTADO_QUADRIL = 0.92
+
+
+def perto_ou_cortado(kp):
+    c = medidas.CONF_MIN
+    oe, od = kp[medidas.OMBRO_E], kp[medidas.OMBRO_D]
+    if oe[2] >= c and od[2] >= c and abs(oe[0] - od[0]) > PERTO_OMBROS:
+        return True
+    je, jd = kp[medidas.JOELHO_E], kp[medidas.JOELHO_D]
+    qy = max(kp[medidas.QUADRIL_E][1], kp[medidas.QUADRIL_D][1])
+    return je[2] < c and jd[2] < c and qy > CORTADO_QUADRIL
 QUEDA_AMOSTRAS = 8
 QUEDA_PISO = 4        # piso duro do piso: ver _piso_rede
 
@@ -99,6 +113,11 @@ class Trilha:
         """Um quadro de 17 pontos. Devolve a lista de alertas deste quadro."""
         self.visto = agora
         g = medidas.geometria(kp, asp)
+        if g is not None and perto_ou_cortado(kp):
+            # Webcam de PC a meio metro: o quadril sai inventado, a caixa fica
+            # mais larga que alta e vira "queda". Mesma regra do navegador
+            # (a caixa nao tem linha do chao, entao nao ha ordem a respeitar).
+            g = None
         if g is None:
             # Sem ombro ou sem quadril nao ha tronco, e tronco chutado vira
             # alarme falso. A camada cala e DIZ que calou, em vez de afirmar

@@ -216,6 +216,14 @@ parecer atraso. Fica em `recebidos`, FORA da fórmula da cadeia.
 era gravado e contado como "não chegou". A espera do e-mail é por **tipo e
 pessoa** — só por tipo, duas quedas de alunos diferentes davam um e-mail.
 
+**Perto demais da câmera não se julga queda (23/10).** Webcam do PC a meio
+metro, cortada no peito: o quadril sai inventado, a caixa fica mais larga que
+alta e a Central encheu de "queda". Ombros com mais de `PERTO_OMBROS` (30%) da
+largura do quadro = close: nem geometria, nem rede, nem linha do chão; a tela
+diz "perto demais, afaste-se uns 2 m". Quadril abaixo de 92% do quadro sem
+joelho = cortado (depois da linha, que continua valendo para quem caiu na beira).
+Igual em `regras.py`. `testes/regua-do-corpo.mjs` cenário 5 cobra.
+
 ## Prova sem rosto (`esqueletos`)
 
 A AIBOX não manda foto. Cada trilha carrega 3 s de pontos (`trilhas.POSES_MS`)

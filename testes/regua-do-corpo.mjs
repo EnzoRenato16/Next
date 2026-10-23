@@ -60,36 +60,38 @@ await pg.waitForFunction(() => typeof analisar === 'function', { timeout:10000 }
 
 /* Roda a `analisar` DE VERDADE da Sala, quadro a quadro, sobre um corpo
    montado à mão. Nada de cópia da regra: cópia envelhece e mente. */
-const correr = (quadros) => pg.evaluate((qs) => {
+const correr = (quadros, linha = null) => pg.evaluate(([qs, linha]) => {
   /* Sem rede: o objetivo é medir a régua, não gravar evento nem calibração. */
-  servidorVivo = false; calibrando = false; linhaChao = null; aspecto = 16/9;
+  servidorVivo = false; calibrando = false; linhaChao = linha; aspecto = 16/9;
+  anomalias.length = 0; alertaDe.clear(); linhaDesde.clear();
 
-  const corpo = ({ ombro, quadril, joelho, torn, visTorn }) => {
+  const corpo = ({ ombro, quadril, joelho, torn, visTorn, meiaLarg = 0.06, visJoelho = 0.9 }) => {
     const pt = (x, y, v = 1) => ({ x, y, z:0, visibility:v });
     const lm = Array.from({length:33}, () => pt(0.5, 0.5, 0));
     lm[0]  = pt(0.50, ombro - 0.12);          // nariz
-    lm[11] = pt(0.44, ombro); lm[12] = pt(0.56, ombro);   // ombros
+    lm[11] = pt(0.50 - meiaLarg, ombro); lm[12] = pt(0.50 + meiaLarg, ombro);   // ombros
     lm[15] = pt(0.42, ombro + 0.20); lm[16] = pt(0.58, ombro + 0.20); // pulsos
     lm[23] = pt(0.45, quadril); lm[24] = pt(0.55, quadril);           // quadris
-    lm[25] = pt(0.45, joelho, 0.9); lm[26] = pt(0.55, joelho, 0.9);
+    lm[25] = pt(0.45, joelho, visJoelho); lm[26] = pt(0.55, joelho, visJoelho);
     lm[27] = pt(0.45, torn, visTorn); lm[28] = pt(0.55, torn, visTorn);
     return lm;
   };
 
-  const t = { id:99, hist:[], firme:true, nasceu:0,
+  const t = { id:99, hist:[], firme:true, nasceu:-1e6,
               box:{ x:0.3, y:0.2, w:0.2, h:0.7 } };
   const saida = [];
   let ms = 0;
   for(const q of qs){
     ms += 33;                                  // ~30 quadros por segundo
-    t.box = { x:0.3, y:0.2, w:0.2, h:Math.max(0.05, q.caixaH ?? 0.7) };
+    t.box = { x:0.3, y:0.2, w:q.caixaW ?? 0.2, h:Math.max(0.05, q.caixaH ?? 0.7) };
     analisar(t, corpo(q), ms);
     saida.push({ ms, baixo:+(t.baixo ?? 1).toFixed(3),
                  regua:t.regua, topo:+(t.alturaTopo ?? 0).toFixed(3),
-                 armado: !!t.quedaDesde });
+                 armado: !!t.quedaDesde, analisavel: t.analisavel,
+                 alertas: anomalias.filter(a => a.tipo === 'queda').length });
   }
   return saida;
-}, quadros);
+}, [quadros, linha]);
 
 /* ---- 1. um único quadro ruim não vira régua eterna ----------------------- */
 /* Trinta quadros de pé, UM com o quadril inventado lá longe — o que num close
@@ -151,6 +153,30 @@ const c4 = await correr(Array(3).fill(dePe));
 ok('nos primeiros quadros a régua é a própria altura, e `baixo` vale 1',
    c4.every(f => Math.abs(f.baixo - 1) < 1e-6),
    c4.map(f => f.baixo).join(', '));
+
+/* ---- 5. o print de 23/10: de pé a meio metro da webcam ------------------ */
+/* Ombros ocupando quase metade da largura, cortado no peito, a caixa mais
+   larga que alta (0,9 x 0,5) e o quadril inventado entrando e saindo. Deu uma
+   fila de "quedas" na Central. Agora: perto demais, não se julga. */
+const close = { ombro:0.55, quadril:0.98, joelho:1.40, torn:1.90, visTorn:0.1,
+                meiaLarg:0.22, visJoelho:0.1, caixaW:0.9, caixaH:0.5 };
+const c5 = await correr(Array(120).fill(close));
+ok('quem está colado na webcam não arma queda',
+   !c5.some(f => f.armado) && c5.at(-1).alertas === 0,
+   c5.filter(f => f.armado).length + ' quadros armados, ' + c5.at(-1).alertas + ' alertas');
+ok('e a tela diz que não analisou', c5.every(f => f.analisavel === false));
+const c5b = await correr(Array(120).fill(close), 0.40);
+ok('nem pela linha do chão, com a cabeça abaixo dela só por estar perto',
+   c5b.at(-1).alertas === 0, c5b.at(-1).alertas + ' alertas');
+/* Cortado embaixo sem estar perto: quadril no pé do quadro, sem joelho. */
+const cortado = { ombro:0.62, quadril:0.95, joelho:1.40, torn:1.90, visTorn:0.1,
+                  visJoelho:0.1, caixaW:0.5, caixaH:0.3 };
+const c5c = await correr(Array(120).fill(cortado));
+ok('corpo cortado na cintura não arma queda', !c5c.some(f => f.armado));
+/* E a linha do chão continua valendo para quem está longe. */
+const c5d = await correr([...Array(70).fill(dePe), ...Array(40).fill({ ...dePe, ombro:0.86, quadril:0.95 })], 0.70);
+ok('a linha do chão continua pegando quem cai longe da câmera',
+   c5d.at(-1).alertas >= 1, c5d.at(-1).alertas + ' alertas');
 
 ok('nenhum erro de JavaScript', erros.length === 0, erros.join(' | '));
 

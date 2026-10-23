@@ -576,6 +576,10 @@ function textoSemAnomalia(){
   const firmes = trilhas.filter(t => t.firme);
   if(!firmes.length) return 'Nada fora do padrão na sala.';
   const cegos = firmes.filter(t => t.analisavel === false).length;
+  if(cegos === firmes.length && firmes.length === 1 && firmes[0].perto)
+    return 'Perto demais da câmera: dá para identificar a pessoa, mas não para '
+      + 'afirmar queda, corrida ou briga. Afaste-se uns 2 metros, até o corpo '
+      + 'aparecer da cabeça aos joelhos.';
   if(cegos === firmes.length)
     return firmes.length === 1
       ? 'Corpo cortado no enquadramento: dá para identificar a pessoa, mas não '
@@ -586,7 +590,7 @@ function textoSemAnomalia(){
         + 'acontecendo. A câmera precisa pegar da cintura para baixo.';
   if(cegos)
     return (linhaChao != null
-      ? 'A linha do chão continua valendo para todos. '
+      ? 'A linha do chão continua valendo para quem não está perto da câmera. '
       : '') + 'Nada fora do padrão em quem aparece inteiro. ' + cegos + ' de ' +
       firmes.length + ' estão cortados no quadro e não foram avaliados.';
   return 'Nada fora do padrão na sala.';
@@ -918,6 +922,11 @@ const DEMO_PROP = 1.0;   // em alta sensibilidade, 93% das quedas
    e o sistema não tem como saber que ali tinha uma cadeira. Por isso o corte
    folgado fica na alta sensibilidade. */
 const QUEDA_BAIXO = 0.40;
+/* Close e corpo cortado embaixo não são julgados (ver analisar). Ombros a mais
+   de 30% da largura do quadro: numa câmera de sala ninguém chega a isso, numa
+   webcam de PC é quem está a menos de um metro. */
+const PERTO_OMBROS = 0.30;
+const CORTADO_QUADRIL = 0.92;   // quadril abaixo disto do quadro, sem joelho
 const DEMO_BAIXO = 0.55;
 
 /* A LINHA DO CHÃO. Com a câmera fixa, o chão fica sempre na mesma altura da
@@ -1665,6 +1674,28 @@ function analisar(t, lm, agora){
     : oe != null && od != null ? (oe + od) / 2 : oe != null ? oe : od;
   t.cabecaY = cabecaY;
 
+  /* PERTO DEMAIS DA CÂMERA: não se julga queda, nem pela linha do chão.
+     Veio de um print da webcam do PC (23/10): uma pessoa de pé a meio metro,
+     cortada no peito, com as mãos perto da lente, e uma fila de "quedas". Com
+     o corpo saindo do quadro o modelo inventa o quadril aos pedaços, a caixa
+     fica mais larga que alta (é o peito ocupando a tela, não um corpo
+     deitado) e a cabeça pode cair abaixo da linha do chão só por estar perto.
+     Ombros com mais de PERTO_OMBROS da largura do quadro é close. Uma câmera
+     de sala nunca vê gente assim, então isto não tira queda de verdade de lá.
+     (Quadril no pé do quadro sem joelho, o corpo cortado, é cobrado mais
+     abaixo, depois da linha.) */
+  const ombrosVistos = vis(lm[P.OMBRO_E]) >= VIS_MIN && vis(lm[P.OMBRO_D]) >= VIS_MIN;
+  const perto = ombrosVistos && Math.abs(lm[P.OMBRO_E].x - lm[P.OMBRO_D].x) > PERTO_OMBROS;
+  if(perto){
+    t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
+    t.qx = null; t.qy = null; t.ox = null; t.oy = null;
+    t.analisavel = false; t.perto = perto;
+    linhaDesde.delete('linha:' + t.id);
+    amostrarCalibracao(t, agora, false);
+    return;
+  }
+  t.perto = false;
+
   if(linhaChao != null && cabecaY != null && cabecaY > linhaChao){
     /* O relógio também é da PESSOA, não da trilha: na borda do quadro a trilha
        renasce a cada instante, e um relógio preso a ela nunca chegava aos 400ms.
@@ -1686,7 +1717,12 @@ function analisar(t, lm, agora){
      normaliza pela altura do corpo, então quadril inventado vira gerador de
      alarme falso. Num enquadramento fechado a pessoa continua sendo detectada e
      identificada, mas o que ela está FAZENDO não é afirmado. */
-  if(vis(lm[P.QUADRIL_E]) < VIS_MIN || vis(lm[P.QUADRIL_D]) < VIS_MIN){
+  /* Cortado embaixo vem DEPOIS da linha: caído na beira do quadro também fica
+     sem joelho, e aí quem decide é a linha, como antes. */
+  const semJoelho = vis(lm[P.JOELHO_E]) < VIS_MIN && vis(lm[P.JOELHO_D]) < VIS_MIN;
+  const cortado = semJoelho &&
+    Math.max(lm[P.QUADRIL_E].y, lm[P.QUADRIL_D].y) > CORTADO_QUADRIL;
+  if(cortado || vis(lm[P.QUADRIL_E]) < VIS_MIN || vis(lm[P.QUADRIL_D]) < VIS_MIN){
     t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
     t.qx = null; t.qy = null; t.ox = null; t.oy = null;
     /* E DIZ ISSO NA TELA. Antes esta camada simplesmente calava: com uma webcam
@@ -2608,7 +2644,7 @@ function resumir(){
     'caixa ' + (alvo.prop || 0).toFixed(1),
     'altura ' + Math.round((alvo.baixo != null ? alvo.baixo : 1) * 100) + '%',
     daLinha || null,
-    alvo.analisavel === false ? 'CORTADO NO QUADRO' : null,
+    alvo.analisavel === false ? (alvo.perto ? 'PERTO DA CÂMERA' : 'CORTADO NO QUADRO') : null,
     alvo.parado ? 'parado (objeto)' : null,
   ].filter(Boolean).join(' · ') : '';
 
