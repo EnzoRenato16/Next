@@ -46,6 +46,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import numpy as np
 
+# Os avisos internos do OpenCV ("[ WARN:0@1.3] ... graph engine") nao dizem
+# nada a quem opera a arena: so erro de verdade chega ao terminal.
+os.environ.setdefault("OPENCV_LOG_LEVEL", "ERROR")
+
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, RAIZ)
 
@@ -815,7 +819,7 @@ def rotulo(juiz, ident, motivo):
             x, i = t.notas[-1], juiz.nomes.index(t.nome)
             if x[i] < LIMIAR_BAIXO or int(np.argmax(x)) != i:
                 return AMBAR, "conferindo"
-        return VERDE, f"AUTORIZADO: {ascii(t.nome)} ({t.nota:.2f})"
+        return VERDE, f"{ascii(t.nome)} - presente"
     if t is not None and t.estado == "desconhecido":
         return RUBI, f"DESCONHECIDO #{t.numero}"
     n = t.n if t else 0
@@ -904,7 +908,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:18px;padding:18p
 .num b small{font-size:20px;color:var(--apagado);letter-spacing:0;font-weight:500}
 .num.rubi b{color:var(--rubi)}
 .num.pulsa{animation:acende .9s ease-out}
-.pessoas{display:flex;flex-direction:column;gap:6px}
+.pessoas{display:flex;flex-direction:column;gap:6px}.vazio{color:var(--fraco,#8FA39D);font-size:13px;padding:4px 0}
 .p{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:10px;background:var(--fundo2);border:1px solid transparent}
 .p .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);color:var(--apagado);
        font-weight:700;font-size:13px}
@@ -962,10 +966,10 @@ body.morto .vivo{background:rgba(120,135,130,.85)}
   </section>
   <aside class="lado">
     <div class="placar">
-      <div class="num" id="cAut"><span>autorizados</span><b id="nAut">--</b></div>
+      <div class="num" id="cAut"><span>presentes</span><b id="nAut">--</b></div>
       <div class="num rubi" id="cDesc"><span>desconhecidos</span><b id="nDesc">--</b></div>
     </div>
-    <div class="card"><h2>Galeria<small id="galS"></small></h2><div class="pessoas" id="pessoas"></div>
+    <div class="card"><h2>Presentes<small id="galS"></small></h2><div class="pessoas" id="pessoas"></div>
       <div class="desc" id="descs"></div></div>
     <div class="card"><h2>Câmeras</h2><div class="cams" id="cams"></div></div>
     <div class="card"><h2>Desempenho</h2><div class="desemp">
@@ -1016,18 +1020,19 @@ setInterval(async () => {
 
   /* O placar. O numero que mudou acende uma vez. */
   const na = e.autorizados.length, nd = e.desconhecidos.length;
-  $('nAut').innerHTML = na + '<small> de ' + e.total_autorizados + '</small>';
+  $('nAut').textContent = na;
   $('nDesc').textContent = nd;
   if(antes.aut >= 0 && na !== antes.aut){ $('cAut').classList.remove('pulsa'); void $('cAut').offsetWidth; $('cAut').classList.add('pulsa'); }
   if(antes.desc >= 0 && nd !== antes.desc){ $('cDesc').classList.remove('pulsa'); void $('cDesc').offsetWidth; $('cDesc').classList.add('pulsa'); }
   antes = {aut: na, desc: nd};
 
-  const gal = e.galeria || e.autorizados;
-  const sim = new Set(e.autorizados);
-  trocar('pessoas', gal.join('|') + '#' + e.autorizados.join('|'), gal.map(n =>
-    '<div class="p' + (sim.has(n) ? ' sim' : '') + '"><span class="av">' + esc(n.slice(0, 1).toUpperCase()) + '</span><b>' + esc(n) +
-    '</b><em>' + (sim.has(n) ? '✓ identificado' : 'aguardando') + '</em></div>').join(''));
-  $('galS').textContent = gal.length + ' autorizado' + (gal.length === 1 ? '' : 's');
+  /* SO QUEM JA FOI RECONHECIDO. A lista da galeria inteira, com "aguardando"
+     ao lado de cada nome, contava quem estava sendo procurado: na prova isso
+     nao aparece. Cada pessoa entra aqui quando o rosto dela for decidido. */
+  trocar('pessoas', e.autorizados.join('|'), e.autorizados.map(n =>
+    '<div class="p sim"><span class="av">' + esc(n.slice(0, 1).toUpperCase()) + '</span><b>' + esc(n) +
+    '</b><em>✓ presente</em></div>').join('') || '<div class="vazio">ninguém reconhecido ainda</div>');
+  $('galS').textContent = na + ' presente' + (na === 1 ? '' : 's');
   trocar('descs', e.desconhecidos.join(','), e.desconhecidos.map(d => '<span>desconhecido #' + d + '</span>').join(''));
 
   trocar('cams', JSON.stringify(e.cameras.map(c => [c.indice, c.estado, c.qps.toFixed(1)])), e.cameras.map(c =>
@@ -1042,7 +1047,7 @@ setInterval(async () => {
   if(e.video_qps != null){ $('linhaVideo').hidden = false; $('vqps').textContent = e.video_qps.toFixed(1) + '/s'; }
 
   trocar('ev', e.eventos.join('\\n'), e.eventos.map(x =>
-    '<li class="' + (/AUTORIZADO/.test(x) ? 'a' : /ALERTA/.test(x) ? 'x' : /troca|deixou|camera/.test(x) ? 't' : '') + '">' + esc(x) + '</li>').join('') ||
+    '<li class="' + (/PRESENTE|AUTORIZADO/.test(x) ? 'a' : /ALERTA/.test(x) ? 'x' : /troca|deixou|camera/.test(x) ? 't' : '') + '">' + esc(x) + '</li>').join('') ||
     '<li>nada ainda</li>');
 
   /* ESCOLHER A CAMERA. So com duas ou mais. Muda o que a caixa LE e
@@ -1244,8 +1249,9 @@ def conferencia(c):
 
 
 def main():
-    from aibox.marca import letreiro
-    letreiro("arena")
+    if not os.environ.get("AUDITIX_SEM_LETREIRO"):
+        from aibox.marca import letreiro
+        letreiro("arena")
     from aibox.sala import carregar_env
     carregar_env()
     p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")
@@ -1360,16 +1366,15 @@ def main():
             print("[arena] video da pagina pelo fluxo leve da camera; a "
                   "identificacao continua no fluxo principal", flush=True)
 
-    print(f"[arena] autorizados na galeria: {', '.join(nomes)}  (motor {modelo})")
-    print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
-          f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido, "
-          f"nota = media das {TOPK} melhores fotos" if TOPK > 1 else
-          f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
-          f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido")
-    if RECONFERIR_S > 0:
-        print(f"[arena] quem ja foi decidido e medido de novo a cada {RECONFERIR_S:g} s "
-              "(ARENA_RECONFERIR_S); 0 mede todo quadro", flush=True)
-    print(f"[arena] imagem ao vivo: http://<IP da caixa>:{a.porta}", flush=True)
+    # O terminal da arena e avaliado: nada de lista de nomes nem de limiar.
+    # Quem quer os numeros roda com --calibrar.
+    if a.calibrar:
+        print(f"[arena] limiar {LIMIAR} / {LIMIAR_BAIXO}, margem {MARGEM}, "
+              f"{MINIMO} leituras para autorizar, {MINIMO_DESC} para desconhecido, "
+              f"top {TOPK}, reconferir {RECONFERIR_S:g} s, motor {modelo}", flush=True)
+    if not os.environ.get("AUDITIX_SEM_LETREIRO"):
+        print(f"[arena] imagem ao vivo: http://<IP da caixa>:{a.porta}", flush=True)
+    print("[arena] identificando. Cada pessoa aparece aqui quando for decidida.", flush=True)
 
     parar = threading.Event()
     for s in (signal.SIGINT, signal.SIGTERM):
@@ -1485,24 +1490,26 @@ def main():
                             txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o mesmo "
                                    f"desconhecido #{ev['numero']} voltou "
                                    f"(parecido {ev['parecido']:.2f}, minimo {MESMO_DESCONHECIDO:.2f})")
-                            print(f"[arena] {txt}", flush=True)
+                            if a.calibrar:
+                                print(f"[arena] {txt}", flush=True)
                             log.append(txt)
                             continue
                         if ev["tipo"] == "troca":
                             txt = (f"{relogio(t0 - inicio)} trilha {ev['trilha']}: o rosto "
                                    f"deixou de ser {ev['nome']}, analisando de novo")
-                            print(f"[arena] {txt}", flush=True)
+                            if a.calibrar:
+                                print(f"[arena] {txt}", flush=True)
                             log.append(txt)
                             continue
-                        txt = (f"{relogio(t0 - inicio)} AUTORIZADO {ev['nome']} ({ev['nota']:.2f})"
-                               f" em {ev['levou']:.1f} s"
+                        txt = (f"{relogio(t0 - inicio)} PRESENTE {ev['nome']}"
+                               f" (decidido em {ev['levou']:.1f} s, nota {ev['nota']:.2f})"
                                + (f", era o desconhecido #{ev['era_desconhecido']}"
                                   if ev.get("era_desconhecido") else "")
                                if ev["tipo"] == "autorizado" else
                                f"{relogio(t0 - inicio)} ALERTA desconhecido #{ev['numero']}"
-                               f" em {ev['levou']:.1f} s"
+                               f" (decidido em {ev['levou']:.1f} s)"
                                + (f" (o mais parecido era o #{ev['com']}: {ev['parecido']:.2f})"
-                                  if ev.get("parecido") is not None else ""))
+                                  if a.calibrar and ev.get("parecido") is not None else ""))
                         print("[arena] " + txt, flush=True)
                         log.append(txt)
                     if a.calibrar and juiz.trilhas[ident].notas:
@@ -1544,7 +1551,6 @@ def main():
         r = juiz.resumo()
         estado = dict(
             autorizados=r["autorizados"], total_autorizados=r["total_autorizados"],
-            galeria=juiz.nomes,
             desconhecidos=r["desconhecidos"],
             cameras=[dict(indice=c.indice, estado=c.estado(agora),
                           qps=len(qps_cam[c.indice]) / 5.0) for c in cams],
@@ -1571,14 +1577,15 @@ def main():
             jpeg = buf.tobytes() if ok else None
         tela.publicar(estado, jpeg)
 
-        if agora - ultimo_status >= 5:
+        # Uma linha de saude a cada 30 s (5 s com --calibrar). Os nomes ja
+        # sairam um a um, na hora em que cada pessoa foi decidida.
+        if agora - ultimo_status >= (5 if a.calibrar else 30):
             ultimo_status = agora
-            cam_txt = "  ".join(f"cam{c['indice']} {c['estado']} {c['qps']:.1f}/s"
+            cam_txt = "  ".join(f"camera {c['indice']} {c['estado']} {c['qps']:.1f}/s"
                                 for c in estado["cameras"])
-            print(f"[arena {estado['tempo']}] autorizados {len(r['autorizados'])}/"
-                  f"{r['total_autorizados']} ({', '.join(r['autorizados']) or '-'})"
+            print(f"[arena {estado['tempo']}] presentes {len(r['autorizados'])}"
                   f" | desconhecidos {len(r['desconhecidos'])} | {cam_txt}"
-                  f" | {estado['ms']:.0f} ms"
+                  f" | {estado['ms']:.0f} ms por quadro"
                   + (f" | video {estado['video_qps']:.1f}/s" if fluido is not None else ""),
                   flush=True)
             if conferir:
@@ -1608,7 +1615,7 @@ def main():
                       topk=TOPK),
         eventos=log)
     print("\n================ RESULTADO DA ARENA ================")
-    print(f"  autorizados identificados: {len(r['autorizados'])} de "
+    print(f"  presentes (autorizados):   {len(r['autorizados'])} de "
           f"{r['total_autorizados']}  ({', '.join(r['autorizados']) or 'nenhum'})")
     print(f"  alertas de desconhecido:   {len(r['desconhecidos'])}")
     for c in resultado["cameras"]:

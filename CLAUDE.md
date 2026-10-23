@@ -698,6 +698,14 @@ obrigatório: faltar tira ponto.
 
 ### Modo arena (`aibox/arena.py`, `bash aibox/arena.sh`)
 
+**Entrar é um comando (23/10, a arena avalia a facilidade):** `.\pc arena` no
+PC (ou `ssh -t grupo11@IP bash auditix-npu/aibox/arena.sh`); depois da 1ª vez,
+`arena` dentro do ssh. O terminal só mostra o letreiro, 3 conferências (modelos,
+galeria com N pessoas SEM nomes, NPU), o endereço, cada PRESENTE/ALERTA na hora
+e uma linha de saúde a cada 30 s. Limiar, junções e trocas de trilha só com
+`--calibrar`. A página não lista a galeria ("aguardando"): mostra só quem já foi
+reconhecido, como **presente**, e o `/estado` não manda mais os nomes da galeria.
+
 Feito para a regra da arena: **tudo na caixa**, sem servidor no notebook, sem
 IP fixo, um comando só. O notebook abre `http://IP_DA_CAIXA:8080`.
 O passo a passo do laboratório (entrar, `.env`, galeria, calibrar, ensaio

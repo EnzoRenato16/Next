@@ -273,7 +273,7 @@ print("\n== o nome na tela segue a ultima leitura ==")
 j = novo_juiz()
 for k in range(arena.MINIMO):
     j.ler("c1-20", parecido(pessoas["Bruno"], 0.6), k)
-ok("autorizado aparece com o nome", arena.rotulo(j, "c1-20", "")[1].startswith("AUTORIZADO"))
+ok("autorizado aparece com o nome", arena.rotulo(j, "c1-20", "")[1].endswith("presente"))
 outro = unit(rng.normal(size=128))
 while max(abs(float(outro @ v)) for v in pessoas.values()) > 0.1:
     outro = unit(rng.normal(size=128))
@@ -282,7 +282,7 @@ ok("outro rosto na trilha: a tela diz conferindo, nao o nome",
    arena.rotulo(j, "c1-20", "")[1] == "conferindo", arena.rotulo(j, "c1-20", "")[1])
 ok("e o placar continua com o Bruno", j.resumo()["autorizados"] == ["Bruno"])
 j.ler("c1-20", parecido(pessoas["Bruno"], 0.6), 11)
-ok("o Bruno volta e o nome volta", arena.rotulo(j, "c1-20", "")[1].startswith("AUTORIZADO"))
+ok("o Bruno volta e o nome volta", arena.rotulo(j, "c1-20", "")[1].endswith("presente"))
 
 print("\n== cadastro pelo botao (modo preparo) ==")
 c = arena.Coleta("Ana", 0.0)

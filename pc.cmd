@@ -15,7 +15,7 @@ REM  ilegivel justamente na hora em que ele precisa ser lido.
 REM ===========================================================================
 setlocal
 set RAMO=npu/divisao-npu-cpu
-set CAIXA=grupo11@192.168.50.10
+if not defined CAIXA set CAIXA=grupo11@192.168.50.10
 set MEUIP=192.168.50.72
 REM Nome da placa de rede com cabo. No PC do laboratorio de 20/10 ela NAO se
 REM chamava "Ethernet" e o netsh respondeu so "Element not found". Para usar
@@ -31,6 +31,7 @@ if /i "%1"=="enviar"   goto enviar
 if /i "%1"=="modelos"  goto modelos
 if /i "%1"=="galeria"  goto galeria
 if /i "%1"=="entrar"   goto entrar
+if /i "%1"=="arena"    goto arena
 if /i "%1"=="servidor" goto servidor
 if /i "%1"=="pitch"    goto pitch
 if /i "%1"=="copiar"   goto copiar
@@ -45,6 +46,7 @@ echo   pc rede       so volta para o IP fixo (192.168.50.72)
 echo   pc enviar     copia o codigo (aibox e daten\app) para a caixa
 echo   pc modelos    copia os modelos de rosto (39 MB, so uma vez)
 echo   pc galeria    copia a galeria da arena (arena\galeria.json) para a caixa
+echo   pc arena      UM COMANDO: entra na caixa e ja liga a arena (Ctrl+C mostra o resultado)
 echo   pc entrar     abre o ssh na caixa
 echo   pc servidor   sobe o servidor aceitando conexao de fora
 echo   pc copiar     VERSAO NPU: copia .env, modelos e galeria de ~/auditix para ~/auditix-npu (so le o original)
@@ -230,6 +232,12 @@ goto fim
 
 :entrar
 ssh %CAIXA%
+goto fim
+
+:arena
+REM A prova conta o tempo de entrar: senha e pronto. Caixa com outro IP no
+REM evento:  set CAIXA=grupo11@IP  (ou $env:CAIXA="grupo11@IP" no PowerShell).
+ssh -t %CAIXA% "bash ~/auditix-npu/aibox/arena.sh %2 %3 %4"
 goto fim
 
 :servidor
