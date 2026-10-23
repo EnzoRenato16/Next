@@ -1,4 +1,5 @@
 <link rel="stylesheet" href="vendor/fontes/fontes.css">
+<script>document.documentElement.classList.add('central');</script>
 <title>Sala Auditada</title>
 
 <script src="vendor/face-api/face-api.js"></script>
@@ -53,6 +54,30 @@ window.__mp = { FilesetResolver, PoseLandmarker };
   --azul:#7FB2DE;  --azul-luz:#142634;
   --sombra:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
 }
+
+/* O visual da Central (escuro, verde-agua), o mesmo da caixa e da arena. A
+   Sala vive dentro da aba Webcam da Central, e uma tela clara ali no meio
+   parecia outro sistema. */
+:root.central{
+  color-scheme:dark;
+  --paper:#070D0C; --card:#0F1A18; --sunk:#132320;
+  --ink:#E4F1EC;   --ink-2:#9DB8AF; --ink-3:#6B8880;
+  --line:#1E3530;  --line-2:#183029;
+  --verde:#5FBFA0; --verde-luz:rgba(95,191,160,.12); --verde-linha:#2C5A4C;
+  --ambar:#E8C06F; --ambar-luz:rgba(232,192,111,.13); --ambar-linha:#5C441C;
+  --rubi:#F0707F;  --rubi-luz:rgba(240,112,127,.14);  --rubi-linha:#5C2D37;
+  --azul:#7FB2E8;  --azul-luz:rgba(127,178,232,.13);
+  --sombra:0 1px 0 rgba(255,255,255,.02) inset;
+}
+:root.central body{ background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(95,191,160,.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(127,178,232,.06), transparent 60%),
+    var(--paper); }
+:root.central .topo{ background:rgba(7,13,12,.82); border-bottom-color:var(--line); }
+:root.central .painel{ border-radius:14px; }
+:root.central .btn.forte, :root.central .grandao{ color:#06100F; }
+:root.central .grandao{ box-shadow:0 10px 34px rgba(95,191,160,.22); }
+:root.central .palco{ background:#050A09; }
 
 *{ box-sizing:border-box; min-width:0; }
 html,body{ max-width:100%; overflow-x:hidden; }
@@ -2582,6 +2607,40 @@ function resumir(){
   pintarTudo();
 }
 
+/* Os ossos do PoseLandmarker (33 pontos), sem os dedos: rosto, bracos,
+   tronco e pernas. */
+const OSSOS_MP = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],
+  [23,25],[25,27],[24,26],[26,28],[27,29],[29,31],[27,31],[28,30],[30,32],[28,32],
+  [0,2],[0,5],[2,7],[5,8],[9,10]];
+const PONTOS_MP = [0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28,29,30,31,32];
+/* Desenha e devolve o y mais alto do corpo (para a etiqueta), ou null. */
+function esqueleto(x, lm, cor, L, A){
+  if(!lm || lm.length < 33) return null;
+  const ok = i => vis(lm[i]) >= VIS_MIN;
+  let topo = Infinity, n = 0;
+  x.save();
+  x.lineCap = 'round';
+  x.globalAlpha = .9;
+  x.beginPath();
+  for(const [a, b] of OSSOS_MP){
+    if(!ok(a) || !ok(b)) continue;
+    x.moveTo(lm[a].x * L, lm[a].y * A); x.lineTo(lm[b].x * L, lm[b].y * A);
+  }
+  x.stroke();
+  x.globalAlpha = 1;
+  const raio = Math.max(3, L/260);
+  for(const i of PONTOS_MP){
+    if(!ok(i)) continue;
+    const px = lm[i].x * L, py = lm[i].y * A;
+    topo = Math.min(topo, py); n++;
+    x.beginPath(); x.arc(px, py, raio, 0, Math.PI * 2);
+    x.fillStyle = '#06100F'; x.fill();
+    x.lineWidth = Math.max(1.5, L/520); x.strokeStyle = cor; x.stroke();
+  }
+  x.restore();
+  return n >= 3 ? Math.max(0, topo - L/40) : null;
+}
+
 function desenhar(){
   const v = el('cam'), x = el('over').getContext('2d'), agora = performance.now();
   x.clearRect(0, 0, x.canvas.width, x.canvas.height);
@@ -2612,11 +2671,14 @@ function desenhar(){
     const objeto = t.parado && !t.nome;
     const cor = objeto ? '#7A7A7A' : r.ok ? '#3E9E8B' : '#DFA94E';
     x.strokeStyle = cor; x.lineWidth = Math.max(2, v.videoWidth/380);
-    x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
+    /* O corpo, e nao um quadrado: os mesmos pontos que a analise usa. Sem os
+       pontos (trilha que perdeu a pose neste quadro) fica a caixa. */
+    const topoCorpo = esqueleto(x, t.det && t.det.lm, cor, x.canvas.width, x.canvas.height);
+    if(topoCorpo == null) x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
 
     const rot = objeto ? 'parado há 5s — tratado como objeto'
                        : '#' + t.id + '  ' + r.txt + '  ' + idadeTxt(r.s);
-    const topo = Math.max(0, t.box.y - alt*1.7);
+    const topo = Math.max(0, (topoCorpo != null ? topoCorpo : t.box.y) - alt*1.7);
     x.fillStyle = cor;
     x.fillRect(t.box.x, topo, x.measureText(rot).width + 16, alt*1.6);
     x.fillStyle = '#06100F';
