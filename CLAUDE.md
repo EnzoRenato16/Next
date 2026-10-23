@@ -407,6 +407,14 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   lado a lado. **A Central guarda a fonte em `auditix.central.fonte`, nunca em
   `auditix.fonte`:** essa é da Sala (endereço da câmera IP), e com "webcam"
   gravado nela a Sala tentava abrir uma câmera IP chamada webcam.
+  **A análise da CAIXA rodando no PC** (23/10, para a Tapo C200 do Enzo no
+  estande, sem AIBOX): `py aibox\sala.py --camera "rtsp://..."` (ou
+  `--camera 0`, a webcam) com `NPU=0`. Sem `gst-launch` (Windows), RTSP vai
+  pelo OpenCV do pip; sem o `.onnx` (exportado só na caixa), o olho usa o
+  `yolo11n-pose.pt`, que o Ultralytics baixa na primeira vez. A Central acha
+  o PC sozinha pelo batimento (`vivo` = 127.0.0.1:8080). Medido aqui: 16,7
+  análises/s, 73 ms. A Sala do navegador desenha igual à caixa (17 pontos do
+  COCO, verde/vermelho, ponto branco, etiqueta "nome nota").
   **"Estou ciente" morto a partir do segundo alerta** (23/10): o botão ficava
   desligado depois de um ciente que deu certo. Alarme novo religa o botão.
   A página da ARENA (porta 8080 da caixa) ganhou o mesmo visual: placar

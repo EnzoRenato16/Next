@@ -2623,38 +2623,32 @@ function resumir(){
   pintarTudo();
 }
 
-/* Os ossos do PoseLandmarker (33 pontos), sem os dedos: rosto, bracos,
-   tronco e pernas. */
-const OSSOS_MP = [[11,12],[11,13],[13,15],[12,14],[14,16],[11,23],[12,24],[23,24],
-  [23,25],[25,27],[24,26],[26,28],[27,29],[29,31],[27,31],[28,30],[30,32],[28,32],
-  [0,2],[0,5],[2,7],[5,8],[9,10]];
-const PONTOS_MP = [0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28,29,30,31,32];
-/* Desenha e devolve o y mais alto do corpo (para a etiqueta), ou null. */
+/* O DESENHO DA CAIXA (aibox/vivo.py, desenhar): os 17 pontos do COCO, osso
+   verde (vermelho com o relogio de queda armado), ponto branco, caixa fina e a
+   etiqueta "nome nota". Webcam e AIBOX aparecem iguais na Central. */
+const OSSOS_COCO = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],
+  [11,13],[13,15],[12,14],[14,16],[0,1],[0,2],[1,3],[2,4]];
+const COR_VERDE = 'rgb(95,191,160)', COR_RUBI = 'rgb(230,90,90)', COR_PARADO = '#7A7A7A';
+/* Desenha e devolve se havia pontos para desenhar. */
 function esqueleto(x, lm, cor, L, A){
-  if(!lm || lm.length < 33) return null;
-  const ok = i => vis(lm[i]) >= VIS_MIN;
-  let topo = Infinity, n = 0;
+  if(!lm || lm.length < 33) return false;
+  const kp = COCO_DO_MP.map(i => [lm[i].x * L, lm[i].y * A, vis(lm[i])]);
+  const ok = p => p[2] >= 0.30;
+  if(kp.filter(ok).length < 3) return false;
   x.save();
   x.lineCap = 'round';
-  x.globalAlpha = .9;
+  x.lineWidth = Math.max(2, L/320); x.strokeStyle = cor;
   x.beginPath();
-  for(const [a, b] of OSSOS_MP){
-    if(!ok(a) || !ok(b)) continue;
-    x.moveTo(lm[a].x * L, lm[a].y * A); x.lineTo(lm[b].x * L, lm[b].y * A);
+  for(const [a, b] of OSSOS_COCO){
+    if(!ok(kp[a]) || !ok(kp[b])) continue;
+    x.moveTo(kp[a][0], kp[a][1]); x.lineTo(kp[b][0], kp[b][1]);
   }
   x.stroke();
-  x.globalAlpha = 1;
-  const raio = Math.max(3, L/260);
-  for(const i of PONTOS_MP){
-    if(!ok(i)) continue;
-    const px = lm[i].x * L, py = lm[i].y * A;
-    topo = Math.min(topo, py); n++;
-    x.beginPath(); x.arc(px, py, raio, 0, Math.PI * 2);
-    x.fillStyle = '#06100F'; x.fill();
-    x.lineWidth = Math.max(1.5, L/520); x.strokeStyle = cor; x.stroke();
-  }
+  x.fillStyle = 'rgb(240,240,240)';
+  const raio = Math.max(3, L/213);
+  for(const p of kp) if(ok(p)){ x.beginPath(); x.arc(p[0], p[1], raio, 0, Math.PI * 2); x.fill(); }
   x.restore();
-  return n >= 3 ? Math.max(0, topo - L/40) : null;
+  return true;
 }
 
 function desenhar(){
@@ -2685,20 +2679,20 @@ function desenhar(){
     /* O objeto parado continua desenhado, em cinza: esconder seria fingir que a
        imagem não tem nada ali, e quem está olhando precisa poder discordar. */
     const objeto = t.parado && !t.nome;
-    const cor = objeto ? '#7A7A7A' : r.ok ? '#3E9E8B' : '#DFA94E';
-    x.strokeStyle = cor; x.lineWidth = Math.max(2, v.videoWidth/380);
-    /* O corpo, e nao um quadrado: os mesmos pontos que a analise usa. Sem os
-       pontos (trilha que perdeu a pose neste quadro) fica a caixa. */
-    const topoCorpo = esqueleto(x, t.det && t.det.lm, cor, x.canvas.width, x.canvas.height);
-    if(topoCorpo == null) x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
-
-    const rot = objeto ? 'parado há 5s — tratado como objeto'
-                       : '#' + t.id + '  ' + r.txt + '  ' + idadeTxt(r.s);
-    const topo = Math.max(0, (topoCorpo != null ? topoCorpo : t.box.y) - alt*1.7);
+    const cor = objeto ? COR_PARADO : t.quedaDesde ? COR_RUBI : COR_VERDE;
+    esqueleto(x, t.det && t.det.lm, cor, x.canvas.width, x.canvas.height);
+    x.save();
+    x.strokeStyle = cor; x.lineWidth = Math.max(1, v.videoWidth/640);
+    x.strokeRect(t.box.x, t.box.y, t.box.w, t.box.h);
+    /* A nota da rede na etiqueta, como na caixa: e o numero que decide, e quem
+       assiste tem de ver que ele NAO estourou o limiar quando o sistema fica
+       calado. O nome na frente; sem nome, o numero do corpo. */
+    const rot = objeto ? 'parado há 5s, tratado como objeto'
+      : (t.nome && r.ok ? t.nome : '#' + t.id) + '  ' + (t.notaQueda || 0).toFixed(2);
+    x.font = '500 ' + Math.max(12, v.videoWidth/56) + 'px system-ui';
     x.fillStyle = cor;
-    x.fillRect(t.box.x, topo, x.measureText(rot).width + 16, alt*1.6);
-    x.fillStyle = '#06100F';
-    x.fillText(rot, t.box.x + 8, topo + alt*1.15);
+    x.fillText(rot, t.box.x, Math.max(14, t.box.y - 8));
+    x.restore();
   });
 }
 

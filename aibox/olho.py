@@ -119,7 +119,14 @@ def abrir(qual=None, modelo=None):
         olho = npu.tentar(npu.OlhoNPU, "YOLO-pose")
         if olho is not None:
             return olho
-        return OlhoYolo(modelo or os.environ.get("MODELO", "yolo11n-pose.onnx"))
+        m = modelo or os.environ.get("MODELO", "yolo11n-pose.onnx")
+        # NUM PC (sem a caixa) o .onnx nao existe: ele e exportado na caixa e
+        # fica fora do Git. O .pt o Ultralytics baixa sozinho na primeira vez
+        # (precisa de internet uma vez) e da os MESMOS 17 pontos.
+        if m.endswith(".onnx") and not os.path.exists(m):
+            print(f"[olho] {m} nao existe aqui; usando yolo11n-pose.pt", flush=True)
+            m = "yolo11n-pose.pt"
+        return OlhoYolo(m)
     if qual in ("mediapipe", "mp"):
         return OlhoMediaPipe(modelo or MODELO_MP)
     raise ValueError(f"OLHO desconhecido: {qual!r} (use yolo ou mediapipe)")

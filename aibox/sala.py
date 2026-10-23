@@ -91,7 +91,10 @@ def abrir_camera(url, codec=None):
     A escolha e pelo endereco e nao por configuracao: quem instala nao deveria
     precisar saber que esta caixa tem um OpenCV sem suporte a camera IP. Ver o
     porque inteiro, com as mensagens medidas, no topo de aibox/gstcam.py."""
-    if str(url).startswith("rtsp"):
+    # No PC (Windows) nao ha gst-launch, e o OpenCV do pip abre RTSP sozinho:
+    # la a camera IP vai pelo OpenCV. So a caixa precisa do GStreamer.
+    import shutil
+    if str(url).startswith("rtsp") and shutil.which("gst-launch-1.0"):
         from aibox.gstcam import Gst
         # codec POR camera (CAMERA_RTSP_CODEC / CAMERA_RTSP2_CODEC): a HAIZ
         # manda H.264 e a Intelbras H.265 no fluxo principal. None = CAM_CODEC.
