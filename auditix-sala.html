@@ -1,5 +1,11 @@
 <link rel="stylesheet" href="vendor/fontes/fontes.css">
-<script>document.documentElement.classList.add('central');</script>
+<script>
+document.documentElement.classList.add('central');
+/* ?palco=1: a Sala dentro do Ao vivo da Central. So a camera e os botoes dela;
+   o resto (alertas, pessoas, cadeia) a propria Central ja mostra. */
+if(new URLSearchParams(location.search).get('palco') === '1')
+  document.documentElement.classList.add('modo-palco');
+</script>
 <title>Sala Auditada</title>
 
 <script src="vendor/face-api/face-api.js"></script>
@@ -78,6 +84,14 @@ window.__mp = { FilesetResolver, PoseLandmarker };
 :root.central .btn.forte, :root.central .grandao{ color:#06100F; }
 :root.central .grandao{ box-shadow:0 10px 34px rgba(95,191,160,.22); }
 :root.central .palco{ background:#050A09; }
+html.modo-palco body{ background:#050A09; }
+html.modo-palco .topo, html.modo-palco .grade > div, html.modo-palco .aviso,
+html.modo-palco #btn-cad, html.modo-palco #rotulo, html.modo-palco #btn-gravar,
+html.modo-palco #btn-apagar{ display:none !important; }
+html.modo-palco .grade{ display:block; padding:0; max-width:none; }
+html.modo-palco .painel{ border:0; border-radius:0; box-shadow:none; background:transparent; }
+html.modo-palco .palco{ margin:0 auto; }
+html.modo-palco .pe{ justify-content:center; padding:10px; border-top:0; }
 
 *{ box-sizing:border-box; min-width:0; }
 html,body{ max-width:100%; overflow-x:hidden; }
@@ -657,6 +671,7 @@ async function ligar(){
        alguns instantes, e tudo aqui embaixo mede em cima dele. */
     await primeiroQuadro(v);
     el('palco').style.aspectRatio = v.videoWidth + '/' + v.videoHeight;
+    caberPalco();
     ['over','calor'].forEach(id => { const c = el(id);
       c.width = v.videoWidth; c.height = v.videoHeight; });
     el('desl').classList.add('off');
@@ -1629,7 +1644,7 @@ function registrarAnomalia(tipo, t, texto, porque){
   /* Recorta AGORA, não depois da resposta do servidor: um segundo adiante a
      pessoa já se mexeu, e a imagem deixaria de ser a do momento acusado. O
      desfoque vem depois, sobre o quadro já congelado. */
-  mandarEvento(tipo, 'corpo-' + t.id, recortarCorpo(t));
+  mandarEvento(tipo, 'corpo-' + t.id, recortarCorpo(t), posesDaProva(t, performance.now()));
 }
 
 function analisar(t, lm, agora){
@@ -2216,6 +2231,7 @@ const caixaDoRosto = b => ({
    para o menos, e cada trilha e cada caixa só podem ser usadas uma vez. */
 function confirmar(t, det, agora){
   t.box = det.box; t.det = det; t.visto = agora;
+  guardarPose(t, det.lm, agora);
   t.deRosto = false;              // achou corpo de verdade, promove a trilha
   t.vistas = (t.vistas || 0) + 1;
   if(t.vistas >= VISTAS_MIN && agora - t.nasceu >= FIRME_MS) t.firme = true;
@@ -3094,11 +3110,38 @@ function guardarQuadro(t, h){
     pdx:+h.pd.x.toFixed(5), pdy:+h.pd.y.toFixed(5) });
 }
 
-function mandarEvento(tipo, aluno, foto){
+/* OS PONTOS DO CORPO JUNTO COM O ALERTA, como a caixa manda (aibox/trilhas.py,
+   poses_da_prova): os 17 pontos do COCO, os ultimos 2,5 s, ate 24 quadros, o x
+   multiplicado pela proporcao da imagem. E o "ver o corpo" da Central: o corpo
+   caindo em pontos, sem rosto nenhum. O PoseLandmarker da 33 pontos; estes
+   sao os 17 que o COCO tambem tem, na ordem dele. */
+const COCO_DO_MP = [0,2,5,7,8,11,12,13,14,15,16,23,24,25,26,27,28];
+const POSES_MS = 3000;
+function guardarPose(t, lm, agora){
+  if(!lm || lm.length < 33) return;
+  if(!t.poses) t.poses = [];
+  t.poses.push([agora, COCO_DO_MP.map(i => [lm[i].x, lm[i].y, vis(lm[i])])]);
+  while(t.poses.length && agora - t.poses[0][0] > POSES_MS) t.poses.shift();
+}
+function posesDaProva(t, agora, janela = 2500, maximo = 24){
+  const v = el('cam'), asp = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 4/3;
+  let q = (t && t.poses || []).filter(([tq]) => agora - tq <= janela).map(p => p[1]);
+  if(!q.length) return null;
+  if(q.length > maximo){
+    const passo = (q.length - 1) / (maximo - 1);
+    q = Array.from({length:maximo}, (_, i) => q[Math.round(i * passo)]);
+  }
+  const n = x => Number.isFinite(x) ? x : 0;
+  return q.map(kp => kp.map(([x, y, c]) => [+(n(x) * asp).toFixed(4), +n(y).toFixed(4), +n(c).toFixed(3)]));
+}
+
+function mandarEvento(tipo, aluno, foto, poses){
   if(!servidorVivo) return;
+  const corpo = { aluno_id:String(aluno).slice(0,50), tipo_evento:tipo,
+                  localizacao:LOCAL_CAMERA };
+  if(poses && poses.length) corpo.poses = poses;
   fetch('/api/evento', { method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ aluno_id:String(aluno).slice(0,50), tipo_evento:tipo,
-                           localizacao:LOCAL_CAMERA }) })
+    body: JSON.stringify(corpo) })
     .then(r => r.ok ? r.json() : null)
     .then(ev => {
       if(!ev) return;
@@ -3396,4 +3439,29 @@ el('btn-exemplo').addEventListener('click', () => {
   pintarTudo();
   acharServidor();
 })();
+
+/* ===================================================== dentro da Central ===
+   No modo palco a camera tem de caber na altura do quadro da Central (a
+   largura sai da proporcao do video, para os pontos nao sairem do lugar), e a
+   Central recebe uma vez por segundo quem esta na imagem, para o "Na tela". */
+function caberPalco(){
+  if(!document.documentElement.classList.contains('modo-palco')) return;
+  const v = el('cam'), p = el('palco'), pe = document.querySelector('.pe');
+  const prop = v.videoWidth && v.videoHeight ? v.videoWidth / v.videoHeight : 4/3;
+  const alt = innerHeight - (pe ? pe.offsetHeight : 0) - 4;
+  p.style.width = Math.max(200, Math.min(document.documentElement.clientWidth, alt * prop)) + 'px';
+}
+addEventListener('resize', caberPalco);
+caberPalco();
+setInterval(() => {
+  if(!document.documentElement.classList.contains('modo-palco') || window.parent === window) return;
+  const firmes = trilhas.filter(t => t.firme && !(t.parado && !t.nome));
+  try{
+    window.parent.postMessage({ auditix:'sala', rodando,
+      fps: firmes.length ? Math.max(...firmes.map(t => t.fps || 0)) : 0,
+      pessoas: firmes.slice(0, 20).map(t => ({ id:t.id, nome:t.nome || null,
+        nota: t.notaQueda || 0, analisavel: t.analisavel !== false,
+        queda: !!t.quedaDesde, corre: !!t.correDesde })) }, location.origin);
+  }catch(e){}
+}, 1000);
 </script>

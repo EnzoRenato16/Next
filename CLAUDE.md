@@ -396,10 +396,19 @@ o modelo contra um teto que é da câmera é trabalho jogado fora.
   o vídeo é o mesmo JPEG da página dela. Se a caixa roda a ARENA, a Central
   mostra o vídeo e diz "modo arena". Testada com a `Vivo` de verdade numa
   caixa falsa (`batimento.mjs` 19/19, `ciente.mjs` 23/23).
-  **Aba Webcam (sem a caixa):** a Sala do navegador (`/`, MediaPipe, tudo em
-  `vendor/`) dentro da Central, com a webcam do PC. Feita para a apresentação
-  da queda no estande, onde a AIBOX não pode ser usada (22/10). Os alertas
-  dela caem no mesmo servidor e tocam o alarme da Central.
+  **Webcam do PC (sem a caixa), dentro do Ao vivo:** o botão "AIBOX | Webcam
+  do PC" embaixo do vídeo troca a fonte no MESMO quadro (a aba Webcam saiu em
+  23/10, pedido do Enzo). A webcam é a Sala do navegador em modo palco
+  (`/?palco=1`: só a câmera e os botões dela), MediaPipe, tudo em `vendor/`;
+  ela manda à Central, por `postMessage`, quem está na imagem ("Na tela").
+  Feita para a queda no estande, onde a AIBOX não pode ser usada. A Sala manda
+  com o alerta os PONTOS do corpo, no formato da caixa (17 do COCO, 2,5 s, x
+  vezes a proporção) e a foto com o rosto borrado: "Ver o corpo" abre os dois
+  lado a lado. **A Central guarda a fonte em `auditix.central.fonte`, nunca em
+  `auditix.fonte`:** essa é da Sala (endereço da câmera IP), e com "webcam"
+  gravado nela a Sala tentava abrir uma câmera IP chamada webcam.
+  **"Estou ciente" morto a partir do segundo alerta** (23/10): o botão ficava
+  desligado depois de um ciente que deu certo. Alarme novo religa o botão.
   A página da ARENA (porta 8080 da caixa) ganhou o mesmo visual: placar
   grande, a galeria com quem já foi identificado (`estado.galeria`), câmeras,
   desempenho com gráfico e eventos coloridos. Só reescreve o pedaço que mudou.

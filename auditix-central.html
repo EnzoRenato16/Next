@@ -105,6 +105,16 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 .palco{position:relative;border-radius:var(--r);overflow:hidden;background:#000;
   border:1px solid var(--linha-2);aspect-ratio:16/9;line-height:0}
 .palco img{width:100%;height:100%;object-fit:contain;display:block}
+.palco iframe{position:absolute;inset:0;width:100%;height:100%;border:0;z-index:1;background:#050A09}
+/* Com a webcam a Sala desenha o proprio video e os botoes dela embaixo: o
+   quadro fica mais alto e sai o que e so da caixa. */
+.palco.pc{aspect-ratio:auto;height:min(76vh,780px);min-height:460px}
+.palco.pc::after,.palco.pc .varre,.palco.pc .canto,.palco.pc .hud .h-bl,.palco.pc .hud .h-br{display:none}
+.palco.pc .hud{z-index:2}
+.pc-modo .so-caixa{display:none!important}
+.fonte{display:inline-flex;gap:0;border:1px solid var(--linha-2);border-radius:10px;overflow:hidden}
+.fonte .btn{border:0;border-radius:0;background:var(--fundo-2)}
+.fonte .btn[aria-pressed="true"]{background:var(--verde-luz);color:var(--verde-forte)}
 .palco::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(180deg,rgba(0,0,0,.45),transparent 18%,transparent 78%,rgba(0,0,0,.55))}
 .hud{position:absolute;inset:0;z-index:2;pointer-events:none;line-height:1.3;font-family:var(--mono)}
@@ -250,12 +260,15 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 /* O visor fica POR CIMA do alarme: "ver o corpo" e aberto de dentro dele, e
    por baixo ficava invisivel e prendia a tela (achado no laboratorio, 22/10). */
 .visor{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:20px;background:rgba(0,0,0,.72)}
-.visor .caixa{width:min(520px,100%);background:var(--card);border:1px solid var(--linha-2);border-radius:18px;padding:18px}
+.visor .caixa{width:min(980px,100%);background:var(--card);border:1px solid var(--linha-2);border-radius:18px;padding:18px}
 .visor svg{width:100%;aspect-ratio:1;background:var(--fundo-2);border-radius:12px;color:var(--ink-2)}
 .visor header{display:flex;align-items:center;margin-bottom:10px}
 .visor header b{font:600 17px var(--disp)}
 .visor header .btn{margin-left:auto}
-.visor img{width:100%;border-radius:12px;background:var(--fundo-2);display:block}
+.visor img{width:100%;aspect-ratio:1;object-fit:contain;border-radius:12px;background:var(--fundo-2);display:block}
+.vi-dois{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}
+.vi-dois figure{margin:0}
+.vi-dois figcaption{color:var(--ink-3);font-size:12px;margin-top:6px}
 .visor p{color:var(--ink-3);font-size:12.5px;margin:10px 0 0}
 
 @keyframes pisca{50%{opacity:.25}}
@@ -300,7 +313,6 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
   </div>
   <nav class="abas" role="tablist">
     <button class="aba" role="tab" data-vista="vivo" aria-selected="true">Ao vivo</button>
-    <button class="aba" role="tab" data-vista="webcam">Webcam</button>
     <button class="aba" role="tab" data-vista="ocorr" id="aba-ocorr"><span class="ponto"></span>Ocorrências</button>
     <button class="aba" role="tab" data-vista="cadastro">Cadastro</button>
     <button class="aba" role="tab" data-vista="cadeia">Cadeia</button>
@@ -322,6 +334,12 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
     <div>
       <div class="palco" id="palco">
         <img id="video" alt="câmera da sala com o esqueleto que a IA mediu">
+        <!-- WEBCAM DESTE PC: a Sala do navegador (auditix-sala.html) em modo
+             palco. O MESMO cerebro da caixa (mesmas 12 caracteristicas e os
+             mesmos pesos, testes/aibox.mjs), com o corpo medido pelo MediaPipe
+             aqui. Grava no mesmo servidor: os alertas entram nesta Central com
+             sirene e "Estou ciente". Tudo offline (vendor/). -->
+        <iframe id="pc" title="sala pela webcam deste PC" allow="camera; microphone; fullscreen" hidden></iframe>
         <div class="varre"></div>
         <span class="canto a"></span><span class="canto b"></span><span class="canto c"></span><span class="canto d"></span>
         <div class="hud">
@@ -335,16 +353,19 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
           <b id="sem-tit">Sem imagem da caixa</b>
           <p id="sem-txt">A Central não está conseguindo falar com a caixa. Confira se a análise da sala está rodando (<code>bash aibox/ir.sh</code>) e se o endereço abaixo está certo.</p>
           <form id="f-caixa"><input id="i-caixa" spellcheck="false" aria-label="endereço da caixa"><button class="btn forte">Conectar</button></form>
-          <button class="btn" type="button" data-ir="webcam">Usar a webcam deste PC</button>
+          <button class="btn" type="button" data-fonte="webcam">Usar a webcam deste PC</button>
         </div>
       </div>
       <div class="barra">
-        <span class="rot">câmera</span>
+        <span class="fonte" role="group" aria-label="de onde vem a imagem">
+          <button class="btn" type="button" data-fonte="caixa" aria-pressed="true">AIBOX</button>
+          <button class="btn" type="button" data-fonte="webcam" aria-pressed="false">Webcam do PC</button>
+        </span>
+        <span class="so-caixa"><span class="rot">câmera</span>
         <span id="cams"><button class="btn" disabled>câmera 1</button></span>
-        <em id="cams-msg"></em>
+        <em id="cams-msg"></em></span>
         <span class="dir">
-          <button class="btn" type="button" data-ir="webcam">Webcam do PC</button>
-          <a class="btn" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
+          <a class="btn so-caixa" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
           <button class="btn" id="b-cheia">Tela cheia</button>
         </span>
       </div>
@@ -423,18 +444,6 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
   </div>
 </section>
 
-<!-- ================================================================== WEBCAM -->
-<!-- SEM A CAIXA: a Sala do navegador (auditix-sala.html, servida em /), com a
-     webcam deste PC. E o MESMO cerebro da caixa (mesmas 12 caracteristicas e os
-     mesmos pesos, testes/aibox.mjs), so que o corpo e medido pelo MediaPipe aqui
-     no navegador. Grava no mesmo servidor: os alertas aparecem nesta Central,
-     com sirene e "Estou ciente", como os da caixa. Tudo offline (vendor/). -->
-<section class="vista" id="v-webcam" hidden>
-  <p class="dica">Queda, corrida e briga pela webcam deste PC, sem a AIBOX. Os alertas entram na Central como os da caixa.
-    Clique em ligar a câmera dentro do quadro e permita a webcam no navegador.
-    <a href="/" target="_blank" rel="noopener">abrir em tela própria ↗</a></p>
-  <div class="moldura"><iframe data-src="/" title="sala pela webcam do PC" allow="camera; microphone; fullscreen"></iframe></div>
-</section>
 
 <!-- ================================================================ CADASTRO -->
 <section class="vista" id="v-cadastro" hidden>
@@ -461,7 +470,6 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
     <div class="acoes">
       <button class="btn rubi" id="al-ciente">Estou ciente</button>
       <button class="btn" id="al-corpo" hidden>Ver o corpo</button>
-      <button class="btn" id="al-foto" hidden>Ver o corpo (rosto borrado)</button>
     </div>
     <p id="al-mais"></p>
     <p>"Estou ciente" vira uma linha na cadeia de hash, com o horário. É o que prova que alguém reagiu, e em quanto tempo.</p>
@@ -471,8 +479,12 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 <div class="visor" id="visor" hidden>
   <div class="caixa">
     <header><b id="vi-tit">O corpo</b><button class="btn" id="vi-fechar">Fechar</button></header>
-    <svg id="vi-svg" viewBox="0 0 400 400"></svg>
-    <img id="vi-img" alt="o quadro do alerta, com os rostos apagados" hidden>
+    <div class="vi-dois">
+      <figure id="vi-f-svg"><svg id="vi-svg" viewBox="0 0 400 400"></svg>
+        <figcaption>os pontos do corpo nos últimos segundos, o último em vermelho</figcaption></figure>
+      <figure id="vi-f-img"><img id="vi-img" alt="o quadro do alerta, com os rostos borrados">
+        <figcaption>a imagem do instante, com o rosto de todos borrado</figcaption></figure>
+    </div>
     <p id="vi-nota"></p>
   </div>
 </div>
@@ -480,6 +492,11 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 <script>
 'use strict';
 const el = id => document.getElementById(id);
+/* De onde vem a imagem do Ao vivo: 'caixa' (AIBOX) ou 'webcam' (este PC).
+   Chave PROPRIA: 'auditix.fonte' e da Sala (o endereco da camera IP), e com
+   'webcam' gravado nela a Sala tentava abrir uma camera IP chamada webcam. */
+let fonte = 'caixa';
+try{ if(localStorage.getItem('auditix.central.fonte') === 'webcam') fonte = 'webcam'; }catch(e){}
 
 /* ======================================================== vocabulário ==== */
 const GRAVES = new Set(['queda','briga','pedido_ajuda','agitacao','objeto_perigoso','patrimonio_sumiu']);
@@ -528,6 +545,7 @@ async function pegar(u, opc){
 
 /* ============================================================ abas ======= */
 function abrir(v){
+  if(v === 'webcam'){ usarFonte('webcam'); v = 'vivo'; }   // a aba antiga
   document.querySelectorAll('.aba').forEach(b => b.setAttribute('aria-selected', String(b.dataset.vista === v)));
   document.querySelectorAll('.vista').forEach(s => s.hidden = s.id !== 'v-' + v);
   /* O iframe so carrega na primeira vez que a aba abre: o cadastro liga a
@@ -575,7 +593,7 @@ function usarCaixa(url, fixa){
   el('i-caixa').value = caixa;
   ligarVideo();
 }
-function ligarVideo(){ el('video').src = caixa + '/video?t=' + Date.now(); }
+function ligarVideo(){ if(fonte !== 'webcam') el('video').src = caixa + '/video?t=' + Date.now(); }
 el('video').addEventListener('error', () => { setTimeout(ligarVideo, 4000); });
 el('f-caixa').addEventListener('submit', ev => { ev.preventDefault(); usarCaixa(el('i-caixa').value.trim(), true); });
 el('l-caixa').href = caixa; el('i-caixa').value = caixa;
@@ -599,6 +617,7 @@ function tele(id, valor, hist, cor, estado){
 }
 
 async function lerCaixa(){
+  if(fonte === 'webcam') return;
   let e;
   try{
     e = await pegar(caixa + '/estado');
@@ -641,16 +660,7 @@ async function lerCaixa(){
   el('k-env-s').innerHTML = e.falhas ? '<span style="color:var(--rubi)">' + e.falhas + ' não chegaram</span>'
     : e.pendentes ? '<span style="color:var(--ambar)">' + e.pendentes + ' na fila, reenviando</span>' : 'todos chegaram ao servidor';
 
-  /* Quem esta na tela: o numero ou o nome, e a nota da rede de queda. */
-  const ps = (e.pessoas || []).slice().sort((a, b) => b.nota - a.nota);
-  const armado = ps.some(p => p.queda);
-  el('palco').classList.toggle('queda', armado);
-  el('gente').innerHTML = ps.length ? ps.slice(0, 8).map(p =>
-    '<div class="pess"><b>' + esc(p.nome || 'pessoa #' + p.id) + '</b>' +
-    '<span class="tag' + (p.queda || p.corre ? ' on' : '') + '">' +
-      (p.queda ? 'QUEDA ARMADA' : p.corre ? 'CORRENDO' : !p.analisavel ? 'sem tronco' : p.nota.toFixed(2)) + '</span>' +
-    '<div class="medidor' + (p.nota > .5 || p.queda ? ' alto' : '') + '"><i style="width:' + Math.min(100, p.nota * 100).toFixed(0) + '%"></i></div></div>'
-  ).join('') : '<div class="vazio">ninguém na imagem</div>';
+  pintarGente(e.pessoas);
 
   /* Escolher a camera: so com duas. A sala analisa uma por vez. */
   if(e.cameras_n > 1){
@@ -680,6 +690,60 @@ el('cams').addEventListener('click', async ev => {
                                     body: JSON.stringify({camera: +b.dataset.camera})});
   }catch(e){ el('cams-msg').textContent = 'a caixa não respondeu'; }
 });
+/* Quem esta na tela: o numero ou o nome, e a nota da rede de queda. Vem da
+   caixa (/estado) ou da Sala da webcam (postMessage), no mesmo formato. */
+function pintarGente(pessoas){
+  const ps = (pessoas || []).slice().sort((a, b) => b.nota - a.nota);
+  el('palco').classList.toggle('queda', ps.some(p => p.queda));
+  el('gente').innerHTML = ps.length ? ps.slice(0, 8).map(p =>
+    '<div class="pess"><b>' + esc(p.nome || 'pessoa #' + p.id) + '</b>' +
+    '<span class="tag' + (p.queda || p.corre ? ' on' : '') + '">' +
+      (p.queda ? 'QUEDA ARMADA' : p.corre ? 'CORRENDO' : !p.analisavel ? 'sem tronco' : p.nota.toFixed(2)) + '</span>' +
+    '<div class="medidor' + (p.nota > .5 || p.queda ? ' alto' : '') + '"><i style="width:' + Math.min(100, p.nota * 100).toFixed(0) + '%"></i></div></div>'
+  ).join('') : '<div class="vazio">ninguém na imagem</div>';
+}
+
+/* ======================================================== a fonte ======== */
+/* AIBOX ou a webcam deste PC, no MESMO quadro do Ao vivo. Trocar para a caixa
+   desliga a webcam de verdade (o iframe sai), e trocar para a webcam para o
+   MJPEG da caixa, para nao pagar os dois. */
+function usarFonte(f){
+  fonte = f === 'webcam' ? 'webcam' : 'caixa';
+  try{ localStorage.setItem('auditix.central.fonte', fonte); }catch(e){}
+  const pc = fonte === 'webcam';
+  document.querySelectorAll('[data-fonte]').forEach(b => {
+    if(b.hasAttribute('aria-pressed')) b.setAttribute('aria-pressed', String(b.dataset.fonte === fonte)); });
+  el('palco').classList.toggle('pc', pc);
+  document.body.classList.toggle('pc-modo', pc);
+  el('pc').hidden = !pc; el('video').hidden = pc;
+  if(pc){
+    el('semcaixa').hidden = true;
+    el('video').removeAttribute('src');
+    if(!el('pc').src || el('pc').src === 'about:blank') el('pc').src = '/?palco=1';
+    el('hud-cam').textContent = 'webcam deste PC';
+    el('tag-vivo').className = 'vivo-tag off';
+    el('st-camera').className = 'chip'; el('st-camera').lastElementChild.textContent = 'webcam do PC';
+    el('tele-s').textContent = 'webcam deste PC: a caixa não está em uso';
+    ['t-rede', 't-cpu', 't-lat'].forEach(id => tele(id, '--', [], '#9DB8AF'));
+    pintarGente([]);
+  }else{
+    el('pc').src = 'about:blank';
+    el('hud-cam').textContent = 'câmera 1';
+    falhasCaixa = 0; ligarVideo(); lerCaixa();
+  }
+}
+document.addEventListener('click', e => { const b = e.target.closest('[data-fonte]'); if(b) usarFonte(b.dataset.fonte); });
+addEventListener('message', ev => {
+  if(ev.origin !== location.origin || fonte !== 'webcam' || !ev.data || ev.data.auditix !== 'sala') return;
+  const d = ev.data;
+  el('tag-vivo').className = 'vivo-tag' + (d.rodando ? '' : ' off');
+  el('st-camera').className = 'chip' + (d.rodando ? ' ok' : '');
+  el('st-camera').lastElementChild.textContent = d.rodando ? 'webcam ligada' : 'webcam desligada';
+  guardar('fps', d.fps);
+  tele('t-fps', (d.fps || 0).toFixed(0), HIST.fps, '#5FBFA0');
+  pintarGente(d.pessoas);
+});
+
 function semCaixa(tit, txt){
   el('sem-tit').textContent = tit; el('sem-txt').textContent = txt;
   el('semcaixa').hidden = false;
@@ -764,8 +828,7 @@ function pintarFeed(){
       '</b><small>' + esc(e.aluno_id) + ' · ' + esc(e.localizacao) + '</small></span>' +
       '<span class="q">' + hora(e) + '<br>' + ha(e) + '</span>' +
       ((pend || e.tem_esqueleto || e.tem_foto) ? '<span class="acao">' +
-        (e.tem_esqueleto ? '<button class="btn" data-corpo="' + e.id + '">ver o corpo</button>' : '') +
-        (!e.tem_esqueleto && e.tem_foto ? '<button class="btn" data-foto="' + e.id + '">ver o corpo (rosto borrado)</button>' : '') +
+        ((e.tem_esqueleto || e.tem_foto) ? '<button class="btn" data-corpo="' + e.id + '">ver o corpo</button>' : '') +
         (pend ? '<button class="btn rubi" data-ciente="' + e.id + '">Estou ciente</button>' : '') + '</span>' : '') +
       '</li>';
   }).join('');
@@ -904,8 +967,7 @@ function pintarTabela(){
     return '<tr><td class="mono">' + e.id + '</td><td>' + dia(e) + ' <span class="mono">' + hora(e) + '</span></td>' +
       '<td><span class="selo ' + c + '">' + esc(nome(e.tipo_evento)) + '</span>' + (REGRA.has(e.tipo_evento) ? '<span class="origem">REGRA</span>' : '') + '</td>' +
       '<td>' + esc(e.aluno_id) + '</td><td class="some">' + esc(e.localizacao) + '</td><td>' + resp + '</td>' +
-      '<td>' + (e.tem_esqueleto ? '<button class="btn" data-corpo="' + e.id + '">corpo</button>'
-              : e.tem_foto ? '<button class="btn" data-foto="' + e.id + '">foto</button>' : '<span class="mono">—</span>') + '</td>' +
+      '<td>' + ((e.tem_esqueleto || e.tem_foto) ? '<button class="btn" data-corpo="' + e.id + '">corpo</button>' : '<span class="mono">—</span>') + '</td>' +
       '<td class="mono some" title="' + esc(e.hash_atual) + '">' + esc((e.hash_atual || '').slice(0, 12)) + '…</td></tr>';
   }).join('') : '<tr><td colspan="8" class="vazio">nada neste filtro</td></tr>';
 }
@@ -964,10 +1026,9 @@ function pintarAlarme(){
   el('al-tit').textContent = nome(e.tipo_evento);
   el('al-onde').textContent = e.localizacao + ' · ' + e.aluno_id + (cego ? ' (a Central NÃO está vendo esta sala)' : '');
   el('al-ha').textContent = ha(e) + ' sem ninguém ciente · ' + hora(e);
-  el('al-corpo').hidden = !e.tem_esqueleto;
-  /* A Sala do navegador (aba Webcam) manda a foto com o rosto em mosaico, e
-     nao o esqueleto: sem este botao o alarme da webcam nao tinha o que ver. */
-  el('al-foto').hidden = !e.tem_foto;
+  /* Os pontos do corpo (caixa e webcam) e a foto com o rosto borrado (webcam):
+     o mesmo botao abre os dois. */
+  el('al-corpo').hidden = !(e.tem_esqueleto || e.tem_foto);
   el('al-mais').textContent = pendentes.length > 1 ? 'Mais ' + (pendentes.length - 1) + ' alerta(s) esperando depois deste.' : '';
   if(a.hidden){ a.hidden = false; el('al-ciente').focus(); }
   if(!toque){ sirene(); toque = setInterval(sirene, 2000); }
@@ -991,7 +1052,6 @@ async function ciente(id, botao){
 }
 el('al-ciente').addEventListener('click', () => { if(mostrando) ciente(mostrando.id, el('al-ciente')); });
 el('al-corpo').addEventListener('click', () => { if(mostrando) abrirCorpo(mostrando.id); });
-el('al-foto').addEventListener('click', () => { if(mostrando) abrirFoto(mostrando.id); });
 
 /* ====================================================== o corpo ========== */
 const OSSOS = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,1],[0,2],[1,3],[2,4]];
@@ -1020,32 +1080,28 @@ function corpo(svg, poses, i, cx){
 async function abrirCorpo(id){
   el('vi-tit').textContent = 'O corpo no evento #' + id;
   el('vi-nota').textContent = 'abrindo…'; el('vi-svg').innerHTML = '';
+  el('vi-img').removeAttribute('src');
+  el('vi-f-svg').hidden = false; el('vi-f-img').hidden = false;
   el('visor').hidden = false; clearInterval(anima);
-  el('vi-svg').hidden = false; el('vi-img').hidden = true;
-  try{
-    const d = await pegar('/api/esqueleto/' + id), poses = d.poses, cx = enquadrar(poses);
+  const [esq, foto] = await Promise.allSettled([pegar('/api/esqueleto/' + id), pegar('/api/foto/' + id)]);
+  const notas = [];
+  if(esq.status === 'fulfilled' && esq.value.poses && esq.value.poses.length){
+    const poses = esq.value.poses, cx = enquadrar(poses);
     let i = 0, pausa = 0;
     corpo(el('vi-svg'), poses, 0, cx);
     anima = setInterval(() => {
       if(i < poses.length - 1){ corpo(el('vi-svg'), poses, ++i, cx); return; }
       if(++pausa > 12){ i = 0; pausa = 0; corpo(el('vi-svg'), poses, 0, cx); }
     }, 110);
-    el('vi-nota').textContent = 'Os ' + poses.length + ' últimos quadros do corpo antes do alerta, o último em vermelho. ' +
-      'Só os 17 pontos do corpo: nenhuma imagem e nada que diga de quem é.';
-  }catch(e){ el('vi-nota').textContent = 'Sem esqueleto para este evento.'; }
-}
-/* A foto: abrir deixa rastro (o servidor registra cada consulta). */
-async function abrirFoto(id){
-  el('vi-tit').textContent = 'A foto do evento #' + id;
-  el('vi-nota').textContent = 'abrindo…';
-  el('vi-svg').hidden = true; el('vi-img').hidden = false; el('vi-img').removeAttribute('src');
-  el('visor').hidden = false; clearInterval(anima);
-  try{
-    const d = await pegar('/api/foto/' + id);
-    el('vi-img').src = d.imagem;
-    el('vi-nota').textContent = 'O quadro do instante do alerta, com o rosto de todos em mosaico. ' +
-      'Apaga-se sozinho em ' + d.apaga_em_dias + ' dias. Esta consulta ficou registrada: é a ' + d.consultas + 'ª desta imagem.';
-  }catch(e){ el('vi-nota').textContent = 'Sem foto para este evento (ou o prazo já venceu).'; }
+    notas.push('Os ' + poses.length + ' últimos quadros do corpo antes do alerta: só os 17 pontos, nada que diga de quem é.');
+  }else el('vi-f-svg').hidden = true;
+  /* A foto deixa rastro: o servidor registra cada vez que ela e aberta. */
+  if(foto.status === 'fulfilled' && foto.value.imagem){
+    el('vi-img').src = foto.value.imagem;
+    notas.push('A imagem apaga-se sozinha em ' + foto.value.apaga_em_dias + ' dias, e esta consulta ficou registrada (é a ' +
+               foto.value.consultas + 'ª).');
+  }else el('vi-f-img').hidden = true;
+  el('vi-nota').textContent = notas.length ? notas.join(' ') : 'Sem pontos do corpo nem imagem para este evento.';
 }
 function fecharVisor(){ el('visor').hidden = true; clearInterval(anima); }
 el('vi-fechar').addEventListener('click', fecharVisor);
@@ -1053,7 +1109,6 @@ el('visor').addEventListener('click', e => { if(e.target === el('visor')) fechar
 addEventListener('keydown', e => { if(e.key === 'Escape') fecharVisor(); });
 document.addEventListener('click', e => {
   const c = e.target.closest('[data-corpo]'); if(c) abrirCorpo(+c.dataset.corpo);
-  const f = e.target.closest('[data-foto]'); if(f) abrirFoto(+f.dataset.foto);
   const k = e.target.closest('[data-ciente]'); if(k) ciente(+k.dataset.ciente, k);
 });
 
@@ -1061,6 +1116,7 @@ document.addEventListener('click', e => {
 pintarSom();
 abrir((location.hash || '#vivo').slice(1).replace(/[^a-z]/g, '') || 'vivo');
 if(!document.querySelector('.aba[aria-selected="true"]')) abrir('vivo');
+if(fonte === 'webcam') usarFonte('webcam');
 lerSaude(); lerCadeia(); lerRecentes(); lerBase(); lerCaixa();
 setInterval(lerCaixa, 1000);
 setInterval(lerRecentes, 2000);
