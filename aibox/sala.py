@@ -163,6 +163,8 @@ def linha_da_trilha(t, agora):
 
 
 def main():
+    from aibox.marca import letreiro
+    letreiro("sala")
     carregar_env()
     p = argparse.ArgumentParser(description="Auditix IA dentro da AIBOX")
     p.add_argument("--camera", default=os.environ.get("CAMERA_RTSP"))

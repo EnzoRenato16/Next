@@ -1244,6 +1244,8 @@ def conferencia(c):
 
 
 def main():
+    from aibox.marca import letreiro
+    letreiro("arena")
     from aibox.sala import carregar_env
     carregar_env()
     p = argparse.ArgumentParser(description="Auditix IA, modo arena (so rosto)")

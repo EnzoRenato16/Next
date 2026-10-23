@@ -301,6 +301,12 @@ def carregar_env() -> None:
         os.environ.setdefault(chave.strip(), valor.strip().strip('"').strip("'"))
 
 
+if __name__ == "__main__":
+    try:
+        from aibox.marca import letreiro
+        letreiro()                 # antes do banco, que ja escreve na partida
+    except Exception:
+        pass                       # enfeite: nunca impede o servidor de subir
 carregar_env()
 URL_BANCO = os.environ.get("DATABASE_URL", "").strip()
 
@@ -2101,9 +2107,10 @@ if __name__ == "__main__":
     if QUEM_ESCREVE:
         print(f"[auditix] so gravam: {', '.join(sorted(QUEM_ESCREVE))} — "
               "o resto da rede so le")
-    print(f"[auditix] sala   -> http://127.0.0.1:{porta}/")
-    print(f"[auditix] painel -> http://127.0.0.1:{porta}/painel")
-    print(f"[auditix] central -> http://127.0.0.1:{porta}/central  (camera, alertas, cadastro e cadeia)")
+    # Um endereco so na partida: a Central tem a camera, os alertas, o cadastro
+    # e a cadeia. A sala (/) e o painel (/painel) continuam abrindo, so nao
+    # sao anunciados, para ninguem abrir a tela errada.
+    print(f"[auditix] abra no navegador -> http://127.0.0.1:{porta}/central")
     # Sem esta linha, um .env nao lido (ou salvo como .env.txt) some sem
     # rastro: o servidor simplesmente nao avisa ninguem e a tela fica igual.
     if WEBHOOK:
