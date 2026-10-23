@@ -224,6 +224,13 @@ diz "perto demais, afaste-se uns 2 m". Quadril abaixo de 92% do quadro sem
 joelho = cortado (depois da linha, que continua valendo para quem caiu na beira).
 Igual em `regras.py`. `testes/regua-do-corpo.mjs` cenário 5 cobra.
 
+**Briga é encostar (23/10, pedido do grupo).** Um ponto do esqueleto de um
+(cabeça, cotovelo, mão, joelho, pé) a menos de `BRIGA_ENCOSTO` (0,06 altura,
+~10 cm) de um osso do outro, ou dentro do tronco dele, por `BRIGA_SEG` (0,3 s).
+Saiu a exigência de golpe rápido e de dois impulsos. Mais sensível de
+propósito: abraço, aperto de mão e um na frente do outro na imagem também
+acusam. Igual em `regras.py`; `testes/briga-toque.mjs` roda os dois lados.
+
 ## Prova sem rosto (`esqueletos`)
 
 A AIBOX não manda foto. Cada trilha carrega 3 s de pontos (`trilhas.POSES_MS`)

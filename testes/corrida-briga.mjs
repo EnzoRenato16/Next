@@ -244,7 +244,10 @@ ok('quem já está no chão não é acusado de correr',
 ok('quem corre em pé passa na trava',
    emPe({ ang: 8, baixo: 0.95, quedaDesde: 0 }));
 
-console.log('\nBRIGA');
+/* ATENÇÃO (23/10): a Sala não usa mais esta regra de golpe + repetição. Briga
+   agora é ENCOSTAR, cobrada em testes/briga-toque.mjs (navegador e caixa). O
+   que segue confere só as funções antigas, que ficaram no código. */
+console.log('\nBRIGA (regra antiga, de golpe)');
 
 /* Briga: dois perto, socos repetidos com intervalo humano. */
 const briga = rodarBriga(duelo({ dist: 0.8, socos: [200, 700, 1200] }));

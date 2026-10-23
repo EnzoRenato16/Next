@@ -63,7 +63,16 @@ BRIGA_JANELA = 2500
 GOLPE_MEM = 250
 BRIGA_GAP = 250
 BRIGA_SOLTA = 0.6
-BRIGA_SEG = 600
+# Desde 23/10 a briga e ENCOSTAR (igual ao navegador): um ponto do esqueleto
+# de um a menos de BRIGA_ENCOSTO alturas de um osso do outro, por BRIGA_SEG.
+BRIGA_ENCOSTO = 0.06
+BRIGA_SEG = 300
+BRIGA_FOLGA = 200
+PONTAS = ((0, "a cabeça"), (7, "o cotovelo esquerdo"), (8, "o cotovelo direito"),
+          (9, "a mão esquerda"), (10, "a mão direita"), (13, "o joelho esquerdo"),
+          (14, "o joelho direito"), (15, "o pé esquerdo"), (16, "o pé direito"))
+CORPO = ((5, 7), (7, 9), (6, 8), (8, 10), (5, 6), (5, 11), (6, 12), (11, 12),
+         (11, 13), (13, 15), (12, 14), (14, 16), (0, 5), (0, 6))
 
 # ---- parado ----------------------------------------------------------------
 PARADO_JANELA = 5000
@@ -92,6 +101,7 @@ class Trilha:
         self.notaQueda = 0.0
         self.foraDoTreino = 0.0
         self.analisavel = False
+        self.kp = None
         self.parado = False
         self.fps = 0
         self.pisoRede = QUEDA_AMOSTRAS
@@ -123,10 +133,12 @@ class Trilha:
             # alarme falso. A camada cala e DIZ que calou, em vez de afirmar
             # seguranca que nao tem como verificar.
             self.analisavel = False
+            self.kp = None
             self.quedaDesde = self.correDesde = 0
             self.qx = self.qy = self.ox = self.oy = None
             return []
         self.analisavel = True
+        self.kp = [tuple(p[:3]) for p in kp]   # para a briga
         self.regua = g["regua"]
 
         h = dict(t=agora, qx=g["hx"], qy=g["hy"], ang=g["ang"],
@@ -389,14 +401,51 @@ def golpe_dirigido(t, alvo, agora, asp):
     return melhor
 
 
+def encostou(t, alvo, asp):
+    """Algum ponto de `t` encostando no esqueleto de `alvo`? Distancia de ponto
+    a osso em alturas do alvo; dentro do tronco conta. Devolve o nome do ponto."""
+    A, B = t.kp, alvo.kp
+    if not A or not B:
+        return None
+    c = medidas.CONF_MIN
+    lim = BRIGA_ENCOSTO * (alvo.altura or 1)
+    tronco = [B[i] for i in (5, 6, 12, 11)]
+
+    def no_tronco(x, y):
+        if any(p[2] < c for p in tronco):
+            return False
+        dentro, j = False, 3
+        for i in range(4):
+            xi, yi = tronco[i][0] * asp, tronco[i][1]
+            xj, yj = tronco[j][0] * asp, tronco[j][1]
+            if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / (yj - yi) + xi:
+                dentro = not dentro
+            j = i
+        return dentro
+
+    for i, nome in PONTAS:
+        p = A[i]
+        if p[2] < c:
+            continue
+        px, py = p[0] * asp, p[1]
+        if no_tronco(px, py):
+            return nome
+        for u, v in CORPO:
+            a, b = B[u], B[v]
+            if a[2] < c or b[2] < c:
+                continue
+            ax, ay = a[0] * asp, a[1]
+            dx, dy = b[0] * asp - ax, b[1] - ay
+            L = dx * dx + dy * dy
+            k = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / L)) if L > 1e-12 else 0.0
+            if math.hypot(px - (ax + k * dx), py - (ay + k * dy)) < lim:
+                return nome
+    return None
+
+
 def analisar_briga(trilhas, agora, asp, memoria):
-    """As quatro condicoes existem para derrubar os quatro falsos positivos que
-    qualquer regra ingenua produz numa escola:
-        perto          -> duas pessoas conversando de longe nao brigam
-        mao no outro   -> gesticular no proprio espaco nao e briga
-        golpe dirigido -> abraco tambem aproxima, mas devagar e sem direcao
-        repeticao      -> um empurrao e um empurrao; briga e vai-e-vem
-    """
+    """Briga = um ENCOSTA no outro por BRIGA_SEG (pedido do grupo, 23/10).
+    Abraco e aperto de mao tambem acusam: a pessoa valida no painel."""
     gente = [t for t in trilhas
              if t.firme and t.analisavel and not t.parado
              and t.qx is not None and t.ox is not None]
@@ -404,52 +453,32 @@ def analisar_briga(trilhas, agora, asp, memoria):
     for i in range(len(gente)):
         for j in range(i + 1, len(gente)):
             a, b = gente[i], gente[j]
-            # A chave e ordenada pelo id: (3,7) e (7,3) sao o mesmo par, e sem
-            # ordenar seriam duas memorias e dois alertas.
+            # A chave e ordenada pelo id: (3,7) e (7,3) sao o mesmo par.
             ka, kb = min(a.id, b.id), max(a.id, b.id)
-            est = memoria.setdefault(
-                (ka, kb), dict(desde=0, toques=[], visto=agora,
-                               armado=False, pico=0.0))
+            est = memoria.setdefault((ka, kb), dict(desde=0, ultimo=0, visto=agora))
             est["visto"] = agora
-            est["toques"] = [x for x in est["toques"] if agora - x < BRIGA_JANELA]
 
-            dist = distancia_entre(a, b, asp)
-            encosta = dist < BRIGA_PERTO and (tocando(a, b, asp) or tocando(b, a, asp))
-            # Medido nos dois sentidos e vale o maior: numa briga de verdade
-            # raramente os dois acertam ao mesmo tempo.
-            golpe = max(golpe_dirigido(a, b, agora, asp),
-                        golpe_dirigido(b, a, agora, asp))
-
-            # BORDA DE SUBIDA, nao nivel. Enquanto o sinal continua alto e o
-            # MESMO soco, e conta-lo a cada quadro faria a exigencia de
-            # repeticao nao filtrar nada.
-            if encosta and golpe >= BRIGA_GOLPE and not est["armado"]:
-                ult = est["toques"][-1] if est["toques"] else None
-                if ult is None or agora - ult > BRIGA_GAP:
-                    est["toques"].append(agora)
-                    # O pico fica congelado AQUI. Lido so na hora do alerta,
-                    # 600ms depois, ele ja voltou a zero.
-                    est["pico"] = max(est["pico"], golpe)
-                est["armado"] = True
-            if golpe < BRIGA_GOLPE * BRIGA_SOLTA:
-                est["armado"] = False
-
-            if encosta and len(est["toques"]) >= BRIGA_TOQUES:
-                if not est["desde"]:
+            toque, quem, em = None, a, b
+            if distancia_entre(a, b, asp) < BRIGA_PERTO:
+                toque = encostou(a, b, asp)
+                if not toque:
+                    toque = encostou(b, a, asp)
+                    if toque:
+                        quem, em = b, a
+            if toque:
+                if not est["desde"] or agora - est["ultimo"] > BRIGA_FOLGA:
                     est["desde"] = agora
-                elif agora - est["desde"] > BRIGA_SEG:
+                est["ultimo"] = agora
+                if agora - est["desde"] >= BRIGA_SEG:
                     dono = a if a.id <= b.id else b
                     alertas += dono._anomalia(
                         "briga", agora,
-                        f"regra (não modelo treinado): {len(est['toques'])} "
-                        f"impulsos em {BRIGA_JANELA / 1000}s, avanço de punho "
-                        f"de {est['pico']:.2f} alturas/s (limiar {BRIGA_GOLPE}), "
-                        f"distância {dist:.2f} alturas")
-            else:
+                        f"regra (não modelo treinado): {toque} do #{quem.id} "
+                        f"encostou no corpo do #{em.id} por "
+                        f"{(agora - est['desde']) / 1000:.1f} s")
+            elif est["desde"] and agora - est["ultimo"] > BRIGA_FOLGA:
                 est["desde"] = 0
-            if not est["toques"]:
-                est["pico"] = 0.0
 
-    for k in [k for k, v in memoria.items() if agora - v["visto"] > BRIGA_JANELA * 2]:
+    for k in [k for k, v in memoria.items() if agora - v["visto"] > 5000]:
         del memoria[k]
     return alertas

@@ -968,12 +968,10 @@ const CORRE_PASSO = 100;      // ms entre amostras: abaixo disso soma-se tremor
    câmera de vigilância, metade violenta, divisão 80/20 já definida), e até lá
    isto se chama regra, no código, na tela e no pitch.
 
-   As quatro condições existem para derrubar os quatro falsos positivos que
-   qualquer regra ingênua produz numa escola:
-     perto           → duas pessoas conversando de longe não brigam
-     mão no outro    → gesticular no próprio espaço não é briga
-     golpe dirigido  → abraço também aproxima, mas devagar e sem direção
-     repetição       → um empurrão é um empurrão; briga é vai-e-vem */
+   Até 23/10 eram quatro condições (perto, mão no tronco, golpe rápido,
+   repetição). Hoje é uma: encostar (ver BRIGA_ENCOSTO). Golpe e repetição
+   ficaram de fora a pedido do grupo, e o custo é dito abaixo. As constantes
+   do golpe continuam aqui porque o painel e os testes antigos as citam. */
 const BRIGA_PERTO = 1.6;     // distância entre quadris, em alturas de corpo
 const BRIGA_TOQUE = 0.55;    // punho a esta distância do tronco alheio = interseção
 const BRIGA_GOLPE = 1.80;    // alturas/s de avanço dirigido do punho
@@ -990,7 +988,22 @@ const BRIGA_GAP = 250;       // ms mínimos entre dois impulsos para serem disti
 /* Abaixo disto o impulso REARMA. Contar borda de subida em vez de nível é o
    conserto do mesmo bug: enquanto o sinal fica alto, é o mesmo soco. */
 const BRIGA_SOLTA = 0.6;     // fração do limiar para considerar o golpe terminado
-const BRIGA_SEG = 600;       // ms com tudo verdadeiro antes de acusar
+/* MUDOU EM 23/10, a pedido do grupo: briga agora é ENCOSTAR. Um ponto do
+   esqueleto de um (mão, cotovelo, joelho, pé, cabeça) chegando no esqueleto do
+   outro, e não mais "punho perto do centro do tronco" (que na tela parecia a
+   caixa encostando) com dois golpes rápidos. Mais sensível de propósito:
+   abraço e aperto de mão também acusam, e quem está um na frente do outro na
+   imagem pode "encostar" sem encostar. A pessoa valida no painel. */
+const BRIGA_ENCOSTO = 0.06;  // alturas de corpo (~10 cm): ponto a menos disto do osso do outro
+const BRIGA_SEG = 300;       // ms encostando antes de acusar
+const BRIGA_FOLGA = 200;     // ms sem toque que ainda contam como o mesmo encosto
+/* Os pontos que encostam (COCO): nariz, cotovelos, punhos, joelhos, tornozelos. */
+const PONTAS_COCO = [[0,'a cabeça'],[7,'o cotovelo esquerdo'],[8,'o cotovelo direito'],
+  [9,'a mão esquerda'],[10,'a mão direita'],[13,'o joelho esquerdo'],
+  [14,'o joelho direito'],[15,'o pé esquerdo'],[16,'o pé direito']];
+/* O corpo que é encostado: os ossos do desenho, mais o pescoço. */
+const CORPO_COCO = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],
+  [11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
 let linhaChao = null;         // 0 a 1 da altura do quadro, ou null
 let marcandoLinha = false;
 try{ const g = localStorage.getItem('auditix.linha');
@@ -1689,7 +1702,7 @@ function analisar(t, lm, agora){
   if(perto){
     t.quedaDesde = 0; t.correDesde = 0; t.energia = 0;
     t.qx = null; t.qy = null; t.ox = null; t.oy = null;
-    t.analisavel = false; t.perto = perto;
+    t.analisavel = false; t.perto = perto; t.kp = null;
     linhaDesde.delete('linha:' + t.id);
     amostrarCalibracao(t, agora, false);
     return;
@@ -1730,7 +1743,7 @@ function analisar(t, lm, agora){
        painel continuava escrevendo "Nada fora do padrão na sala" — afirmando
        uma segurança que não tinha como verificar. Uma pessoa caiu na frente da
        câmera e o sistema não disse nem que não sabia. */
-    t.analisavel = false;
+    t.analisavel = false; t.kp = null;
     /* Amostra TAMBÉM aqui, e é de propósito: este caminho é "não tive como
        julgar", e a fração de tempo em que ele acontece é a nota da POSIÇÃO DA
        CÂMERA, não do modelo. Registrar só o que foi analisado esconderia
@@ -1739,6 +1752,7 @@ function analisar(t, lm, agora){
     return;
   }
   t.analisavel = true;
+  t.kp = COCO_DO_MP.map(i => [lm[i].x, lm[i].y, vis(lm[i])]);   // para a briga
   const q  = meio(lm, P.QUADRIL_E, P.QUADRIL_D);
   const o  = meio(lm, P.OMBRO_E,   P.OMBRO_D);
   const pe = meio(lm, P.TORN_E,    P.TORN_D);
@@ -2118,6 +2132,41 @@ function distanciaEntre(a, b){
   return Math.hypot((a.qx - b.qx) * aspecto, a.qy - b.qy) / escala;
 }
 
+/* Algum ponto de `t` encostando no esqueleto de `alvo`? Distância de ponto a
+   osso, com o x corrigido pelo aspecto, medida em alturas do alvo; dentro do
+   tronco (ombros e quadris) conta como encostado. Devolve o nome do ponto. */
+function encostou(t, alvo){
+  const A = t.kp, B = alvo.kp;
+  if(!A || !B) return null;
+  const lim = BRIGA_ENCOSTO * (alvo.altura || 1);
+  const X = p => p[0] * aspecto;
+  const tronco = [5, 6, 12, 11].map(i => B[i]);
+  const noTronco = (x, y) => {
+    if(tronco.some(p => p[2] < VIS_MIN)) return false;
+    let dentro = false;
+    for(let i = 0, j = 3; i < 4; j = i++){
+      const [xi, yi] = [X(tronco[i]), tronco[i][1]], [xj, yj] = [X(tronco[j]), tronco[j][1]];
+      if((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) dentro = !dentro;
+    }
+    return dentro;
+  };
+  for(const [i, nome] of PONTAS_COCO){
+    const p = A[i];
+    if(p[2] < VIS_MIN) continue;
+    const px = X(p), py = p[1];
+    if(noTronco(px, py)) return nome;
+    for(const [u, v] of CORPO_COCO){
+      const a = B[u], b = B[v];
+      if(a[2] < VIS_MIN || b[2] < VIS_MIN) continue;
+      const ax = X(a), ay = a[1], dx = X(b) - ax, dy = b[1] - ay;
+      const L = dx*dx + dy*dy;
+      const k = L > 1e-12 ? Math.max(0, Math.min(1, ((px - ax)*dx + (py - ay)*dy) / L)) : 0;
+      if(Math.hypot(px - (ax + k*dx), py - (ay + k*dy)) < lim) return nome;
+    }
+  }
+  return null;
+}
+
 /* A memória de cada PAR, e não de cada pessoa. Briga não é propriedade de um
    corpo: é de dois. Guardar isso na trilha daria dois relógios independentes
    contando a mesma briga, e dois alertas para o mesmo episódio. */
@@ -2137,61 +2186,36 @@ function analisarBriga(agora){
       const ka = Math.min(a.id, b.id), kb = Math.max(a.id, b.id);
       const chave = ka + '-' + kb;
       let est = brigaPar.get(chave);
-      if(!est){ est = { desde: 0, toques: [], visto: agora, armado: false, pico: 0 };
-                brigaPar.set(chave, est); }
+      if(!est){ est = { desde: 0, ultimo: 0, visto: agora }; brigaPar.set(chave, est); }
       est.visto = agora;
-      est.toques = est.toques.filter(x => agora - x < BRIGA_JANELA);
 
       const dist = distanciaEntre(a, b);
-      const perto = dist < BRIGA_PERTO;
-      const encosta = perto && (tocando(a, b) || tocando(b, a));
-      /* O golpe é medido nos DOIS sentidos e vale o maior: numa briga de
-         verdade raramente os dois acertam ao mesmo tempo, e exigir reciprocidade
-         no mesmo instante faria o alerta nunca sair. */
-      const ga = golpeDirigido(a, b, agora), gb = golpeDirigido(b, a, agora);
-      const golpe = Math.max(ga, gb);
-
-      /* BORDA DE SUBIDA, não nível. Enquanto o sinal continua alto é o MESMO
-         soco, e contá-lo a cada quadro faria a exigência de repetição não
-         filtrar nada. O impulso só volta a valer depois de o sinal cair. */
-      if(encosta && golpe >= BRIGA_GOLPE && !est.armado){
-        const ult = est.toques[est.toques.length - 1];
-        if(ult == null || agora - ult > BRIGA_GAP){
-          est.toques.push(agora);
-          /* O PICO fica congelado aqui, no instante do golpe. Lido só na hora
-             do alerta, 600ms depois, ele já voltou a zero — e o texto sairia
-             dizendo "avanço de 0.00 alturas/s (limiar 1.80)", um número que
-             sozinho parece impossível. Já aconteceu com a nota da rede de
-             queda; não acontece de novo. */
-          est.pico = Math.max(est.pico || 0, golpe);
-        }
-        est.armado = true;
+      let toque = null, quem = a, emQuem = b;
+      if(dist < BRIGA_PERTO){
+        toque = encostou(a, b);
+        if(!toque && (toque = encostou(b, a))){ quem = b; emQuem = a; }
       }
-      if(golpe < BRIGA_GOLPE * BRIGA_SOLTA) est.armado = false;
-
-      const briga = encosta && est.toques.length >= BRIGA_TOQUES;
-      if(briga){
-        if(!est.desde) est.desde = agora;
-        else if(agora - est.desde > BRIGA_SEG){
+      if(toque){
+        if(!est.desde || agora - est.ultimo > BRIGA_FOLGA) est.desde = agora;
+        est.ultimo = agora;
+        if(agora - est.desde >= BRIGA_SEG){
           /* Registra SEMPRE na trilha de menor id. registrarAnomalia guarda a
              memória do alerta por tipo+id, então alternar de dono entre um
              quadro e outro daria dois alertas para a mesma briga. */
-          const dono = a.id <= b.id ? a : b, outro = dono === a ? b : a;
+          const dono = a.id <= b.id ? a : b;
           registrarAnomalia('briga', dono,
             'Possível briga entre os corpos #' + ka + ' e #' + kb +
             ', pendente de validação humana',
-            'regra (não modelo treinado): ' + est.toques.length + ' impulsos em ' +
-            (BRIGA_JANELA/1000) + 's, avanço de punho de ' + (est.pico || 0).toFixed(2) +
-            ' alturas/s (limiar ' + BRIGA_GOLPE + '), distância ' + dist.toFixed(2) +
-            ' alturas, aproximação ' + aproximacao(a, outro, agora).toFixed(2) + ' alturas/s');
+            'regra (não modelo treinado): ' + toque + ' do #' + quem.id +
+            ' encostou no corpo do #' + emQuem.id + ' por ' +
+            ((agora - est.desde) / 1000).toFixed(1) + ' s');
         }
-      } else est.desde = 0;
-      if(!est.toques.length) est.pico = 0;
+      } else if(est.desde && agora - est.ultimo > BRIGA_FOLGA) est.desde = 0;
     }
   }
   /* Pares que sumiram da cena não precisam ocupar memória para sempre. */
   for(const [k, v] of brigaPar)
-    if(agora - v.visto > BRIGA_JANELA * 2) brigaPar.delete(k);
+    if(agora - v.visto > 5000) brigaPar.delete(k);
 }
 
 /* ---------------------------------------------------------- mapa de calor -- */
