@@ -196,6 +196,20 @@ def gravar_linha(y):
 
 # Os tipos que o servidor aceita guardar imagem (GRAVES menos SEM_FOTO la).
 # Pedido de ajuda nao guarda imagem, por decisao: quem pede ajuda nao vira foto.
+CALOR_GX, CALOR_GY = 32, 24    # a grade do navegador (auditix-sala.html)
+CALOR_S = float(os.environ.get("CALOR_S", "20"))
+
+
+def pe_de(kp, conf=0.3):
+    """Onde a pessoa pisa: o meio dos tornozelos, ou o que se ve deles. Sem
+    tornozelo nao entra: o quadril no lugar do pe poria a pessoa um metro
+    adiante na sala."""
+    pts = [kp[i] for i in (15, 16) if kp[i][2] >= conf]
+    if not pts:
+        return None
+    return (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts))
+
+
 FOTO_TIPOS = {"queda", "briga", "agitacao", "objeto_perigoso"}
 
 
@@ -334,6 +348,10 @@ def main():
     vis = olho_mod.abrir(a.olho, a.modelo)
     fala = Fala(a.servidor, a.local)
     rebanho = trilhas.Rebanho()
+    # MAPA DE CALOR: onde os pes pisaram, numa grade de CALOR_GX x CALOR_GY,
+    # a mesma do navegador. Vai agregado a cada CALOR_S, so o que mudou.
+    calor = [0] * (CALOR_GX * CALOR_GY)
+    calor_enviado, calor_em = [0] * (CALOR_GX * CALOR_GY), time.monotonic()
     calib_ligada = os.environ.get("CALIBRACAO", "0").strip().lower() in ("1", "sim", "true")
     fila, ultimo_envio = [], time.monotonic()
 
@@ -473,6 +491,8 @@ def main():
                     recomecar_rastreio(vis)
                     if filme is not None:
                         filme.quadros.clear()
+                    # O mapa e POR CAMERA: chao de uma nao e chao da outra.
+                    calor = [0] * len(calor); calor_enviado = [0] * len(calor)
                     if cara is not None:
                         cara.nomes.clear()
                     desde_quadro = time.monotonic()
@@ -568,6 +588,21 @@ def main():
                             filme_fps=foto_mod.FILME_FPS)
                 print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
                       f" — {al['porque']}")
+
+            for _, kp in det:
+                pe = pe_de(kp)
+                if pe is not None:
+                    cx = min(CALOR_GX - 1, max(0, int(pe[0] * CALOR_GX)))
+                    cy = min(CALOR_GY - 1, max(0, int(pe[1] * CALOR_GY)))
+                    calor[cy * CALOR_GX + cx] += 1
+            if time.monotonic() - calor_em > CALOR_S:
+                calor_em = time.monotonic()
+                celulas = [dict(x=i % CALOR_GX, y=i // CALOR_GX, n=calor[i] - calor_enviado[i])
+                           for i in range(len(calor)) if calor[i] > calor_enviado[i]]
+                if celulas:
+                    fala.calor(a.local if usando == 1 else f"{a.local}-camera{usando}",
+                               celulas)
+                    calor_enviado = list(calor)
 
             if calib_ligada:
                 agora_por_corpo = {al["corpo"]: al["tipo"] for al in alertas}

@@ -106,6 +106,15 @@ class Fala:
                        dados=dict(camera=self.camera, amostras=amostras),
                        criado=time.monotonic(), t_quadro=None, tentativas=0))
 
+    def calor(self, camera, celulas):
+        """A grade de onde os pes pisaram (contagens por celula, nao posicoes
+        de pessoa). Descartavel como a calibracao: nunca na frente de alerta."""
+        if not celulas:
+            return
+        self._por(dict(tipo="calor", rota="/api/calor",
+                       dados=dict(camera=camera, celulas=celulas),
+                       criado=time.monotonic(), t_quadro=None, tentativas=0))
+
     def fechar(self, prazo=5.0):
         """Tenta esvaziar a fila antes de sair. Devolve quantos alertas ficaram
         sem entregar — e isso vai para a tela, nao para o silencio."""
@@ -179,7 +188,7 @@ class Fala:
                               flush=True)
                 continue
 
-            if item["tipo"] == "foto" and codigo >= 300:
+            if item["tipo"] in ("foto", "calor") and codigo >= 300:
                 # Imagem recusada ou rede fora: NAO se repete e nao prende a
                 # fila na frente de uma queda. O evento ja esta gravado.
                 self._tirar(item)
@@ -201,7 +210,7 @@ class Fala:
                 continue
 
             # Rede fora ou servidor com defeito (5xx): o alerta FICA.
-            if item["tipo"] in ("calib", "foto"):
+            if item["tipo"] in ("calib", "foto", "calor"):
                 self._tirar(item)
                 continue
             item["tentativas"] += 1

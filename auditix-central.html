@@ -164,6 +164,28 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 .kpi.verde::before{background:var(--verde)}.kpi.rubi::before{background:var(--rubi)}
 .kpi.ambar::before{background:var(--ambar)}.kpi.azul::before{background:var(--azul)}
 .kpi.rubi b{color:var(--rubi)}
+.kpi.verde.ok b{color:var(--verde-forte)}
+.kpi .linha-b{display:flex;align-items:baseline;gap:8px}
+.kpi .delta{font:500 12px var(--mono);font-style:normal;color:var(--ink-3)}
+.kpi .delta.sobe{color:var(--rubi)}.kpi .delta.desce{color:var(--verde)}
+.kpi svg.mini{display:block;width:100%;height:26px;margin-top:8px}
+.kpi small{line-height:1.35;min-height:2.7em}
+
+/* MAPA DE CALOR: por cima da imagem da sala (Ao vivo) e no cartao das
+   Ocorrencias. A grade vem do servidor; o desenho e daqui. */
+canvas.calor{position:absolute;inset:0;width:100%;height:100%;z-index:2;pointer-events:none}
+.mapa-oc{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:18px;align-items:start}
+.mapa-oc .tela{position:relative;aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:var(--fundo-2);border:1px solid var(--linha)}
+.mapa-oc canvas{position:absolute;inset:0;width:100%;height:100%}
+.mapa-oc .vazio{position:absolute;inset:0;display:grid;place-items:center;color:var(--ink-3);font-size:13px;text-align:center;padding:20px}
+.escala{display:flex;align-items:center;gap:8px;margin-top:10px;font-size:11.5px;color:var(--ink-3)}
+.escala i{flex:1;height:8px;border-radius:99px;background:linear-gradient(90deg,rgba(40,140,160,.25),#2FB39A,#E8C06F,#F08A4B,#F0707F)}
+.fatos{display:flex;flex-direction:column;gap:12px}
+.fatos div{background:var(--fundo-2);border:1px solid var(--linha);border-radius:12px;padding:12px 14px}
+.fatos span{display:block;color:var(--ink-3);font-size:11px;letter-spacing:.12em;text-transform:uppercase}
+.fatos b{display:block;font:600 20px/1.25 var(--disp);margin-top:4px}
+.fatos small{color:var(--ink-3);font-size:12px}
+.mapa-oc select{background:var(--fundo-2);color:var(--ink);border:1px solid var(--linha-2);border-radius:8px;padding:4px 8px;font:inherit;font-size:12px}
 
 .linha-tempo{margin-top:16px}
 .linha-tempo #lt{display:block;width:100%;height:150px}
@@ -296,6 +318,7 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
   .abas{order:3;width:100%}
   main{padding:14px 16px 30px}
   .kpis,.oc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .mapa-oc{grid-template-columns:1fr}
   .kpi b{font-size:24px}
   .hud .h-tr,.hud .h-br{display:none}
   .alarme h3{font-size:40px}
@@ -349,6 +372,7 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
              imagem. A regra fica na caixa (aibox/regras.py); aqui so se diz
              onde. Sem isto ela so existiria no .env, e ninguem acertaria a
              altura de cabeca. -->
+        <canvas class="calor" id="calor-vivo" hidden></canvas>
         <div class="marcalinha" id="marcalinha" hidden><span>clique na altura do chão</span></div>
         <span class="canto a"></span><span class="canto b"></span><span class="canto c"></span><span class="canto d"></span>
         <div class="hud">
@@ -376,16 +400,23 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
         <span class="dir">
           <button class="btn so-caixa" id="b-linha" type="button"
             title="A linha do chão: cabeça abaixo dela por 0,4 s é queda, mesmo com o corpo cortado no quadro">Marcar a linha do chão</button>
+          <button class="btn so-caixa" id="b-calor" type="button" aria-pressed="false"
+            title="Onde os pés pisaram hoje, por cima da imagem da sala">Mapa de calor</button>
           <a class="btn so-caixa" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
           <button class="btn" id="b-cheia">Tela cheia</button>
         </span>
       </div>
       <div class="kpis">
-        <div class="kpi rubi"><span>aguardando ciente</span><b id="k-pend">--</b><small>alertas graves sem resposta</small></div>
-        <div class="kpi ambar"><span>ocorrências hoje</span><b id="k-hoje">--</b><small id="k-hoje-s">queda, briga, corrida, ajuda</small></div>
-        <div class="kpi verde"><span>resposta mediana</span><b id="k-resp">--</b><small>do alerta ao "estou ciente"</small></div>
-        <div class="kpi azul"><span>reconhecidos</span><b id="k-rost">--</b><small>pessoas com cadastro vistas</small></div>
-        <div class="kpi"><span>alertas da caixa</span><b id="k-env">--</b><small id="k-env-s">enviados ao servidor</small></div>
+        <div class="kpi verde" id="kc-pend"><span>aguardando ciente</span><b id="k-pend">--</b><small id="k-pend-s">alertas graves sem resposta</small>
+          <svg class="mini" id="k-pend-g" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+        <div class="kpi ambar"><span>ocorrências hoje</span><div class="linha-b"><b id="k-hoje">--</b><em class="delta" id="k-hoje-d"></em></div><small id="k-hoje-s">queda, briga, corrida, ajuda</small>
+          <svg class="mini" id="k-hoje-g" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+        <div class="kpi verde"><span>tempo de resposta</span><div class="linha-b"><b id="k-resp">--</b><em class="delta" id="k-resp-d"></em></div><small id="k-resp-s">mediana do alerta ao "estou ciente"</small>
+          <svg class="mini" id="k-resp-g" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+        <div class="kpi azul"><span>pessoas na sala</span><div class="linha-b"><b id="k-gente">--</b><em class="delta" id="k-gente-d"></em></div><small id="k-gente-s">agora, na imagem</small>
+          <svg class="mini" id="k-gente-g" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
+        <div class="kpi"><span>alertas entregues</span><div class="linha-b"><b id="k-env">--</b><em class="delta" id="k-env-d"></em></div><small id="k-env-s">da caixa ao servidor</small>
+          <svg class="mini" id="k-env-g" viewBox="0 0 120 26" preserveAspectRatio="none"></svg></div>
       </div>
       <div class="cartao linha-tempo">
         <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Linha do tempo<small id="lt-s">última hora</small>
@@ -437,6 +468,26 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
     <div class="cartao">
       <h2>Por tipo<small>últimos 500 registros</small></h2>
       <div class="barras" id="g-tipos"></div>
+    </div>
+  </div>
+  <div class="cartao" style="margin-top:18px">
+    <h2><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2c3 4 6 6.5 6 11a6 6 0 0 1-12 0c0-2.5 1.2-4.3 3-6 0 2 1 3.5 2.5 3.5C11 8 11 5 12 2z"/></svg>Mapa de calor<small id="mc-s">onde os pés pisaram</small>
+      <span class="filtros" id="mc-jan">
+        <select id="mc-cam" aria-label="câmera"></select>
+        <button class="btn" data-dias="1" aria-pressed="true">hoje</button>
+        <button class="btn" data-dias="7" aria-pressed="false">7 dias</button>
+        <button class="btn" data-dias="0" aria-pressed="false">tudo</button>
+      </span></h2>
+    <div class="mapa-oc">
+      <div>
+        <div class="tela"><canvas id="mc-tela"></canvas><div class="vazio" id="mc-vazio" hidden></div></div>
+        <div class="escala"><span>pouco</span><i></i><span>muito</span></div>
+      </div>
+      <div class="fatos">
+        <div><span>onde mais pararam</span><b id="mc-onde">--</b><small id="mc-onde-s"></small></div>
+        <div><span>passagens contadas</span><b id="mc-total">--</b><small id="mc-total-s"></small></div>
+        <div><span>área da sala usada</span><b id="mc-area">--</b><small>das células da imagem com alguém pisando</small></div>
+      </div>
     </div>
   </div>
   <div class="cartao" style="margin-top:18px">
@@ -566,7 +617,7 @@ function abrir(v){
   const f = document.querySelector('#v-' + v + ' iframe[data-src]');
   if(f && !f.src) f.src = f.dataset.src;
   try{ history.replaceState(null, '', '#' + v); }catch(e){}
-  if(v === 'ocorr') pintarOcorr();
+  if(v === 'ocorr'){ pintarOcorr(); lerCalor(); }
 }
 document.querySelectorAll('.aba').forEach(b => b.addEventListener('click', () => abrir(b.dataset.vista)));
 document.addEventListener('click', e => { const b = e.target.closest('[data-ir]'); if(b) abrir(b.dataset.ir); });
@@ -669,9 +720,17 @@ async function lerCaixa(){
   cam.className = 'chip ' + (img === 'ok' ? 'ok' : 'mal');
   cam.lastElementChild.textContent = img === 'ok' ? 'câmera ok' : img === 'tampada' ? 'câmera tampada' : 'câmera sem imagem';
 
-  el('k-env').textContent = e.enviados;
-  el('k-env-s').innerHTML = e.falhas ? '<span style="color:var(--rubi)">' + e.falhas + ' não chegaram</span>'
-    : e.pendentes ? '<span style="color:var(--ambar)">' + e.pendentes + ' na fila, reenviando</span>' : 'todos chegaram ao servidor';
+  /* ENTREGA: a porcentagem que chegou, e quanto demora do quadro ao banco.
+     Um enviador que erra calado e igual a um que funciona; aqui nao. */
+  const tent = (e.enviados || 0) + (e.falhas || 0);
+  el('k-env').textContent = tent ? Math.round((e.enviados || 0) / tent * 100) + '%' : '--';
+  el('k-env-d').textContent = e.ultimo_ms != null ? Math.round(e.ultimo_ms) + ' ms' : '';
+  el('k-env-d').title = 'do quadro da câmera até a linha no banco, no último alerta';
+  el('k-env-s').innerHTML = e.falhas ? '<span style="color:var(--rubi)">' + e.falhas + ' não chegaram</span> de ' + tent
+    : e.pendentes ? '<span style="color:var(--ambar)">' + e.pendentes + ' na fila, reenviando</span>'
+    : tent ? e.enviados + (e.enviados === 1 ? ' enviado' : ' enviados') + ', todos chegaram' : 'nenhum alerta enviado ainda';
+  linha(el('k-env-g'), HIST.lat, '#9DB8AF');
+  gente(e.corpos);
 
   pintarGente(e.pessoas);
   /* A linha mora na CAIXA: a tela so reflete o que ela diz, para duas
@@ -785,6 +844,7 @@ addEventListener('message', ev => {
   guardar('fps', d.fps);
   tele('t-fps', (d.fps || 0).toFixed(0), HIST.fps, '#5FBFA0');
   pintarGente(d.pessoas);
+  gente((d.pessoas || []).length);
 });
 
 function semCaixa(tit, txt){
@@ -844,7 +904,7 @@ async function lerRecentes(){
     pintarFeed();
     pendentes = recentes.filter(pendente).sort((a, b) => a.id - b.id);
     pintarAlarme();
-    el('k-pend').textContent = pendentes.length;
+    pintarPend();
     el('aba-ocorr').classList.toggle('alerta', pendentes.length > 0);
   }catch(e){}
 }
@@ -926,16 +986,90 @@ function pintarLinha(){
 
 function hojeLocal(e){ const d = new Date(momentoDe(e)), h = new Date(); return d.toDateString() === h.toDateString(); }
 function mediana(xs){ if(!xs.length) return null; const s = xs.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
+/* Barrinhas para os KPIs: uma por valor, a ultima mais forte. */
+function barras(svg, xs, cor, cores){
+  if(!xs.length){ svg.innerHTML = ''; return; }
+  const max = Math.max(1, ...xs), w = 120 / xs.length;
+  svg.innerHTML = xs.map((v, i) => {
+    const a = Math.max(v ? 2 : 1, v / max * 24);
+    return '<rect x="' + (i * w + w * .15).toFixed(1) + '" y="' + (26 - a).toFixed(1) + '" width="' + (w * .7).toFixed(1) +
+           '" height="' + a.toFixed(1) + '" rx="1.5" fill="' + ((cores && cores[i]) || cor) + '" fill-opacity="' + (v ? (i === xs.length - 1 ? 1 : .7) : .25) + '"/>';
+  }).join('');
+}
+function delta(id, n, ref, ruimSubir, unid){
+  const d = el(id);
+  if(ref == null || n == null){ d.textContent = ''; d.className = 'delta'; return; }
+  const x = n - ref;
+  d.textContent = x === 0 ? '= ' + (unid || '') : (x > 0 ? '▲ ' : '▼ ') + Math.abs(Math.round(x)) + (unid || '');
+  d.className = 'delta' + (x === 0 ? '' : (x > 0) === ruimSubir ? ' sobe' : ' desce');
+}
 function pintarKpis(){
-  const ocorr = base.filter(e => (GRAVES.has(e.tipo_evento) || e.tipo_evento === 'corrida') && hojeLocal(e));
+  const ocorre = e => GRAVES.has(e.tipo_evento) || e.tipo_evento === 'corrida';
+  const ocorr = base.filter(e => ocorre(e) && hojeLocal(e));
   el('k-hoje').textContent = ocorr.length;
   const g = ocorr.filter(e => GRAVES.has(e.tipo_evento)).length;
   el('k-hoje-s').textContent = g + (g === 1 ? ' grave' : ' graves') + ', ' + (ocorr.length - g) + ' corrida(s)';
-  const resp = base.filter(e => ALARMES.has(e.tipo_evento) && e.ciente_s != null).map(e => e.ciente_s);
-  const m = mediana(resp);
+  /* Ontem ATE A MESMA HORA: comparar com o dia inteiro de ontem faria toda
+     manha parecer calma. */
+  const ontem0 = new Date(); ontem0.setHours(0, 0, 0, 0); ontem0.setDate(ontem0.getDate() - 1);
+  const ontemAte = Date.now() - 864e5;
+  const ontem = base.filter(e => ocorre(e) && momentoDe(e) >= +ontem0 && momentoDe(e) <= ontemAte).length;
+  delta('k-hoje-d', ocorr.length, ontem, true);
+  el('k-hoje-d').title = ontem + ' ontem até esta hora';
+  const hora = new Date().getHours(), H = Array(hora + 1).fill(0), HG = Array(hora + 1).fill(0);
+  ocorr.forEach(e => { const h = new Date(momentoDe(e)).getHours(); H[h]++; if(GRAVES.has(e.tipo_evento)) HG[h]++; });
+  barras(el('k-hoje-g'), H.slice(-16), '#E8C06F', H.slice(-16).map((v, i) => HG.slice(-16)[i] ? '#F0707F' : null));
+
+  const resp = base.filter(e => ALARMES.has(e.tipo_evento) && e.ciente_s != null);
+  const tempos = resp.map(e => e.ciente_s), m = mediana(tempos);
+  const total = base.filter(e => ALARMES.has(e.tipo_evento)).length;
   el('k-resp').textContent = m == null ? '--' : duracao(m);
-  el('k-rost').textContent = pessoasN == null ? '--' : pessoasN;
+  if(tempos.length){
+    const o = tempos.slice().sort((a, b) => a - b), p90 = o[Math.min(o.length - 1, Math.floor(o.length * .9))];
+    el('k-resp-s').textContent = '9 em 10 em até ' + duracao(p90) + ' · ' + resp.length + ' de ' + total + ' respondidos';
+    /* resp vem do mais novo ao mais velho: o grafico anda no tempo. */
+    barras(el('k-resp-g'), resp.slice(0, 16).reverse().map(e => e.ciente_s), '#5FBFA0');
+    const antes = mediana(resp.slice(5).map(e => e.ciente_s)), agora5 = mediana(resp.slice(0, 5).map(e => e.ciente_s));
+    delta('k-resp-d', agora5, resp.length >= 8 ? antes : null, true, ' s');
+    el('k-resp-d').title = 'mediana dos 5 últimos contra a dos anteriores';
+  }else{
+    el('k-resp-s').textContent = total ? 'nenhum dos ' + total + ' respondido ainda' : 'mediana do alerta ao "estou ciente"';
+    el('k-resp-g').innerHTML = '';
+  }
+  pintarGenteKpi();
   pintarLinha();
+}
+/* AGUARDANDO CIENTE: verde no zero, rubi com qualquer um, e o mais antigo
+   diz ha quanto tempo alguem esta esperando. */
+function pintarPend(){
+  el('k-pend').textContent = pendentes.length;
+  el('kc-pend').className = 'kpi ' + (pendentes.length ? 'rubi' : 'verde ok');
+  el('k-pend-s').textContent = pendentes.length ? 'o mais antigo: ' + ha(pendentes[0])
+                                                : 'tudo respondido';
+  const H = Array(12).fill(0), agora = Date.now();
+  base.filter(e => ALARMES.has(e.tipo_evento)).forEach(e => {
+    const k = 11 - Math.floor((agora - momentoDe(e)) / 3e5); if(k >= 0 && k < 12) H[k]++; });
+  barras(el('k-pend-g'), H, pendentes.length ? '#F0707F' : '#5FBFA0');
+}
+/* PESSOAS NA SALA: o numero de agora, o pico do dia (guardado neste
+   navegador) e quantos com cadastro ja foram vistos. */
+const HG = [];
+let picoDia = { dia:'', n:0 };
+try{ picoDia = JSON.parse(localStorage.getItem('auditix.pico')) || picoDia; }catch(e){}
+function gente(n){
+  if(n == null || isNaN(n)) return;
+  HG.push(+n); if(HG.length > 40) HG.shift();
+  const hoje = new Date().toDateString();
+  if(picoDia.dia !== hoje) picoDia = { dia:hoje, n:0 };
+  if(n > picoDia.n){ picoDia.n = n; try{ localStorage.setItem('auditix.pico', JSON.stringify(picoDia)); }catch(e){} }
+  pintarGenteKpi();
+}
+function pintarGenteKpi(){
+  el('k-gente').textContent = HG.length ? HG[HG.length - 1] : '--';
+  el('k-gente-d').textContent = picoDia.n ? 'pico ' + picoDia.n : '';
+  el('k-gente-s').textContent = pessoasN ? pessoasN + (pessoasN === 1 ? ' pessoa reconhecida' : ' pessoas reconhecidas') + ' pelo rosto'
+                                         : 'agora, na imagem';
+  barras(el('k-gente-g'), HG.slice(-30), '#7FB2E8');
 }
 
 /* ======================================================= ocorrências ===== */
@@ -1086,7 +1220,7 @@ async function ciente(id, botao){
     [recentes, base].forEach(l => l.forEach(e => { if(e.id === id) e.ciente_s = d.resposta_s; }));
     pendentes = pendentes.filter(p => p.id !== id);
     pintarAlarme(); pintarFeed(); pintarKpis(); if(!el('v-ocorr').hidden) pintarTabela();
-    el('k-pend').textContent = pendentes.length;
+    pintarPend();
     lerBase();
   }catch(err){
     el('al-mais').textContent = 'Não consegui registrar: ' + err.message;
@@ -1174,6 +1308,138 @@ document.addEventListener('click', e => {
   const k = e.target.closest('[data-ciente]'); if(k) ciente(+k.dataset.ciente, k);
 });
 
+/* ======================================================= mapa de calor === */
+/* Onde os pes pisaram: a grade 32x24 que a analise (caixa, PC ou navegador)
+   manda a cada 20 s, somada pelo servidor (/api/mapa, ja suavizada). Contagens
+   por celula, nunca posicoes de pessoa: mostra onde a sala aperta, nao quem.
+   O mesmo desenho serve por cima da imagem ao vivo e no cartao. */
+const CGX = 32, CGY = 24;
+let calorDias = 1, calorCam = null, calorDados = null, calorVivo = false, calorCams = [];
+const RAMPA = [[0, [40, 140, 160]], [.3, [47, 179, 154]], [.55, [232, 192, 111]], [.78, [240, 138, 75]], [1, [240, 112, 127]]];
+function cor(t){
+  for(let i = 1; i < RAMPA.length; i++) if(t <= RAMPA[i][0]){
+    const [a, ca] = RAMPA[i - 1], [b, cb] = RAMPA[i], k = (t - a) / (b - a);
+    return ca.map((v, j) => Math.round(v + (cb[j] - v) * k));
+  }
+  return RAMPA[RAMPA.length - 1][1];
+}
+function pintarCalor(cv, d, img, comFundo){
+  const r = cv.getBoundingClientRect(), W = Math.max(2, Math.round(r.width)), H = Math.max(2, Math.round(r.height));
+  cv.width = W; cv.height = H;
+  const x = cv.getContext('2d');
+  x.clearRect(0, 0, W, H);
+  /* A grade cobre a IMAGEM, nao o quadro: com faixa preta (object-fit
+     contain) a celula 0,0 e o canto da imagem. */
+  let ax = 0, ay = 0, aw = W, ah = H;
+  if(img && img.naturalWidth){
+    const k = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+    aw = img.naturalWidth * k; ah = img.naturalHeight * k; ax = (W - aw) / 2; ay = (H - ah) / 2;
+    if(comFundo){ try{ x.filter = 'grayscale(1) brightness(.55)'; x.drawImage(img, ax, ay, aw, ah); x.filter = 'none'; }catch(e){} }
+  }else if(comFundo){
+    x.strokeStyle = 'rgba(95,191,160,.07)';
+    for(let i = 0; i <= CGX; i++){ x.beginPath(); x.moveTo(i * W / CGX, 0); x.lineTo(i * W / CGX, H); x.stroke(); }
+    for(let j = 0; j <= CGY; j++){ x.beginPath(); x.moveTo(0, j * H / CGY); x.lineTo(W, j * H / CGY); x.stroke(); }
+  }
+  if(!d || !d.celulas || !d.celulas.length) return null;
+  const cw = aw / CGX, ch = ah / CGY;
+  /* A referencia e o maior corte do servidor (percentil 95), nao o pico: um
+     canto isolado nao apaga o resto da sala. */
+  const ref = (d.cortes && d.cortes.length ? d.cortes[d.cortes.length - 1] : 0) ||
+              Math.max(...d.celulas.map(c => c.z || c.n)) || 1;
+  const off = document.createElement('canvas');
+  off.width = Math.max(2, Math.round(aw)); off.height = Math.max(2, Math.round(ah));
+  const o = off.getContext('2d'), raio = Math.max(cw, ch) * 1.25;
+  for(const c of d.celulas){
+    const t = Math.min(1, (c.z || c.n) / ref);
+    if(t <= 0) continue;
+    const cx = (c.x + .5) * cw, cy = (c.y + .5) * ch;
+    const g = o.createRadialGradient(cx, cy, 0, cx, cy, raio);
+    g.addColorStop(0, 'rgba(0,0,0,' + (.05 + .25 * t).toFixed(3) + ')');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    o.fillStyle = g; o.fillRect(cx - raio, cy - raio, raio * 2, raio * 2);
+  }
+  const px = o.getImageData(0, 0, off.width, off.height), p = px.data;
+  /* O mais denso vira o tom mais quente; o resto em proporcao. */
+  let amax = 1;
+  for(let i = 3; i < p.length; i += 4) if(p[i] > amax) amax = p[i];
+  for(let i = 0; i < p.length; i += 4){
+    const a = p[i + 3] / amax;
+    if(a < .06){ p[i + 3] = 0; continue; }
+    const [rr, gg, bb] = cor(Math.min(1, a));
+    p[i] = rr; p[i + 1] = gg; p[i + 2] = bb; p[i + 3] = Math.round(Math.min(.78, .15 + a * .75) * 255);
+  }
+  o.putImageData(px, 0, 0);
+  x.drawImage(off, ax, ay);
+  const topo = d.celulas.reduce((a, b) => b.n > a.n ? b : a, d.celulas[0]);
+  const tx = ax + (topo.x + .5) * cw, ty = ay + (topo.y + .5) * ch, tr = Math.max(10, Math.min(cw, ch) * 1.1);
+  x.lineWidth = 4; x.strokeStyle = 'rgba(7,13,12,.85)'; x.beginPath(); x.arc(tx, ty, tr, 0, 7); x.stroke();
+  x.lineWidth = 2; x.strokeStyle = '#E4F1EC'; x.beginPath(); x.arc(tx, ty, tr, 0, 7); x.stroke();
+  return topo;
+}
+function zona(c){
+  const h = c.x < CGX / 3 ? 'à esquerda' : c.x < 2 * CGX / 3 ? 'no centro' : 'à direita';
+  const v = c.y < CGY / 3 ? 'no fundo' : c.y < 2 * CGY / 3 ? 'no meio' : 'na frente';
+  return v + ', ' + h;
+}
+async function lerCalor(){
+  const ocorr = !el('v-ocorr').hidden;
+  if(!ocorr && !calorVivo) return;
+  try{
+    calorCams = await pegar('/api/mapa/cameras');
+    const sel = el('mc-cam');
+    const nomes = calorCams.map(c => c.camera);
+    if(sel.dataset.nomes !== nomes.join('|')){
+      sel.dataset.nomes = nomes.join('|');
+      sel.innerHTML = nomes.length ? nomes.map(n => '<option>' + esc(n) + '</option>').join('') : '<option value="">sem câmera</option>';
+    }
+    if(!calorCam || !nomes.includes(calorCam)) calorCam = nomes[0] || null;
+    sel.value = calorCam || '';
+    calorDados = calorCam ? await pegar('/api/mapa?camera=' + encodeURIComponent(calorCam) + '&dias=' + calorDias) : null;
+  }catch(e){ calorDados = null; }
+  desenharCalores();
+}
+async function desenharCalores(){
+  /* Ao vivo: so o de HOJE, sem fundo (a imagem ja esta embaixo). */
+  if(calorVivo && fonte !== 'webcam'){
+    const d = calorDias === 1 ? calorDados : await pegar('/api/mapa?camera=' + encodeURIComponent(calorCam || '') + '&dias=1').catch(() => null);
+    el('calor-vivo').hidden = false;
+    pintarCalor(el('calor-vivo'), d, el('video'), false);
+  } else el('calor-vivo').hidden = true;
+  if(el('v-ocorr').hidden) return;
+  const d = calorDados, vazio = el('mc-vazio');
+  const jan = calorDias === 1 ? 'hoje' : calorDias === 7 ? 'nos últimos 7 dias' : 'desde o começo';
+  el('mc-s').textContent = calorCam ? 'câmera ' + calorCam + ' · ' + jan : 'onde os pés pisaram';
+  const topo = pintarCalor(el('mc-tela'), d, el('video').hidden ? null : el('video'), true);
+  if(!d || !d.celulas.length){
+    vazio.hidden = false;
+    vazio.textContent = calorCams.length ? 'Ninguém foi visto pisando ' + jan + ' nesta câmera.'
+      : 'Nenhuma câmera mandou o mapa ainda. Ele chega 20 s depois de a análise ver alguém de corpo inteiro (com os pés na imagem).';
+    ['mc-onde', 'mc-total', 'mc-area'].forEach(i => el(i).textContent = '--');
+    el('mc-onde-s').textContent = ''; el('mc-total-s').textContent = '';
+    return;
+  }
+  vazio.hidden = true;
+  el('mc-onde').textContent = zona(topo);
+  el('mc-onde-s').textContent = topo.n.toLocaleString('pt-BR') + ' passagens na célula mais cheia (o anel branco)';
+  el('mc-total').textContent = d.total.toLocaleString('pt-BR');
+  el('mc-total-s').textContent = 'quadros com alguém pisando, ' + jan;
+  el('mc-area').textContent = Math.round(d.celulas.length / (CGX * CGY) * 100) + '%';
+}
+el('mc-jan').addEventListener('click', ev => {
+  const b = ev.target.closest('button[data-dias]'); if(!b) return;
+  calorDias = +b.dataset.dias;
+  el('mc-jan').querySelectorAll('button').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  lerCalor();
+});
+el('mc-cam').addEventListener('change', () => { calorCam = el('mc-cam').value; lerCalor(); });
+el('b-calor').addEventListener('click', () => {
+  calorVivo = !calorVivo;
+  el('b-calor').setAttribute('aria-pressed', String(calorVivo));
+  if(!calorVivo){ el('calor-vivo').hidden = true; return; }
+  lerCalor();
+});
+addEventListener('resize', () => { if(calorVivo || !el('v-ocorr').hidden) desenharCalores(); });
+
 /* ============================================================ partida ==== */
 pintarSom();
 abrir((location.hash || '#vivo').slice(1).replace(/[^a-z]/g, '') || 'vivo');
@@ -1184,9 +1450,10 @@ setInterval(lerCaixa, 1000);
 setInterval(lerRecentes, 2000);
 setInterval(lerSaude, 3000);
 setInterval(lerBase, 15000);
+setInterval(lerCalor, 20000);
 setInterval(lerCadeia, 15000);
 /* "ha 12 s" anda sozinho entre uma leitura e outra. */
-setInterval(() => { if(pendentes.length) pintarAlarme(); }, 1000);
+setInterval(() => { if(pendentes.length){ pintarAlarme(); pintarPend(); } }, 1000);
 </script>
 </body>
 </html>

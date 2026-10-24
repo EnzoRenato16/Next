@@ -1993,6 +1993,18 @@ def csv_calibracao(camera: str = "sala-12") -> Response:
                              f'attachment; filename="calibracao-{camera}.csv"'})
 
 
+@app.get("/api/mapa/cameras")
+def mapa_cameras() -> list[dict]:
+    """Quais cameras ja mandaram grade, com o total e a ultima remessa: a
+    Central abre na que mandou por ultimo, que e a que esta rodando agora."""
+    with cursor() as (cur, m):
+        cur.execute("""SELECT camera, SUM(contagem), MAX(momento) FROM mapa_calor
+                       GROUP BY camera""")
+        linhas = cur.fetchall()
+    saida = [{"camera": c, "total": int(n or 0), "ultimo": str(u)} for c, n, u in linhas]
+    return sorted(saida, key=lambda x: x["ultimo"], reverse=True)
+
+
 @app.get("/api/mapa")
 def mapa(camera: str = "sala-12", dias: int = 0) -> dict:
     """dias=0 e a base inteira. Uma janela importa mais do que parece aqui: a

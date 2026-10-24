@@ -533,7 +533,12 @@ Achado no laboratório, com `gst-inspect-1.0` e `ls /root/lib`:
 
 ## O que ainda NÃO existe na caixa
 
-- **Mapa de calor** e **botão de pedir ajuda**: só no navegador.
+- **Botão de pedir ajuda**: só no navegador. O **mapa de calor** a caixa (e a
+  `sala.py` no PC) já manda desde 24/10: meio dos tornozelos numa grade 32x24,
+  a cada `CALOR_S`=20 s, só o que mudou, pela fila descartável (`fala.calor`).
+  Câmera 2 vai como `<local>-camera2`. A Central mostra por cima da imagem ao
+  vivo (botão "Mapa de calor") e num cartão nas Ocorrências (hoje/7 dias/tudo,
+  `/api/mapa/cameras` escolhe a câmera que mandou por último).
 - **30 quadros por segundo.** O alvo hoje é 8,7. Ver `aibox/LEIA.md`.
 
 ## Rosto na caixa (`--rosto`)
