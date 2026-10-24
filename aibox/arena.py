@@ -123,6 +123,28 @@ def configurar(motor="sface"):
 
 
 configurar()
+
+
+# QUEM E QUEM, para a tela: turma e RM de cada autorizado. Mora no .env da
+# caixa (ARENA_TURMA=2ECR, ARENA_ALUNOS=Nome:RM,Nome:RM), nunca no Git: e dado
+# de aluno. So aparece de quem ja foi reconhecido, como o nome.
+def fichas():
+    turma = os.environ.get("ARENA_TURMA", "").strip()
+    saida = {}
+    for item in os.environ.get("ARENA_ALUNOS", "").split(","):
+        if ":" not in item:
+            continue
+        nome, rm = (x.strip() for x in item.split(":", 1))
+        if nome:
+            saida[nome] = " · ".join(x for x in (turma, f"RM {rm}" if rm else "") if x)
+    return saida
+
+
+def ficha(nome):
+    f = fichas().get(nome, "")
+    return f" ({f})" if f else ""
+
+
 JANELA = 8                                      # media das ultimas leituras
 PERDIDA_S = 3.0          # trilha sem rosto ha mais que isso deixa a tela
 LACUNA_S = 0.6           # trilha que sumiu mais que isso volta a ser medida
@@ -913,6 +935,8 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 370px;gap:18px;padding:18p
 .p .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:var(--card2);color:var(--apagado);
        font-weight:700;font-size:13px}
 .p b{font-weight:600}
+.p .q{display:flex;flex-direction:column;line-height:1.25}
+.p .q small{font-size:11.5px;color:var(--apagado);font-variant-numeric:tabular-nums}
 .p em{margin-left:auto;font-style:normal;font-size:12px;color:var(--apagado)}
 .p.sim{border-color:rgba(95,191,160,.4);background:linear-gradient(90deg,var(--verdeluz),var(--fundo2))}
 .p.sim .av{background:var(--verde);color:#062019}
@@ -1030,8 +1054,8 @@ setInterval(async () => {
      ao lado de cada nome, contava quem estava sendo procurado: na prova isso
      nao aparece. Cada pessoa entra aqui quando o rosto dela for decidido. */
   trocar('pessoas', e.autorizados.join('|'), e.autorizados.map(n =>
-    '<div class="p sim"><span class="av">' + esc(n.slice(0, 1).toUpperCase()) + '</span><b>' + esc(n) +
-    '</b><em>✓ presente</em></div>').join('') || '<div class="vazio">ninguém reconhecido ainda</div>');
+    '<div class="p sim"><span class="av">' + esc(n.slice(0, 1).toUpperCase()) + '</span><span class="q"><b>' + esc(n) +
+    '</b>' + ((e.fichas || {})[n] ? '<small>' + esc(e.fichas[n]) + '</small>' : '') + '</span><em>✓ presente</em></div>').join('') || '<div class="vazio">ninguém reconhecido ainda</div>');
   $('galS').textContent = na + ' presente' + (na === 1 ? '' : 's');
   trocar('descs', e.desconhecidos.join(','), e.desconhecidos.map(d => '<span>desconhecido #' + d + '</span>').join(''));
 
@@ -1501,7 +1525,7 @@ def main():
                                 print(f"[arena] {txt}", flush=True)
                             log.append(txt)
                             continue
-                        txt = (f"{relogio(t0 - inicio)} PRESENTE {ev['nome']}"
+                        txt = (f"{relogio(t0 - inicio)} PRESENTE {ev['nome']}{ficha(ev['nome'])}"
                                f" (decidido em {ev['levou']:.1f} s, nota {ev['nota']:.2f})"
                                + (f", era o desconhecido #{ev['era_desconhecido']}"
                                   if ev.get("era_desconhecido") else "")
@@ -1551,6 +1575,7 @@ def main():
         r = juiz.resumo()
         estado = dict(
             autorizados=r["autorizados"], total_autorizados=r["total_autorizados"],
+            fichas={n: f for n, f in fichas().items() if n in r["autorizados"]},
             desconhecidos=r["desconhecidos"],
             cameras=[dict(indice=c.indice, estado=c.estado(agora),
                           qps=len(qps_cam[c.indice]) / 5.0) for c in cams],
@@ -1616,7 +1641,7 @@ def main():
         eventos=log)
     print("\n================ RESULTADO DA ARENA ================")
     print(f"  presentes (autorizados):   {len(r['autorizados'])} de "
-          f"{r['total_autorizados']}  ({', '.join(r['autorizados']) or 'nenhum'})")
+          f"{r['total_autorizados']}  ({', '.join(n + ficha(n) for n in r['autorizados']) or 'nenhum'})")
     print(f"  alertas de desconhecido:   {len(r['desconhecidos'])}")
     for c in resultado["cameras"]:
         print(f"  camera {c['indice']}: {c['estado']}, {c['quadros']} quadros analisados")
