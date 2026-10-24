@@ -111,7 +111,54 @@ def abrir_camera(url, codec=None):
         cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     except Exception:
         pass
+    # So que o FFmpeg do pip IGNORA esse buffer de 1 numa camera IP: com a
+    # analise mais lenta que a camera (YOLO na CPU de um PC, a Tapo a 15/s),
+    # a fila crescia sem parar e o atraso chegava a dezenas de segundos (Tapo
+    # em casa, 23/10). Camera ao vivo passa a ser lida por uma thread que fica
+    # so com o quadro MAIS NOVO. Arquivo de video continua quadro a quadro.
+    if str(url).startswith(("rtsp", "http")):
+        return UltimoQuadro(cap)
     return cap
+
+
+class UltimoQuadro:
+    """Um cv2.VideoCapture lido sem parar por fora; read() da o quadro mais novo."""
+
+    def __init__(self, cap):
+        import threading
+        self.cap, self.quadro, self.ok, self.vivo = cap, None, cap.isOpened(), True
+        self._novo = threading.Condition()
+        threading.Thread(target=self._ler, daemon=True).start()
+
+    def _ler(self):
+        while self.vivo:
+            ok, q = self.cap.read()
+            with self._novo:
+                self.ok, self.quadro = ok, (q if ok else None)
+                self._novo.notify_all()
+            if not ok:
+                break
+
+    def isOpened(self):
+        return self.cap.isOpened()
+
+    def read(self):
+        # Mesmo contrato do Gst: (None, None) = ainda nao chegou quadro novo,
+        # (False, None) = a camera caiu, e o laco da sala sabe o que fazer.
+        with self._novo:
+            if self.quadro is None and self.ok:
+                self._novo.wait(timeout=0.5)
+            q, self.quadro = self.quadro, None
+            if q is None:
+                return (None if self.ok else False), None
+            return True, q
+
+    def set(self, *a):
+        return self.cap.set(*a)
+
+    def release(self):
+        self.vivo = False
+        self.cap.release()
 
 
 # A entrega mora em aibox/entrega.py: fila, thread e reenvio sem duplicar.
