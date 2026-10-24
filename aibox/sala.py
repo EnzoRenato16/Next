@@ -36,6 +36,7 @@ pontos do corpo saem iguais.
 """
 import argparse
 import os
+import shutil
 import sys
 import time
 
@@ -281,9 +282,13 @@ def main():
     # ninguem. Com a camera do proprio grupo, no estande, ver a cena ajuda —
     # entao a imagem sai, sempre com a cabeca de TODOS em mosaico, e so
     # ligada a mao. FOTO=1 no .env tambem liga.
+    # NO PC (sem gst-launch, que so a AIBOX tem) a foto vem LIGADA: ali a
+    # camera e a do grupo, no estande. Na caixa da escola continua desligada.
+    # FOTO=0 no .env desliga tambem no PC.
+    foto_env = os.environ.get("FOTO", "").strip().lower()
     p.add_argument("--foto", action="store_true",
-                   default=os.environ.get("FOTO", "").strip().lower()
-                   in ("1", "sim", "true"),
+                   default=(foto_env in ("1", "sim", "true")) or
+                   (foto_env == "" and shutil.which("gst-launch-1.0") is None),
                    help="manda a imagem do alerta, com o rosto de todos em mosaico")
     p.add_argument("--rosto", action="store_true",
                    help="reconhece quem esta cadastrado (usa o motor de daten/)")
@@ -318,8 +323,9 @@ def main():
         de_onde = str(fonte)
     print(f"[aibox] olho: {a.olho}   camera: {de_onde}")
     if a.foto:
-        print("[aibox] foto do alerta LIGADA: a imagem vai com a cabeca de "
-              "todos em mosaico (so queda, briga e agitacao)")
+        print("[aibox] foto do alerta LIGADA: a imagem e os ultimos "
+              f"{foto_mod.FILME_S:g} s vao com a cabeca de todos em mosaico "
+              "(so queda, briga e agitacao). FOTO=0 desliga.")
     # ANTES de carregar o modelo: as threads do ONNX Runtime herdam o nucleo
     # de quem as cria. Ver aibox/nucleos.py — e so ligue depois de medir.
     if os.environ.get("NUCLEOS", "").strip().lower() == "grandes":
@@ -377,6 +383,7 @@ def main():
         print(f"[aibox] imagem ao vivo em http://<ip-da-caixa>:{a.web}")
 
     import cv2
+    filme = foto_mod.Filme(cv2) if a.foto else None
     pintor = None
     if a.fluido:
         if janela is None:
@@ -464,6 +471,8 @@ def main():
                     # para um corpo daqui, e um salto de posicao vira queda.
                     rebanho = trilhas.Rebanho()
                     recomecar_rastreio(vis)
+                    if filme is not None:
+                        filme.quadros.clear()
                     if cara is not None:
                         cara.nomes.clear()
                     desde_quadro = time.monotonic()
@@ -510,6 +519,8 @@ def main():
             det = vis.ver(img)
             m1 = time.perf_counter()
             alertas = rebanho.quadro(det, asp, agora)
+            if filme is not None:
+                filme.guardar(img, [kp for _, kp in det], t_quadro)
             m2 = time.perf_counter()
             ms_rede, ms_analise = (m1 - m0) * 1000, (m2 - m1) * 1000
             quadros += 1
@@ -546,11 +557,15 @@ def main():
                 # A IMAGEM DO INSTANTE, so com --foto e so em evento grave, com
                 # a cabeca de todo mundo em mosaico (aibox/foto.py). Recortada
                 # AGORA: um segundo adiante a pessoa ja se mexeu.
-                img_alerta = (foto_mod.do_alerta(cv2, img,
-                                                 list(rebanho.trilhas.values()), dono)
-                              if a.foto and al["tipo"] in FOTO_TIPOS else None)
+                com_foto = a.foto and al["tipo"] in FOTO_TIPOS
+                img_alerta = (foto_mod.do_alerta(cv2, img, [kp for _, kp in det], dono)
+                              if com_foto else None)
+                # E OS ULTIMOS SEGUNDOS, para ver o que levou ao alerta (tambem
+                # em mosaico, quadro a quadro).
+                filme_alerta = filme.filme() if com_foto and filme is not None else None
                 fala.evento(al["tipo"], al["corpo"], quem, poses=poses,
-                            t_quadro=t_quadro, foto=img_alerta)
+                            t_quadro=t_quadro, foto=img_alerta, filme=filme_alerta,
+                            filme_fps=foto_mod.FILME_FPS)
                 print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
                       f" — {al['porque']}")
 

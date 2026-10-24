@@ -78,7 +78,8 @@ class Fala:
         with self._trava:
             return sum(1 for i in self._fila if i["tipo"] == "evento")
 
-    def evento(self, tipo, corpo, quem=None, poses=None, t_quadro=None, foto=None):
+    def evento(self, tipo, corpo, quem=None, poses=None, t_quadro=None, foto=None,
+               filme=None, filme_fps=None):
         """Entrega um alerta. Volta na hora; quem espera a rede e a thread.
 
         `foto` e a imagem do instante, ja com o rosto em mosaico, numa data URL
@@ -91,6 +92,7 @@ class Fala:
         if poses:
             dados["poses"] = poses
         self._por(dict(tipo="evento", rota="/api/evento", dados=dados, foto=foto,
+                       filme=filme, filme_fps=filme_fps,
                        criado=agora, t_quadro=t_quadro or agora, tentativas=0))
         return True
 
@@ -159,6 +161,14 @@ class Fala:
                         # A imagem so sabe o numero do evento DEPOIS da resposta.
                         self._por(dict(tipo="foto", rota="/api/foto",
                                        dados=dict(evento_id=ident, imagem=item["foto"]),
+                                       criado=time.monotonic(), t_quadro=None,
+                                       tentativas=0))
+                    if item.get("filme") and ident:
+                        # Os ultimos segundos, pelo mesmo caminho e com a mesma
+                        # regra da foto: vai uma vez, e falhar nao prende nada.
+                        self._por(dict(tipo="foto", rota="/api/filme",
+                                       dados=dict(evento_id=ident, quadros=item["filme"],
+                                                  fps=item.get("filme_fps") or 4),
                                        criado=time.monotonic(), t_quadro=None,
                                        tentativas=0))
                     if item["tentativas"]:

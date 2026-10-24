@@ -132,6 +132,10 @@ FOTO_DIAS = float(os.environ.get("FOTO_DIAS", "7"))
 # Um recorte de 320px em JPEG da uns 20 KB. O teto existe para o endpoint nao
 # virar porta de entrada de arquivo grande.
 FOTO_MAX = 400_000
+# Os ultimos segundos antes do alerta (aibox/foto.py: 10 s a 4 por segundo,
+# 480 px, ~15 KB cada). Mesmas regras da foto: so evento grave, cabeca em
+# mosaico, apaga em FOTO_DIAS, e cada consulta deixa rastro.
+FILME_QUADROS_MAX = 60
 
 # ---- registro de calibracao ------------------------------------------------
 # O que o sistema VIU, e nao so o que ele ACUSOU.
@@ -423,6 +427,13 @@ def criar_tabelas() -> None:
                    momento {ts} DEFAULT CURRENT_TIMESTAMP,
                    imagem TEXT NOT NULL)"""
         )
+        cur.execute(
+            f"""CREATE TABLE IF NOT EXISTS filmes_evento (
+                   evento_id INTEGER PRIMARY KEY,
+                   momento {ts} DEFAULT CURRENT_TIMESTAMP,
+                   fps REAL NOT NULL,
+                   quadros TEXT NOT NULL)"""
+        )
         # QUEM JA CHEGOU. A AIBOX guarda o alerta e reenvia quando a rede volta;
         # sem isto, cada reenvio seria uma queda nova na cadeia — e linha de
         # cadeia nao se apaga. A caixa gera a chave, o servidor lembra dela.
@@ -650,6 +661,12 @@ class Ciente(BaseModel):
 class Foto(BaseModel):
     evento_id: int
     imagem: str = Field(max_length=FOTO_MAX)
+
+
+class Filme(BaseModel):
+    evento_id: int
+    quadros: list[str] = Field(min_length=1, max_length=FILME_QUADROS_MAX)
+    fps: float = Field(default=4.0, gt=0, le=30)
 
 
 class Celula(BaseModel):
@@ -1275,6 +1292,7 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
         # o botão só onde ele funciona.
         ids = [r[0] for r in linhas]
         com_foto: set[int] = set()
+        com_filme: set[int] = set()
         if ids:
             cur.execute(
                 f"""SELECT evento_id FROM fotos_evento
@@ -1282,6 +1300,12 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
                 tuple(ids),
             )
             com_foto = {r[0] for r in cur.fetchall()}
+            cur.execute(
+                f"""SELECT evento_id FROM filmes_evento
+                    WHERE evento_id IN ({', '.join([m] * len(ids))})""",
+                tuple(ids),
+            )
+            com_filme = {r[0] for r in cur.fetchall()}
         # Atraso de entrega e esqueleto: os dois vivem fora da cadeia, e so
         # existem para eventos que vieram da AIBOX.
         atraso: dict[int, int] = {}
@@ -1306,7 +1330,9 @@ def listar(limite: int = 50, completo: int = 0) -> list[dict]:
         for r in linhas:
             ficha = {"id": r[0], "timestamp": str(r[1]), "aluno_id": r[2],
                      "tipo_evento": r[3], "localizacao": r[4],
-                     "hash_atual": r[5], "tem_foto": r[0] in com_foto,
+                     "hash_atual": r[5],
+                     "tem_foto": r[0] in com_foto or r[0] in com_filme,
+                     "tem_filme": r[0] in com_filme,
                      "tem_esqueleto": r[0] in com_esqueleto,
                      # Segundos entre o fato e o registro. So aparece quando
                      # passa de 2 s: abaixo disso e o tempo normal de rede.
@@ -1331,16 +1357,19 @@ def limpar_fotos() -> int:
     if FOTO_DIAS <= 0:
         return 0
     corte = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=FOTO_DIAS)
+    total = 0
     with cursor(escrita=True) as (cur, m):
-        cur.execute("SELECT evento_id, momento FROM fotos_evento")
-        velhas = []
-        for eid, mom in cur.fetchall():
-            q = mom if not isinstance(mom, str) else _ler_momento(mom)
-            if q is None or q < corte:
-                velhas.append(eid)
-        for eid in velhas:
-            cur.execute(f"DELETE FROM fotos_evento WHERE evento_id = {m}", (eid,))
-    return len(velhas)
+        for tabela in ("fotos_evento", "filmes_evento"):
+            cur.execute(f"SELECT evento_id, momento FROM {tabela}")
+            velhas = []
+            for eid, mom in cur.fetchall():
+                q = mom if not isinstance(mom, str) else _ler_momento(mom)
+                if q is None or q < corte:
+                    velhas.append(eid)
+            for eid in velhas:
+                cur.execute(f"DELETE FROM {tabela} WHERE evento_id = {m}", (eid,))
+            total += len(velhas)
+    return total
 
 
 @app.post("/api/foto")
@@ -1371,6 +1400,69 @@ def guardar_foto(f: Foto) -> dict:
         )
     limpar_fotos()
     return {"guardada": f.evento_id, "apaga_em_dias": FOTO_DIAS}
+
+
+def _evento_aceita_imagem(cur, m, evento_id: int) -> None:
+    cur.execute(f"SELECT tipo_evento FROM logs_seguranca_escola WHERE id = {m}",
+                (evento_id,))
+    linha = cur.fetchone()
+    if not linha:
+        raise HTTPException(404, "evento não existe")
+    if linha[0] not in GRAVES:
+        raise HTTPException(403, f"'{linha[0]}' não é evento grave")
+    if linha[0] in SEM_FOTO:
+        raise HTTPException(403, f"'{linha[0]}' não guarda imagem, por decisão")
+
+
+def _registrar_acesso(cur, m, evento_id: int, req: Request) -> int:
+    cur.execute(
+        f"""INSERT INTO acessos_foto (momento, evento_id, origem, agente)
+            VALUES ({m}, {m}, {m}, {m})""",
+        (agora_iso(), evento_id,
+         (req.client.host if req.client else "?")[:60],
+         req.headers.get("user-agent", "?")[:200]),
+    )
+    cur.execute(f"SELECT COUNT(*) FROM acessos_foto WHERE evento_id = {m}",
+                (evento_id,))
+    return cur.fetchone()[0]
+
+
+@app.post("/api/filme")
+def guardar_filme(f: Filme) -> dict:
+    """Os ultimos segundos antes do alerta, quadro a quadro, com toda cabeca ja
+    em mosaico pela caixa. As mesmas portas da foto: so evento grave, so JPEG,
+    e apaga sozinho em FOTO_DIAS."""
+    if not FOTOS:
+        raise HTTPException(403, "guarda de imagem desligada (FOTOS=0)")
+    if any(len(q) > FOTO_MAX or not q.startswith("data:image/jpeg;base64,")
+           for q in f.quadros):
+        raise HTTPException(400, "só JPEG em data URL, um por quadro")
+    with cursor(escrita=True) as (cur, m):
+        _evento_aceita_imagem(cur, m, f.evento_id)
+        cur.execute(f"DELETE FROM filmes_evento WHERE evento_id = {m}", (f.evento_id,))
+        cur.execute(
+            f"""INSERT INTO filmes_evento (evento_id, momento, fps, quadros)
+                VALUES ({m}, {m}, {m}, {m})""",
+            (f.evento_id, agora_iso(), f.fps, json.dumps(f.quadros)),
+        )
+    limpar_fotos()
+    return {"guardado": f.evento_id, "quadros": len(f.quadros), "apaga_em_dias": FOTO_DIAS}
+
+
+@app.get("/api/filme/{evento_id}")
+def ler_filme(evento_id: int, req: Request) -> dict:
+    """Devolve os quadros E registra a consulta, como a foto."""
+    limpar_fotos()
+    with cursor(escrita=True) as (cur, m):
+        cur.execute(f"SELECT quadros, fps, momento FROM filmes_evento WHERE evento_id = {m}",
+                    (evento_id,))
+        linha = cur.fetchone()
+        if not linha:
+            raise HTTPException(404, "sem filme para este evento (ou já venceu)")
+        vistas = _registrar_acesso(cur, m, evento_id, req)
+    return {"evento_id": evento_id, "quadros": json.loads(linha[0]),
+            "fps": float(linha[1]), "momento": str(linha[2]),
+            "consultas": vistas, "apaga_em_dias": FOTO_DIAS}
 
 
 @app.get("/api/esqueleto/{evento_id}")

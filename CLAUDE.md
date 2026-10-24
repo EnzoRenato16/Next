@@ -256,6 +256,19 @@ e o alerta leva os últimos 2,5 s (até 24 quadros × 17 pontos, ~8 KB), com o x
 rastro e o último quadro em vermelho. Fora da cadeia, como a foto, e sem
 registro de acesso: não identifica ninguém.
 
+## Foto e filme do alerta na câmera do PC (`aibox/foto.py`)
+
+No PC (sem `gst-launch-1.0`) a `sala.py` manda, em queda, briga e agitação, a
+foto do instante **e os últimos 10 s** (4 quadros/s, 480 px), com a cabeça de
+todos em mosaico, quadro a quadro; quadro sem cabeça medida fica de fora. Na
+AIBOX continua desligado (`FOTO=1` liga, `FOTO=0` desliga no PC). Servidor:
+`/api/filme`, tabela `filmes_evento`, mesmas regras da foto (só grave, apaga
+em `FOTO_DIAS`, consulta registrada). A Central toca o filme ao lado do
+esqueleto e para 2 s na foto do alerta. **Defeito de 24/10:** a foto pegava a
+cabeça dos pontos da TRILHA, que só existem com o corpo julgável; queda pela
+linha do chão, de corpo cortado, saía sem foto (a briga saía). Agora usa os
+pontos do detector daquele quadro.
+
 ## "Estou ciente" e a sirene (painel)
 
 Queda nova toma a tela inteira em ~1 s (a vigia pergunta a cada 2 s; a carga

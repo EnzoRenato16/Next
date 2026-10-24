@@ -138,6 +138,8 @@ def rodar(local, segundos, cabeca_y, com_quadril, foto, linha=None, tombo=False)
     sys.argv = ["sala.py", "--camera", "falsa", "--servidor", BASE, "--local", local,
                 "--segundos", str(segundos), "--web", str(porta)] + (["--foto"] if foto else [])
     os.environ["CALIBRACAO"] = "0"
+    # No PC a foto ja vem ligada (aibox/sala.py): o teste diz sempre o que quer.
+    os.environ["FOTO"] = "1" if foto else "0"
     sala.LINHA_ARQ = os.path.join("/tmp", f"linha-teste-{local}.txt")
     if linha is not None:
         with open(sala.LINHA_ARQ, "w") as f:
@@ -225,6 +227,60 @@ rodar(local3, 6, 0.80, com_quadril=False, foto=False, linha=0.70)
 evs3 = [e for e in eventos_de(local3) if e["tipo_evento"] == "queda"]
 ok("cabeca abaixo da linha acusa queda mesmo sem o quadril", len(evs3) >= 1,
    f"{len(evs3)} evento(s)")
+
+# O DEFEITO DE 24/10: a queda decidida pela linha, de corpo cortado, saia SEM
+# foto (a foto procurava a cabeca na trilha, que so guarda pontos de corpo
+# julgavel). A briga mandava, a queda nao. E com ela vem o filme.
+local3b = "linha-foto-" + str(int(time.time()))
+rodar(local3b, 13, 0.80, com_quadril=False, foto=True, linha=0.70)
+evs3b = [e for e in eventos_de(local3b) if e["tipo_evento"] == "queda"]
+ok("queda pela linha, corpo cortado, com --foto", len(evs3b) >= 1)
+if evs3b:
+    time.sleep(2.0)
+    eid = evs3b[-1]["id"]
+    try:
+        pegar(f"/api/foto/{eid}")
+        ok("e a foto chegou mesmo assim", True)
+    except Exception as e:
+        ok("e a foto chegou mesmo assim", False, str(e))
+    try:
+        fm = pegar(f"/api/filme/{eid}")
+        qs = fm["quadros"]
+        # A linha acusa ~2 s depois de a camera abrir: o filme so tem o que
+        # ja tinha passado. O teto de 10 s e cobrado mais abaixo.
+        ok("e o filme dos ultimos segundos tambem", len(qs) >= 5,
+           f"{len(qs)} quadros a {fm['fps']:g}/s")
+        piores = 0
+        for q in qs:
+            im = cv2.imdecode(np.frombuffer(base64.b64decode(q.split(",", 1)[1]),
+                                            np.uint8), 1)
+            A, L = im.shape[:2]
+            y = int(0.80 * A)
+            faixa = (slice(max(0, y - 10), y + 10), slice(int(0.47 * L), int(0.53 * L)))
+            ref = cv2.resize(quadro_com_rosto(0.80), (L, A), interpolation=cv2.INTER_AREA)
+            d = lambda x: float(np.abs(np.diff(x.astype(float), axis=1)).mean())
+            if d(im[faixa]) > d(ref[faixa]) * 0.35:
+                piores += 1
+        ok("e em TODO quadro do filme o rosto esta em mosaico", piores == 0,
+           f"{piores} quadro(s) com o rosto inteiro")
+        ok("o evento diz que tem filme",
+           any(e["id"] == eid and e.get("tem_filme") for e in eventos_de(local3b)))
+    except Exception as e:
+        ok("e o filme dos ultimos segundos tambem", False, str(e))
+
+print("\nO FILME GUARDA SO OS ULTIMOS 10 s")
+from aibox import foto as foto_mod  # noqa: E402
+fl = foto_mod.Filme(cv2)
+for i in range(30 * 60):                       # um minuto de camera a 30/s
+    fl.guardar(quadro_com_rosto(0.5), [pessoa(0.5)], i / 30)
+qs = fl.filme()
+esperado = int(foto_mod.FILME_S * foto_mod.FILME_FPS)
+ok("10 s a 4 por segundo, nem um quadro velho", qs and abs(len(qs) - esperado) <= 3,
+   f"{len(qs) if qs else 0} quadros (esperado ~{esperado})")
+fl2 = foto_mod.Filme(cv2)
+for i in range(60):
+    fl2.guardar(quadro_com_rosto(0.5), [], i / 4)
+ok("quadro sem cabeca medida NAO entra no filme", fl2.filme() is None)
 
 local4 = "linha-alta-" + str(int(time.time()))
 rodar(local4, 6, 0.30, com_quadril=False, foto=False, linha=0.70)
