@@ -707,9 +707,21 @@ def gravar_coleta(coleta, caminho, motor):
         return False, (f"so {len(bons)} amostra(s) parecidas com {coleta.nome} "
                        f"(notas {', '.join(f'{n:.2f}' for n in notas)}): outra pessoa "
                        "na frente da camera? Nada gravado")
-    total = galeria.gravar(coleta.nome, bons, True, caminho, motor=motor)
+    # Cheio ou quase: grava so o que cabe. Antes, passar do maximo derrubava
+    # a arena inteira com um ValueError (24/10, Samuel com 31 + 6).
+    cabe = galeria.MAX_POR_PESSOA - len(antes)
+    if cabe <= 0:
+        return False, (f"{coleta.nome} ja tem {len(antes)} amostras, o maximo "
+                       f"({galeria.MAX_POR_PESSOA}). Nada gravado")
+    cortadas = max(0, len(bons) - cabe)
+    bons = bons[:cabe]
+    try:
+        total = galeria.gravar(coleta.nome, bons, True, caminho, motor=motor)
+    except ValueError as e:
+        return False, f"{coleta.nome}: {e}. Nada gravado"
     return True, (f"{coleta.nome}: {total} amostras na galeria"
-                  + (f" ({fora} ficaram de fora: nao pareciam com {coleta.nome})" if fora else ""))
+                  + (f" ({fora} ficaram de fora: nao pareciam com {coleta.nome})" if fora else "")
+                  + (f" ({cortadas} nao couberam: limite {galeria.MAX_POR_PESSOA})" if cortadas else ""))
 
 
 # ---------------------------------------------------------- video fluido
