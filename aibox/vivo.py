@@ -191,9 +191,11 @@ class Vivo:
                            ram=0.0, corpos=0, enviados=0, falhas=0,
                            pendentes=0, ultimo_ms=None, video=0.0,
                            servidor="", imagem="", detalhe=None,
-                           cameras_n=1, usando=1, troca_msg="", pessoas=[])
+                           cameras_n=1, usando=1, troca_msg="", pessoas=[],
+                           linha=None)
         self.clientes = 0
         self._pedido = None         # camera pedida pela pagina, o laco aplica
+        self._linha_pedida = False  # a pagina mexeu na linha do chao?
         self._troca_ate = 0.0
         self._trava = threading.Lock()
         self._srv = ThreadingHTTPServer(("0.0.0.0", porta), _fabricar(self))
@@ -214,6 +216,18 @@ class Vivo:
     def cameras(self, n, usando):
         with self._trava:
             self.estado.update(cameras_n=n, usando=usando)
+
+    def linha(self, y):
+        """A pagina (ou a Central) marcou a linha do chao. None a tira."""
+        with self._trava:
+            self.estado["linha"] = y
+            self._linha_pedida = True
+
+    def linha_pedida(self):
+        """Houve mudanca na linha desde a ultima vez? (o laco aplica e grava)"""
+        with self._trava:
+            p, self._linha_pedida = self._linha_pedida, False
+            return (p, self.estado.get("linha"))
 
     def pedido_camera(self):
         """A camera que a pagina pediu (e esquece o pedido), ou None."""
@@ -293,7 +307,8 @@ class Pintor:
             if q is None or not self.janela.clientes:
                 continue          # ninguem olhando: custo zero
             t0 = time.monotonic()
-            img = desenhar(self.cv2, q.copy(), self.trilhas)
+            img = desenhar(self.cv2, q.copy(), self.trilhas,
+                           linha=self.janela.estado.get("linha"))
             feito, buf = self.cv2.imencode(".jpg", img,
                                            [int(self.cv2.IMWRITE_JPEG_QUALITY), 70])
             if feito:
@@ -309,6 +324,9 @@ class Pintor:
             resto = self.intervalo - (time.monotonic() - t0)
             if resto > 0:
                 time.sleep(resto)
+
+
+LINHA_COR = (90, 108, 224)      # BGR do mesmo vermelho-telha do navegador
 
 
 def _fabricar(vivo):
@@ -336,7 +354,16 @@ def _fabricar(vivo):
         def do_POST(self):
             # So a troca de camera. Fica na caixa (e nao no servidor do PC)
             # porque e a caixa que abre a camera.
-            if not self.path.startswith("/camera"):
+            if self.path.startswith("/linha"):
+                try:
+                    n = int(self.headers.get("Content-Length") or 0)
+                    y = json.loads(self.rfile.read(n) or b"{}").get("y")
+                    y = None if y is None else min(0.98, max(0.05, float(y)))
+                    vivo.linha(y)
+                    corpo, cod = b'{"ok": true}', 200
+                except Exception:
+                    corpo, cod = b'{"erro": "altura invalida"}', 400
+            elif not self.path.startswith("/camera"):
                 corpo, cod = b'{"erro": "rota desconhecida"}', 404
             else:
                 try:
@@ -410,9 +437,17 @@ def _fabricar(vivo):
     return Mao
 
 
-def desenhar(cv2, img, trilhas, conf_min=0.30):
+def desenhar(cv2, img, trilhas, conf_min=0.30, linha=None):
     """O esqueleto por cima do quadro. Vermelho = relogio de queda armado."""
     alt, larg = img.shape[:2]
+    if linha is not None:
+        # A LINHA DO CHAO, DESENHADA. Uma regra invisivel que decide alerta e
+        # uma regra que ninguem consegue conferir nem corrigir.
+        y = int(linha * alt)
+        for x in range(0, larg, max(8, larg // 60)):
+            cv2.line(img, (x, y), (min(larg, x + larg // 90), y), LINHA_COR, 2)
+        cv2.putText(img, "linha do chao", (8, max(14, y - 8)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.45, LINHA_COR, 1, cv2.LINE_AA)
     for t in trilhas:
         kp = getattr(t, "_kp", None)
         if not kp:

@@ -37,14 +37,44 @@ PERTO_OMBROS = 0.30
 CORTADO_QUADRIL = 0.92
 
 
-def perto_ou_cortado(kp):
+def perto(kp):
+    """Colado na camera: ombros ocupando mais de 30% da largura do quadro."""
     c = medidas.CONF_MIN
     oe, od = kp[medidas.OMBRO_E], kp[medidas.OMBRO_D]
-    if oe[2] >= c and od[2] >= c and abs(oe[0] - od[0]) > PERTO_OMBROS:
+    return oe[2] >= c and od[2] >= c and abs(oe[0] - od[0]) > PERTO_OMBROS
+
+
+def perto_ou_cortado(kp):
+    if perto(kp):
         return True
+    c = medidas.CONF_MIN
     je, jd = kp[medidas.JOELHO_E], kp[medidas.JOELHO_D]
     qy = max(kp[medidas.QUADRIL_E][1], kp[medidas.QUADRIL_D][1])
     return je[2] < c and jd[2] < c and qy > CORTADO_QUADRIL
+
+
+# ---- a linha do chao -------------------------------------------------------
+# Marcada na propria imagem (pagina ao vivo / Central): cabeca ABAIXO dela por
+# LINHA_SEG = alguem no chao. E a unica regra que NAO precisa do quadril, e por
+# isso decide sozinha e ANTES: cabeca no chao e justamente o enquadramento em
+# que o quadril some. Mesma ideia do navegador (auditix-sala.html).
+LINHA_CHAO = None     # 0 a 1 da altura do quadro, ou None (desligada)
+LINHA_SEG = 400       # ms com a cabeca abaixo antes de acusar
+
+
+def cabeca_y(kp):
+    """A altura da cabeca no quadro: nariz, ou o meio dos ombros."""
+    c = medidas.CONF_MIN
+    if kp[medidas.NARIZ][2] >= c:
+        return kp[medidas.NARIZ][1]
+    oe, od = kp[medidas.OMBRO_E], kp[medidas.OMBRO_D]
+    if oe[2] >= c and od[2] >= c:
+        return (oe[1] + od[1]) / 2
+    if oe[2] >= c:
+        return oe[1]
+    if od[2] >= c:
+        return od[1]
+    return None
 QUEDA_AMOSTRAS = 8
 QUEDA_PISO = 4        # piso duro do piso: ver _piso_rede
 
@@ -102,6 +132,8 @@ class Trilha:
         self.foraDoTreino = 0.0
         self.analisavel = False
         self.kp = None
+        self.cabecaY = None
+        self.linhaDesde = 0
         self.parado = False
         self.fps = 0
         self.pisoRede = QUEDA_AMOSTRAS
@@ -122,6 +154,7 @@ class Trilha:
     def ver(self, kp, asp, agora):
         """Um quadro de 17 pontos. Devolve a lista de alertas deste quadro."""
         self.visto = agora
+        alertas_linha = self._linha(kp, agora)
         g = medidas.geometria(kp, asp)
         if g is not None and perto_ou_cortado(kp):
             # Webcam de PC a meio metro: o quadril sai inventado, a caixa fica
@@ -136,7 +169,7 @@ class Trilha:
             self.kp = None
             self.quedaDesde = self.correDesde = 0
             self.qx = self.qy = self.ox = self.oy = None
-            return []
+            return alertas_linha
         self.analisavel = True
         self.kp = [tuple(p[:3]) for p in kp]   # para a briga
         self.regua = g["regua"]
@@ -158,10 +191,32 @@ class Trilha:
         self.oy = (kp[medidas.OMBRO_E][1] + kp[medidas.OMBRO_D][1]) / 2
 
         self._parado(agora)
-        alertas = []
-        alertas += self._queda(agora)
+        alertas = list(alertas_linha)
+        if not alertas_linha:
+            alertas += self._queda(agora)
         alertas += self._corrida(agora, asp)
         return alertas
+
+    # -- a linha do chao ----------------------------------------------------
+    def _linha(self, kp, agora):
+        """Cabeca abaixo da linha por LINHA_SEG = queda, sem precisar do tronco.
+
+        Perto demais da camera nao conta: a cabeca de quem esta colado na lente
+        cai abaixo de qualquer linha sem ninguem ter caido."""
+        y = cabeca_y(kp)
+        self.cabecaY = y
+        if LINHA_CHAO is None or y is None or y <= LINHA_CHAO or perto(kp):
+            self.linhaDesde = 0
+            return []
+        if not self.linhaDesde:
+            self.linhaDesde = agora
+            return []
+        if agora - self.linhaDesde <= LINHA_SEG:
+            return []
+        return self._anomalia(
+            "queda", agora,
+            f"linha do chao: cabeca a {y * 100:.0f}% do quadro, abaixo da "
+            f"linha a {LINHA_CHAO * 100:.0f}%")
 
     # -- parado -------------------------------------------------------------
     def _parado(self, agora):

@@ -231,6 +231,23 @@ Saiu a exigência de golpe rápido e de dois impulsos. Mais sensível de
 propósito: abraço, aperto de mão e um na frente do outro na imagem também
 acusam. Igual em `regras.py`; `testes/briga-toque.mjs` roda os dois lados.
 
+**A foto do alerta também pela câmera, com `--foto` (24/10).** `aibox/foto.py`
+desenha o quadro inteiro com a cabeça de TODA pessoa em mosaico (a cabeça sai
+dos pontos que o YOLO já mediu, nenhum detector novo) e a moldura em quem
+disparou. A imagem vai DEPOIS do evento, pela mesma fila (`entrega.py`), e uma
+recusa não se repete nem segura uma queda atrás dela. Sem cabeça medida, nada
+sai. Desligado por padrão: na escola a caixa continua sem mandar imagem.
+`FOTO=1` no `.env` também liga.
+
+**A linha do chão agora também na câmera.** `regras.LINHA_CHAO` decide ANTES do
+quadril e sozinha (cabeça abaixo dela por 0,4 s), menos para quem está perto
+demais da lente. Marcada com um clique na Central ("Marcar a linha do chão",
+POST `/linha` na caixa), desenhada no vídeo pela própria caixa — a Central não
+desenha outra por cima — e lembrada em `linha-chao.txt` (fora do Git), ou
+`LINHA_CHAO` no `.env`. `testes/foto_linha_lado.py` cobra os dois de ponta a
+ponta: o detalhe do rosto destruído (listras finas somem) e a queda acusada com
+o corpo cortado no quadro.
+
 ## Prova sem rosto (`esqueletos`)
 
 A AIBOX não manda foto. Cada trilha carrega 3 s de pontos (`trilhas.POSES_MS`)

@@ -112,6 +112,10 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
 .palco.pc::after,.palco.pc .varre,.palco.pc .canto,.palco.pc .hud .h-bl,.palco.pc .hud .h-br{display:none}
 .palco.pc .hud{z-index:2}
 .pc-modo .so-caixa{display:none!important}
+.marcalinha{position:absolute;inset:0;cursor:crosshair;z-index:4;background:rgba(5,10,9,.25)}
+.marcalinha span{position:absolute;left:12px;top:10px;font-size:12px;color:#E06C5A;
+  background:rgba(5,10,9,.75);padding:3px 8px;border-radius:6px}
+
 .fonte{display:inline-flex;gap:0;border:1px solid var(--linha-2);border-radius:10px;overflow:hidden}
 .fonte .btn{border:0;border-radius:0;background:var(--fundo-2)}
 .fonte .btn[aria-pressed="true"]{background:var(--verde-luz);color:var(--verde-forte)}
@@ -341,6 +345,11 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
              sirene e "Estou ciente". Tudo offline (vendor/). -->
         <iframe id="pc" title="sala pela webcam deste PC" allow="camera; microphone; fullscreen" hidden></iframe>
         <div class="varre"></div>
+        <!-- MARCAR A LINHA DO CHAO: um clique na altura do chao, na propria
+             imagem. A regra fica na caixa (aibox/regras.py); aqui so se diz
+             onde. Sem isto ela so existiria no .env, e ninguem acertaria a
+             altura de cabeca. -->
+        <div class="marcalinha" id="marcalinha" hidden><span>clique na altura do chão</span></div>
         <span class="canto a"></span><span class="canto b"></span><span class="canto c"></span><span class="canto d"></span>
         <div class="hud">
           <div class="c h-tl"><span class="vivo-tag" id="tag-vivo"><i></i>AO VIVO</span><span id="hud-cam">câmera 1</span></div>
@@ -365,6 +374,8 @@ main{padding:20px 22px 40px;max-width:1680px;margin:0 auto}
         <span id="cams"><button class="btn" disabled>câmera 1</button></span>
         <em id="cams-msg"></em></span>
         <span class="dir">
+          <button class="btn so-caixa" id="b-linha" type="button"
+            title="A linha do chão: cabeça abaixo dela por 0,4 s é queda, mesmo com o corpo cortado no quadro">Marcar a linha do chão</button>
           <a class="btn so-caixa" id="l-caixa" target="_blank" rel="noopener">Abrir na caixa ↗</a>
           <button class="btn" id="b-cheia">Tela cheia</button>
         </span>
@@ -496,6 +507,8 @@ const el = id => document.getElementById(id);
    Chave PROPRIA: 'auditix.fonte' e da Sala (o endereco da camera IP), e com
    'webcam' gravado nela a Sala tentava abrir uma camera IP chamada webcam. */
 let fonte = 'caixa';
+let linhaAgora = null;      // a linha do chão que a caixa está usando
+let marcando = false;       // esperando o clique na altura do chão
 try{ if(localStorage.getItem('auditix.central.fonte') === 'webcam') fonte = 'webcam'; }catch(e){}
 
 /* ======================================================== vocabulário ==== */
@@ -661,6 +674,11 @@ async function lerCaixa(){
     : e.pendentes ? '<span style="color:var(--ambar)">' + e.pendentes + ' na fila, reenviando</span>' : 'todos chegaram ao servidor';
 
   pintarGente(e.pessoas);
+  /* A linha mora na CAIXA: a tela so reflete o que ela diz, para duas
+     Centrais abertas nao discordarem. */
+  if(!marcando && e.linha !== undefined && e.linha !== linhaAgora){
+    linhaAgora = e.linha; pintarLinhaChao(linhaAgora);
+  }
 
   /* Escolher a camera: so com duas. A sala analisa uma por vez. */
   if(e.cameras_n > 1){
@@ -679,6 +697,31 @@ async function lerCaixa(){
     el('cams').innerHTML = '<button class="btn" aria-pressed="true" disabled>câmera 1</button>';
   }
 }
+/* ------------------------------------------------- a linha do chao ------- */
+/* QUEM DESENHA A LINHA E A CAIXA, no proprio video (aibox/vivo.py). A Central
+   desenhar outra por cima daria duas linhas na tela — e, pior, a de cima
+   seria a que a Central ACHA, nao a que a analise usa. Aqui so o botao. */
+function pintarLinhaChao(y){
+  el('b-linha').textContent = marcando ? 'Cancelar' : y == null ? 'Marcar a linha do chão' : 'Tirar a linha';
+}
+async function mandarLinha(y){
+  try{
+    await fetch(caixa + '/linha', {method:'POST', headers:{'Content-Type':'text/plain'},
+                                   body: JSON.stringify({y})});
+  }catch(e){ el('cams-msg').textContent = 'a caixa não respondeu'; }
+  pintarLinhaChao(y);
+}
+el('b-linha').addEventListener('click', () => {
+  if(marcando){ marcando = false; el('marcalinha').hidden = true; pintarLinhaChao(linhaAgora); return; }
+  if(linhaAgora != null){ linhaAgora = null; mandarLinha(null); return; }
+  marcando = true; el('marcalinha').hidden = false; pintarLinhaChao(linhaAgora);
+});
+el('marcalinha').addEventListener('click', ev => {
+  const r = el('palco').getBoundingClientRect();
+  linhaAgora = Math.min(0.98, Math.max(0.05, (ev.clientY - r.top) / r.height));
+  marcando = false; el('marcalinha').hidden = true;
+  mandarLinha(linhaAgora);
+});
 el('cams').addEventListener('click', async ev => {
   const b = ev.target.closest('button[data-camera]');
   if(!b || b.disabled) return;

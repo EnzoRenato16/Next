@@ -44,7 +44,8 @@ RAIZ = os.path.dirname(AQUI)
 if RAIZ not in sys.path:
     sys.path.insert(0, RAIZ)
 
-from aibox import batimento, custo, olho as olho_mod, trilhas, vivo as vivo_mod  # noqa: E402
+from aibox import batimento, custo, foto as foto_mod, olho as olho_mod  # noqa: E402
+from aibox import trilhas, vivo as vivo_mod  # noqa: E402
 from aibox import rede as rede_queda, regras  # noqa: E402
 
 LOTE_CALIB = 200           # o servidor recusa acima de 500
@@ -166,6 +167,37 @@ class UltimoQuadro:
 from aibox.entrega import Fala  # noqa: E402
 
 
+LINHA_ARQ = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "linha-chao.txt")
+
+
+def ler_linha():
+    """A linha do chao marcada da ultima vez (ou LINHA_CHAO no .env)."""
+    try:
+        with open(LINHA_ARQ) as f:
+            t = f.read().strip()
+        return min(0.98, max(0.05, float(t))) if t else None
+    except Exception:
+        t = os.environ.get("LINHA_CHAO", "").strip()
+        try:
+            return min(0.98, max(0.05, float(t))) if t else None
+        except ValueError:
+            return None
+
+
+def gravar_linha(y):
+    try:
+        with open(LINHA_ARQ, "w") as f:
+            f.write("" if y is None else f"{y:.4f}")
+    except Exception as e:
+        print(f"[aibox] nao consegui lembrar a linha do chao: {e}")
+
+
+# Os tipos que o servidor aceita guardar imagem (GRAVES menos SEM_FOTO la).
+# Pedido de ajuda nao guarda imagem, por decisao: quem pede ajuda nao vira foto.
+FOTO_TIPOS = {"queda", "briga", "agitacao", "objeto_perigoso"}
+
+
 def amostra_de(t, alertou, ms_rede, ms_analise):
     return dict(
         corpo=t.id, fps=float(t.fps), analisavel=1 if t.analisavel else 0,
@@ -244,6 +276,15 @@ def main():
     # Ligue e compare a linha do --mostrar (analise/s) com e sem ele.
     p.add_argument("--fluido", action="store_true",
                    help="imagem ao vivo no ritmo da camera (custa CPU; meca)")
+    # A FOTO DO ALERTA. Na escola a caixa nao manda imagem, e e de proposito:
+    # os pontos do corpo bastam para auditar uma queda e nao identificam
+    # ninguem. Com a camera do proprio grupo, no estande, ver a cena ajuda —
+    # entao a imagem sai, sempre com a cabeca de TODOS em mosaico, e so
+    # ligada a mao. FOTO=1 no .env tambem liga.
+    p.add_argument("--foto", action="store_true",
+                   default=os.environ.get("FOTO", "").strip().lower()
+                   in ("1", "sim", "true"),
+                   help="manda a imagem do alerta, com o rosto de todos em mosaico")
     p.add_argument("--rosto", action="store_true",
                    help="reconhece quem esta cadastrado (usa o motor de daten/)")
     # O BALCAO DE CADASTRO so liga se existir CAMERA_CADASTRO no .env: e a
@@ -276,6 +317,9 @@ def main():
     else:
         de_onde = str(fonte)
     print(f"[aibox] olho: {a.olho}   camera: {de_onde}")
+    if a.foto:
+        print("[aibox] foto do alerta LIGADA: a imagem vai com a cabeca de "
+              "todos em mosaico (so queda, briga e agitacao)")
     # ANTES de carregar o modelo: as threads do ONNX Runtime herdam o nucleo
     # de quem as cria. Ver aibox/nucleos.py — e so ligue depois de medir.
     if os.environ.get("NUCLEOS", "").strip().lower() == "grandes":
@@ -319,9 +363,17 @@ def main():
             # A analise da sala nao depende disto: segue sem ele, dizendo.
             print(f"[aibox] balcao de cadastro DESLIGADO: {e}")
 
+    # A LINHA DO CHAO, lembrada entre execucoes. Marcada na imagem (Central ou
+    # pagina ao vivo) e gravada num arquivo ao lado do codigo: quem marcou no
+    # ensaio nao precisa marcar de novo na hora da apresentacao.
+    regras.LINHA_CHAO = ler_linha()
     janela = None
     if a.web:
         janela = vivo_mod.Vivo(a.web)
+        if regras.LINHA_CHAO is not None:
+            janela.linha(regras.LINHA_CHAO)
+            janela.linha_pedida()      # ja esta aplicada: nao gravar de novo
+            print(f"[aibox] linha do chao a {regras.LINHA_CHAO * 100:.0f}% da altura")
         print(f"[aibox] imagem ao vivo em http://<ip-da-caixa>:{a.web}")
 
     import cv2
@@ -382,6 +434,13 @@ def main():
             if a.segundos and time.monotonic() - t0 >= a.segundos:
                 print(f"[aibox] {a.segundos:.0f}s cumpridos, encerrando.")
                 break
+            if janela is not None:
+                mudou, y = janela.linha_pedida()
+                if mudou:
+                    regras.LINHA_CHAO = y
+                    gravar_linha(y)
+                    print("[aibox] linha do chao " +
+                          (f"a {y * 100:.0f}% da altura" if y is not None else "tirada"))
             pedido = janela.pedido_camera() if janela is not None else None
             if pedido is not None:
                 agora_s = time.monotonic()
@@ -484,8 +543,14 @@ def main():
                 dono = rebanho.trilhas.get(al["corpo"])
                 poses = (trilhas.poses_da_prova(dono, agora, asp)
                          if dono is not None else None)
+                # A IMAGEM DO INSTANTE, so com --foto e so em evento grave, com
+                # a cabeca de todo mundo em mosaico (aibox/foto.py). Recortada
+                # AGORA: um segundo adiante a pessoa ja se mexeu.
+                img_alerta = (foto_mod.do_alerta(cv2, img,
+                                                 list(rebanho.trilhas.values()), dono)
+                              if a.foto and al["tipo"] in FOTO_TIPOS else None)
                 fala.evento(al["tipo"], al["corpo"], quem, poses=poses,
-                            t_quadro=t_quadro)
+                            t_quadro=t_quadro, foto=img_alerta)
                 print(f"[{al['tipo'].upper()}] {quem or 'corpo #' + str(al['corpo'])}"
                       f" — {al['porque']}")
 
@@ -539,7 +604,8 @@ def main():
                     janela.numeros(numeros)
                 else:
                     pintado = vivo_mod.desenhar(cv2, img.copy(),
-                                                list(rebanho.trilhas.values()))
+                                                list(rebanho.trilhas.values()),
+                                                linha=regras.LINHA_CHAO)
                     feito, buf = cv2.imencode(".jpg", pintado,
                                               [int(cv2.IMWRITE_JPEG_QUALITY), 70])
                     if feito:

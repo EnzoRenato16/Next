@@ -78,14 +78,19 @@ class Fala:
         with self._trava:
             return sum(1 for i in self._fila if i["tipo"] == "evento")
 
-    def evento(self, tipo, corpo, quem=None, poses=None, t_quadro=None):
-        """Entrega um alerta. Volta na hora; quem espera a rede e a thread."""
+    def evento(self, tipo, corpo, quem=None, poses=None, t_quadro=None, foto=None):
+        """Entrega um alerta. Volta na hora; quem espera a rede e a thread.
+
+        `foto` e a imagem do instante, ja com o rosto em mosaico, numa data URL
+        de JPEG. Ela vai DEPOIS e por fora: o evento ja esta na cadeia, e se o
+        servidor recusar a imagem (guarda desligada, tipo nao grave) o registro
+        continua de pe. O alerta nunca depende da imagem."""
         agora = time.monotonic()
         dados = dict(aluno_id=(quem or f"corpo-{corpo}")[:50], tipo_evento=tipo,
                      localizacao=self.camera, chave=uuid.uuid4().hex)
         if poses:
             dados["poses"] = poses
-        self._por(dict(tipo="evento", rota="/api/evento", dados=dados,
+        self._por(dict(tipo="evento", rota="/api/evento", dados=dados, foto=foto,
                        criado=agora, t_quadro=t_quadro or agora, tentativas=0))
         return True
 
@@ -149,12 +154,25 @@ class Fala:
                     self.ultimo_ms = (time.monotonic() - item["t_quadro"]) * 1000
                     if isinstance(resposta, dict) and resposta.get("repetido"):
                         self.repetidos += 1
+                    ident = resposta.get("id") if isinstance(resposta, dict) else None
+                    if item.get("foto") and ident:
+                        # A imagem so sabe o numero do evento DEPOIS da resposta.
+                        self._por(dict(tipo="foto", rota="/api/foto",
+                                       dados=dict(evento_id=ident, imagem=item["foto"]),
+                                       criado=time.monotonic(), t_quadro=None,
+                                       tentativas=0))
                     if item["tentativas"]:
                         self.atrasados += 1
                         print(f"[aibox] alerta entregue depois de "
                               f"{item['tentativas']} tentativa(s), "
                               f"{corpo['ocorreu_ha_ms'] / 1000:.0f} s atrasado",
                               flush=True)
+                continue
+
+            if item["tipo"] == "foto" and codigo >= 300:
+                # Imagem recusada ou rede fora: NAO se repete e nao prende a
+                # fila na frente de uma queda. O evento ja esta gravado.
+                self._tirar(item)
                 continue
 
             if 400 <= codigo < 500:
@@ -173,7 +191,7 @@ class Fala:
                 continue
 
             # Rede fora ou servidor com defeito (5xx): o alerta FICA.
-            if item["tipo"] == "calib":
+            if item["tipo"] in ("calib", "foto"):
                 self._tirar(item)
                 continue
             item["tentativas"] += 1
