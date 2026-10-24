@@ -28,7 +28,9 @@ RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PADRAO = os.environ.get("GALERIA") or os.path.join(RAIZ, "arena", "galeria.json")
 # Por pessoa. Mais amostras so deixa a comparacao mais lenta sem ganho: o que
 # ajuda e variedade de angulo, e 24 cobre fotos e uma passada pela camera.
-MAX_POR_PESSOA = 24
+# 36 desde 24/10: fotos tiradas NO LOCAL do evento (a luz de la) entram por
+# cima das 24 de antes. GALERIA_MAX no ambiente muda.
+MAX_POR_PESSOA = int(os.environ.get("GALERIA_MAX", "36"))
 DIM = {"sface": 128, "arcface": 512}
 
 
